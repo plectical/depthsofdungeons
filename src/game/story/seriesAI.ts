@@ -143,7 +143,10 @@ async function generateImage(
 ): Promise<string | null> {
   try {
     // Pre-check authentication
-    if (RundotGameAPI.accessGate.isAnonymous()) {
+    const isAnon = RundotGameAPI.accessGate.isAnonymous();
+    console.log('[AI] generateImage called, isAnonymous:', isAnon);
+    
+    if (isAnon) {
       console.warn('[AI] Cannot generate image - user not logged in');
       return null;
     }
@@ -153,6 +156,8 @@ async function generateImage(
     if (options.referenceImages?.length) {
       console.log('[AI] Using reference images:', options.referenceImages);
     }
+    
+    console.log('[AI] Calling RundotGameAPI.imageGen.generate...');
     const result = await RundotGameAPI.imageGen.generate({
       prompt,
       model: options.model ?? DEFAULT_IMAGE_MODEL,
@@ -165,10 +170,11 @@ async function generateImage(
     return result.imageUrl;
   } catch (e: unknown) {
     const errorName = (e as { name?: string })?.name;
+    const errorMessage = (e as { message?: string })?.message;
     if (errorName === 'AccessDeniedError') {
       console.warn('[AI] Image generation blocked - login required');
     } else {
-      console.error('[AI] Series AI image generation failed:', e);
+      console.error('[AI] Series AI image generation failed:', errorName, errorMessage, e);
     }
     return null;
   }
@@ -1239,11 +1245,20 @@ STYLE REQUIREMENTS:
    - NO text, labels, or writing of any kind`;
 
   console.log('[AI] Generating pixel art for room event:', eventName);
-  return generateImage(pixelArtPrompt, {
-    aspectRatio: '1:1',
-    removeBackground: false,
-    referenceImages: [PORTRAIT_STYLE_REFERENCE],
-  });
+  console.log('[AI] Room event prompt length:', pixelArtPrompt.length);
+  
+  try {
+    const result = await generateImage(pixelArtPrompt, {
+      aspectRatio: '1:1',
+      removeBackground: false,
+      referenceImages: [PORTRAIT_STYLE_REFERENCE],
+    });
+    console.log('[AI] Room event image generation result:', result ? 'success' : 'null');
+    return result;
+  } catch (err) {
+    console.error('[AI] Room event image generation error:', err);
+    return null;
+  }
 }
 
 // Generate pixel art for room events (uses shared content pool)
@@ -1251,7 +1266,14 @@ export async function generateRoomEventArt(
   eventName: string,
   artPrompt: string
 ): Promise<string | null> {
-  return fetchOrGenerateImageUrl(
+  console.log('[RoomEvent] generateRoomEventArt called:', { eventName, artPrompt: artPrompt?.substring(0, 50) });
+  
+  if (!artPrompt) {
+    console.warn('[RoomEvent] No artPrompt provided for:', eventName);
+    artPrompt = `A dungeon scene depicting: ${eventName}`;
+  }
+  
+  const result = await fetchOrGenerateImageUrl(
     'room_event_art',
     { 
       event: eventName || 'unknown_event'
@@ -1261,6 +1283,9 @@ export async function generateRoomEventArt(
       appearancePrompt: artPrompt
     }
   );
+  
+  console.log('[RoomEvent] generateRoomEventArt result:', result ? 'has URL' : 'null');
+  return result;
 }
 
 // Generate a quest from a character

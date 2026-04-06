@@ -135,33 +135,57 @@ export async function fetchOrGenerate<T extends PooledContent>(
   generateFn: () => Promise<T | null>,
   title?: string
 ): Promise<T | null> {
+  console.log(`[ContentPool] fetchOrGenerate called for ${contentType}, poolEnabled:`, isPoolEnabled());
+  
   if (!isPoolEnabled()) {
-    return generateFn();
+    console.log(`[ContentPool] Pool disabled, calling generateFn directly for ${contentType}`);
+    try {
+      const result = await generateFn();
+      console.log(`[ContentPool] Direct generation result for ${contentType}:`, result ? 'success' : 'null');
+      return result;
+    } catch (err) {
+      console.error(`[ContentPool] Direct generation error for ${contentType}:`, err);
+      return null;
+    }
   }
 
   const shouldGenerateFresh = Math.random() * 100 < FRESH_GENERATION_PERCENT;
   
   if (shouldGenerateFresh) {
     console.log(`[ContentPool] Rolling fresh generation for ${contentType} (${FRESH_GENERATION_PERCENT}% chance)`);
-    const fresh = await generateFn();
-    if (fresh) {
-      saveToPool(contentType, tags, fresh, title).catch(() => {});
+    try {
+      const fresh = await generateFn();
+      console.log(`[ContentPool] Fresh generation result for ${contentType}:`, fresh ? 'success' : 'null');
+      if (fresh) {
+        saveToPool(contentType, tags, fresh, title).catch(() => {});
+      }
+      return fresh;
+    } catch (err) {
+      console.error(`[ContentPool] Fresh generation error for ${contentType}:`, err);
+      return null;
     }
-    return fresh;
   }
 
+  console.log(`[ContentPool] Trying pool first for ${contentType}`);
   const pooled = await fetchFromPool<T>(contentType, tags);
   if (pooled) {
+    console.log(`[ContentPool] Found in pool for ${contentType}:`, pooled.entryId);
     recordPoolUse(pooled.entryId).catch(() => {});
     return pooled.data;
   }
 
   console.log(`[ContentPool] Pool empty for ${contentType}, generating fresh`);
-  const fresh = await generateFn();
-  if (fresh) {
-    saveToPool(contentType, tags, fresh, title).catch(() => {});
+  try {
+    const fresh = await generateFn();
+    console.log(`[ContentPool] Fallback generation result for ${contentType}:`, fresh ? 'success' : 'null');
+    if (fresh) {
+      saveToPool(contentType, tags, fresh, title).catch(() => {});
+    }
+    return fresh;
+  } catch (err) {
+    console.error(`[ContentPool] Fallback generation error for ${contentType}:`, err);
+    return null;
   }
-  return fresh;
 }
 
 export async function fetchOrGenerateImageUrl(
@@ -170,15 +194,21 @@ export async function fetchOrGenerateImageUrl(
   generateFn: () => Promise<string | null>,
   additionalData?: Partial<PooledPortrait>
 ): Promise<string | null> {
+  console.log(`[ContentPool] fetchOrGenerateImageUrl called for ${contentType}`, tags);
+  
   const result = await fetchOrGenerate<PooledPortrait>(
     contentType,
     tags,
     async () => {
+      console.log(`[ContentPool] Calling generation function for ${contentType}`);
       const imageUrl = await generateFn();
+      console.log(`[ContentPool] Generation function returned:`, imageUrl ? 'URL' : 'null');
       if (!imageUrl) return null;
       return { imageUrl, ...additionalData } as PooledPortrait;
     }
   );
+  
+  console.log(`[ContentPool] fetchOrGenerateImageUrl result for ${contentType}:`, result?.imageUrl ? 'has URL' : 'null');
   return result?.imageUrl || null;
 }
 

@@ -2129,14 +2129,18 @@ export function Game() {
       // No cached art, generate on-demand
       setIsGeneratingRoomEventArt(true);
       try {
-        console.log('[RoomEvent] Generating art on-demand for:', event.name);
+        console.log('[RoomEvent] Generating art on-demand for:', event.name, 'prompt:', event.artPrompt?.substring(0, 50));
         
         const artUrl = await generateRoomEventArt(event.name, event.artPrompt);
         
         if (artUrl) {
-          console.log('[RoomEvent] Art generated, preloading...');
-          await preloadImage(artUrl);
-          console.log('[RoomEvent] Art loaded');
+          console.log('[RoomEvent] Art generated successfully:', artUrl.substring(0, 50));
+          try {
+            await preloadImage(artUrl);
+            console.log('[RoomEvent] Art preloaded');
+          } catch (preloadErr) {
+            console.warn('[RoomEvent] Art preload failed but continuing:', preloadErr);
+          }
           
           // Cache it for future use
           cacheRoomEventArt(event.id, artUrl);
@@ -2147,11 +2151,13 @@ export function Game() {
             next.pendingRoomEvent.artUrl = artUrl;
           }
           setState(next);
+        } else {
+          console.warn('[RoomEvent] Art generation returned null for:', event.name);
         }
         
         setShowRoomEvent(true);
       } catch (err) {
-        console.error('[RoomEvent] Art generation failed:', err);
+        console.error('[RoomEvent] Art generation failed with error:', err);
         // Show the event anyway without art
         setShowRoomEvent(true);
       } finally {
