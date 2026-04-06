@@ -1705,6 +1705,7 @@ export function Game() {
     let shouldStartCombat = result.combatStart || false;
     let isPeaceful = result.peacefulEnd || false;
     let combatAdvantage = 0;
+    const isEnragedCombat = result.enragedCombat || false;
     
     // Process effects from the dialogue
     for (const effect of result.effects) {
@@ -1823,8 +1824,21 @@ export function Game() {
     if (shouldStartCombat) {
       const enemy = next.monsters.find(m => m.id === pendingEnemyId);
       if (enemy && !enemy.isDead) {
-        // Apply advantage as damage bonus on first hit (handled in engine)
-        addMessage(next, `Combat begins with ${enemy.name}!`, '#ff6644');
+        // Check if enemy is enraged (offended) - buff them significantly!
+        if (isEnragedCombat) {
+          // ENRAGED: +50% damage, +25% HP, +5 defense
+          const hpBoost = Math.floor(enemy.stats.maxHp * 0.25);
+          enemy.stats.maxHp += hpBoost;
+          enemy.stats.hp += hpBoost;
+          enemy.stats.attack = Math.floor(enemy.stats.attack * 1.5);
+          enemy.stats.defense += 5;
+          // Change color to indicate rage
+          enemy.color = '#ff2222';
+          addMessage(next, `${enemy.name} is ENRAGED! They attack with fury!`, '#ff2222');
+          addMessage(next, `Their rage makes them stronger and deadlier!`, '#ff4444');
+        } else {
+          addMessage(next, `Combat begins with ${enemy.name}!`, '#ff6644');
+        }
       }
     } else if (isPeaceful) {
       // Peaceful resolution - mark enemy as befriended (NOT dead!)
@@ -1852,6 +1866,8 @@ export function Game() {
         portraitUrl: enemyEncounterData.portraitUrl,
         summary: isPeaceful 
           ? `You resolved your encounter with ${enemyEncounterData.characterName || enemyEncounterData.enemyName} peacefully.`
+          : isEnragedCombat
+          ? `You offended ${enemyEncounterData.characterName || enemyEncounterData.enemyName}, triggering their fury!`
           : shouldStartCombat
           ? `You entered combat with ${enemyEncounterData.characterName || enemyEncounterData.enemyName}.`
           : `You encountered ${enemyEncounterData.characterName || enemyEncounterData.enemyName}.`,

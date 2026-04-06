@@ -56,6 +56,7 @@ export interface DialogueResult {
   skillCheckResults: SkillCheckResult[];
   peacefulEnd: boolean;
   combatStart: boolean;
+  enragedCombat: boolean;
 }
 
 export function StoryDialogue({
@@ -80,6 +81,7 @@ export function StoryDialogue({
   const [boonGranted, setBoonGranted] = useState(false);
   const [peacefulEnd, setPeacefulEnd] = useState(false);
   const [combatStart, setCombatStart] = useState(false);
+  const [enragedCombat, setEnragedCombat] = useState(false);
 
   const currentNode = dialogue.nodes[currentNodeId];
   
@@ -100,6 +102,13 @@ export function StoryDialogue({
     if (nodeData['combatStart'] === true) {
       setCombatStart(true);
       console.log('[Dialogue] Combat start triggered');
+    }
+    
+    // Track enraged combat (enemy is buffed when offended)
+    if (nodeData['enragedCombat'] === true) {
+      setEnragedCombat(true);
+      setCombatStart(true);
+      console.log('[Dialogue] Enraged combat triggered - enemy will be buffed!');
     }
     
     // Check for boon granting when we reach a node with grantsBoon: true
@@ -215,9 +224,10 @@ export function StoryDialogue({
         skillCheckResults,
         peacefulEnd,
         combatStart,
+        enragedCombat,
       });
     }
-  }, [currentNode, choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, peacefulEnd, combatStart, onComplete]);
+  }, [currentNode, choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, peacefulEnd, combatStart, enragedCombat, onComplete]);
 
   const handleClose = useCallback(() => {
     onComplete({
@@ -228,9 +238,10 @@ export function StoryDialogue({
       skillCheckResults,
       peacefulEnd,
       combatStart,
+      enragedCombat,
     });
     onClose?.();
-  }, [choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, peacefulEnd, combatStart, onComplete, onClose]);
+  }, [choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, peacefulEnd, combatStart, enragedCombat, onComplete, onClose]);
 
   if (!currentNode) {
     return null;

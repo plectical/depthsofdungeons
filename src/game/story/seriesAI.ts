@@ -659,6 +659,35 @@ POSSIBLE OUTCOMES (include several):
 - They beg for death
 - They warn you about something ahead
 - They ask you to carry a message (if you ever escape)
+- They teach you a secret technique
+- They offer to trade items
+- They challenge you to a game of wits
+- They mistake you for someone from their past
+- They offer to join you temporarily
+
+OFFENSIVE OPTIONS (IMPORTANT - include at least 2-3 of these):
+Players should be able to INSULT, MOCK, or OFFEND the creature. When offended, the creature becomes ENRAGED:
+- "enraged_combat" node: They attack with fury, dealing +50% damage in the fight
+- Mark with "enragedCombat": true so the game knows to buff them
+
+OFFENSIVE CHOICE EXAMPLES:
+- "You're pathetic. No wonder you're trapped here."
+- "Your kind disgusts me"
+- "[Mock] Imitate their speech/mannerisms cruelly"
+- "I'll put you out of your misery like the beast you are"
+- "[Insult] Comment on their appearance"
+- "You're not worth my time, worm"
+- "[Laugh] Mock their tragic story"
+- "Your suffering amuses me"
+- "I've killed hundreds like you"
+- "[Spit] Show contempt"
+
+When offended, they should say something that shows their RAGE before attacking:
+- "You dare mock me?! I'LL TEAR YOU APART!"
+- "I showed you my soul and you LAUGHED? DIE!"
+- "That insult will be your last words!"
+
+The enraged_combat node MUST have: "enragedCombat": true, "combatStart": true
 
 TRANSFORMATION/AFFLICTION OPTIONS (for goblins, undead, demons, beasts):
 If the creature is a GOBLIN, UNDEAD, DEMON, or BEAST, include at least ONE path that could lead to:
@@ -707,12 +736,31 @@ Generate JSON with this structure:
           "failureNodeId": "they_notice_you"
         },
         {
+          "id": "insult",
+          "label": "[Insult] <context-appropriate cruel mockery>",
+          "responseText": "You hurl an insult.",
+          "successNodeId": "enraged_reaction"
+        },
+        {
           "id": "attack_immediately",
           "label": "[Attack] Strike first",
           "responseText": "You attack without warning.",
           "successNodeId": "combat_start"
         }
       ]
+    },
+    "enraged_reaction": {
+      "id": "enraged_reaction",
+      "speaker": "character",
+      "text": "<they react with FURY to your insult - their face twists with rage, voice breaks with anger, 2 sentences showing they're ENRAGED>",
+      "nextNodeId": "enraged_combat"
+    },
+    "enraged_combat": {
+      "id": "enraged_combat",
+      "speaker": "narrator",
+      "text": "They attack with murderous rage! <dramatic combat initiation, 1 sentence>",
+      "enragedCombat": true,
+      "combatStart": true
     },
     "first_contact": {
       "id": "first_contact",
@@ -732,6 +780,26 @@ Generate JSON with this structure:
           "successNodeId": "they_explain"
         },
         {
+          "id": "share_food",
+          "label": "[Offer] Share some of your rations",
+          "responseText": "You offer food.",
+          "successNodeId": "grateful_for_food"
+        },
+        {
+          "id": "ask_lore",
+          "label": "[Lore] Ask about this place's history",
+          "responseText": "You inquire about the dungeon.",
+          "skillCheck": { "skill": "lore", "target": 10 },
+          "successNodeId": "share_knowledge",
+          "failureNodeId": "refuse_knowledge"
+        },
+        {
+          "id": "mock_appearance",
+          "label": "[Mock] <cruel comment about their appearance or state>",
+          "responseText": "You sneer at them.",
+          "successNodeId": "enraged_reaction"
+        },
+        {
           "id": "threaten",
           "label": "Stand aside or die",
           "responseText": "You brandish your weapon.",
@@ -740,6 +808,26 @@ Generate JSON with this structure:
           "failureNodeId": "they_attack"
         }
       ]
+    },
+    "grateful_for_food": {
+      "id": "grateful_for_food",
+      "speaker": "character",
+      "text": "<they react to your kindness with surprise - food is precious here. Shows vulnerability. 2-3 sentences>",
+      "reward": "food_gift",
+      "nextNodeId": "conversation_friendly"
+    },
+    "share_knowledge": {
+      "id": "share_knowledge",
+      "speaker": "character",
+      "text": "<they share ancient knowledge about this place - secrets, dangers, or history. 3-4 sentences>",
+      "reward": "lore_bonus",
+      "peacefulEnd": true
+    },
+    "refuse_knowledge": {
+      "id": "refuse_knowledge",
+      "speaker": "character",
+      "text": "<they don't trust you enough to share knowledge. 1-2 sentences>",
+      "nextNodeId": "they_explain"
     },
     "they_respond": {
       "id": "they_respond",
@@ -792,12 +880,78 @@ Generate JSON with this structure:
           "successNodeId": "help_outcome"
         },
         {
+          "id": "trade_items",
+          "label": "[Trade] Offer to exchange items",
+          "responseText": "You suggest a trade.",
+          "successNodeId": "trade_discussion"
+        },
+        {
+          "id": "ask_allies",
+          "label": "Do you know anyone else down here?",
+          "responseText": "You ask about others.",
+          "successNodeId": "reveal_allies"
+        },
+        {
+          "id": "mock_story",
+          "label": "[Cruel] Your sob story bores me",
+          "responseText": "You laugh at their pain.",
+          "successNodeId": "enraged_reaction"
+        },
+        {
           "id": "refuse",
           "label": "I can't help you",
           "responseText": "You shake your head.",
           "successNodeId": "refuse_outcome"
         }
       ]
+    },
+    "trade_discussion": {
+      "id": "trade_discussion",
+      "speaker": "character",
+      "text": "<they consider trading - what do they have? What do they want? 2 sentences>",
+      "choices": [
+        {
+          "id": "accept_trade",
+          "label": "That seems fair",
+          "responseText": "You agree to trade.",
+          "successNodeId": "trade_complete"
+        },
+        {
+          "id": "haggle",
+          "label": "[Diplomacy] Negotiate better terms",
+          "responseText": "You try to negotiate.",
+          "skillCheck": { "skill": "diplomacy", "target": 11 },
+          "successNodeId": "better_trade",
+          "failureNodeId": "trade_refused"
+        }
+      ]
+    },
+    "trade_complete": {
+      "id": "trade_complete",
+      "speaker": "narrator",
+      "text": "The exchange is made. Both parties got something they needed.",
+      "reward": "trade_reward",
+      "peacefulEnd": true
+    },
+    "better_trade": {
+      "id": "better_trade",
+      "speaker": "character",
+      "text": "<impressed by your negotiation, they offer more. 1-2 sentences>",
+      "reward": "negotiation_reward",
+      "peacefulEnd": true
+    },
+    "trade_refused": {
+      "id": "trade_refused",
+      "speaker": "character",
+      "text": "<offended by the haggling, they withdraw their offer. 1 sentence>",
+      "nextNodeId": "refuse_outcome"
+    },
+    "reveal_allies": {
+      "id": "reveal_allies",
+      "speaker": "character",
+      "text": "<they mention others - allies, enemies, or neutral parties deeper in the dungeon. 2-3 sentences>",
+      "reward": "information_reward",
+      "peacefulEnd": true
     },
     "they_explain": {
       "id": "they_explain",
