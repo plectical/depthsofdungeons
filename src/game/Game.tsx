@@ -217,6 +217,10 @@ export function Game() {
   const [autoPlaySeederMode, setAutoPlaySeederMode] = useState(false);
   // Track if we're waiting for an encounter to complete in seeder mode
   const seederEncounterPendingRef = useRef(false);
+  // Allow auto-play to continue when tab is in background
+  const [runInBackground, setRunInBackground] = useState(false);
+  const runInBackgroundRef = useRef(runInBackground);
+  useEffect(() => { runInBackgroundRef.current = runInBackground; }, [runInBackground]);
   // Tracks tab visibility — toggled so the auto-play effect re-runs and restarts the worker
   const [tabVisible, setTabVisible] = useState(true);
   // Tutorial bar — only shown on the very first run (generation === 0, tutorialComplete !== true)
@@ -830,9 +834,9 @@ export function Game() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         immediateSave();
-        // Pause the auto-play worker so queued ticks don't pile up
-        // and cause a massive freeze when the tab becomes visible again
-        if (workerRef.current) {
+        // Only pause auto-play when NOT running in background mode
+        // When runInBackground is true, keep the worker running
+        if (!runInBackgroundRef.current && workerRef.current) {
           workerRef.current.terminate();
           workerRef.current = null;
         }
@@ -2684,7 +2688,9 @@ export function Game() {
 
   // Auto-play loop — uses a Web Worker timer for consistent tick rate
   useEffect(() => {
-    if (!autoPlay || !tabVisible || screen !== 'game' || !state || state.gameOver) {
+    // Skip tabVisible check when runInBackground is enabled
+    const shouldPauseForTab = !runInBackground && !tabVisible;
+    if (!autoPlay || shouldPauseForTab || screen !== 'game' || !state || state.gameOver) {
       if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;
@@ -2830,7 +2836,7 @@ export function Game() {
       worker.terminate();
       workerRef.current = null;
     };
-  }, [autoPlay, autoPlayMode, tabVisible, screen, state?.gameOver, processDeathBloodline, isPremium, pendingEncounter]);
+  }, [autoPlay, autoPlayMode, tabVisible, runInBackground, screen, state?.gameOver, processDeathBloodline, isPremium, pendingEncounter]);
 
   // Seeder mode: auto-trigger enemy encounters before autoplay attacks
   useEffect(() => {
@@ -4791,6 +4797,20 @@ export function Game() {
               onClick={() => setAutoPlaySeederMode(v => !v)}
             >
               {autoPlaySeederMode ? 'SEED' : 'seed'}
+            </button>
+            <button
+              style={{
+                ...actionBtnStyle,
+                fontSize: 9,
+                padding: '2px 5px',
+                color: runInBackground ? '#44ff88' : '#8888aa',
+                borderColor: runInBackground ? '#44ff88' : undefined,
+                background: runInBackground ? '#003322' : undefined,
+              }}
+              title={runInBackground ? 'Background ON: Game continues when tabbed away' : 'Background OFF: Game pauses when tabbed away'}
+              onClick={() => setRunInBackground(v => !v)}
+            >
+              {runInBackground ? 'BG' : 'bg'}
             </button>
           </div>
         </div>
