@@ -133,6 +133,7 @@ export function getClassDef(cls: PlayerClass) {
   // Check base classes first, then necropolis classes
   const base = CLASS_DEFS.find((c) => c.id === cls);
   if (base) return base;
+  // Check necropolis classes (pass undefined for echo nodes - engine doesn't have direct access)
   const necroClasses = getNecropolisClasses(getNecropolisState().communalDeaths);
   return necroClasses.find((c) => c.id === cls) ?? CLASS_DEFS[0]!;
 }

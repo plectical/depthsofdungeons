@@ -476,10 +476,14 @@ const REVENANT_ABILITIES: ChoosableAbility[] = [
   { id: 'rev_relentless', name: 'Relentless', description: '+5 speed permanently', icon: '\u{1F3C3}', color: '#ff9944', minLevel: 3, classId: 'revenant' },
 ];
 
-export function getNecropolisClasses(communalDeaths: number): ClassDef[] {
+/** Get unlocked Necropolis classes. Checks both communal deaths AND echo tree unlocks. */
+export function getNecropolisClasses(communalDeaths: number, echoUnlockedNodes?: string[]): ClassDef[] {
   const classes: ClassDef[] = [];
 
-  if (isUnlocked('class_necromancer', communalDeaths)) {
+  // Necromancer: unlocked via communal deaths OR echo tree node 'mas_class_3' (Dark Arts)
+  const necroUnlocked = isUnlocked('class_necromancer', communalDeaths) ||
+    (echoUnlockedNodes && echoUnlockedNodes.includes('mas_class_3'));
+  if (necroUnlocked) {
     classes.push({
       id: 'necromancer' as PlayerClass,
       name: 'Necromancer',
@@ -500,7 +504,10 @@ export function getNecropolisClasses(communalDeaths: number): ClassDef[] {
     });
   }
 
-  if (isUnlocked('class_revenant', communalDeaths)) {
+  // Revenant: unlocked via communal deaths OR echo tree node 'mas_class_4' (Deathless)
+  const revUnlocked = isUnlocked('class_revenant', communalDeaths) ||
+    (echoUnlockedNodes && echoUnlockedNodes.includes('mas_class_4'));
+  if (revUnlocked) {
     classes.push({
       id: 'revenant' as PlayerClass,
       name: 'Revenant',

@@ -3488,7 +3488,7 @@ export function Game() {
     ];
     // "BACK" text position in the image (bottom center)
     const backBtnSlot = { left: 33, top: 92, width: 34, height: 6 };
-    const allClasses = [...CLASS_DEFS, ...getNecropolisClasses(getNecropolisState().communalDeaths), ...getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes)];
+    const allClasses = [...CLASS_DEFS, ...getNecropolisClasses(getNecropolisState().communalDeaths, questEchoRef.current.unlockedEchoNodes), ...getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes)];
 
     return (
       <>
@@ -3852,7 +3852,7 @@ export function Game() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <span style={{ color: '#ff8866', fontSize: 9 }}>Play as:</span>
-              {[...CLASS_DEFS, ...getNecropolisClasses(getNecropolisState().communalDeaths), ...getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes)].map(cls => (
+              {[...CLASS_DEFS, ...getNecropolisClasses(getNecropolisState().communalDeaths, questEchoRef.current.unlockedEchoNodes), ...getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes)].map(cls => (
                 <button
                   key={cls.id}
                   style={{
