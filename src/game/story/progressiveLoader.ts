@@ -141,6 +141,7 @@ async function generateWave(
       
       // Track errors
       if (result.errors.length > 0) {
+        console.error('[Story] ★★★ Generation had errors:', result.errors);
         generationState.errors.push(...result.errors);
       }
       
@@ -284,7 +285,13 @@ async function generateWave(
           });
         }
       } else {
-        console.log('[Story] AI returned no content, using fallback only');
+        console.warn('[Story] ★★★ AI returned NO content - USING FALLBACK (Elder Mira)');
+        console.warn('[Story] Result details:', {
+          character: result.character,
+          encounters: result.encounters.length,
+          items: result.items.length,
+          errors: result.errors
+        });
       }
       
       // Generate portraits for ALL characters that don't have them

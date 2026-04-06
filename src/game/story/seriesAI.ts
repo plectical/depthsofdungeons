@@ -190,13 +190,15 @@ export async function getAvailableModels(): Promise<string[]> {
   }
 }
 
-// Generate a story character
+// Generate a story character (with retry)
 export async function generateCharacter(context: {
   playerClass: PlayerClass;
   floorRange: [number, number];
   existingCharacterNames: string[];
   bloodlineGeneration: number;
 }): Promise<GeneratedCharacter | null> {
+  const MAX_RETRIES = 3;
+  
   const prompt = `Generate a unique dungeon character for floors ${context.floorRange[0]}-${context.floorRange[1]}.
 
 CONTEXT:
@@ -231,28 +233,58 @@ GENERATE a character with this JSON schema:
   "mercenaryStats": { "hp": N, "maxHp": N, "attack": N, "defense": N, "speed": N } (if recruitable)
 }`;
 
-  console.log('[AI] Generating character for floors', context.floorRange);
-  const content = await generateText(prompt, { temperature: 0.9 });
-  
-  if (!content) {
-    console.warn('[AI] generateCharacter: No content returned from LLM');
-    return null;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    console.log(`[AI] ★ Generating character for floors ${context.floorRange} (attempt ${attempt}/${MAX_RETRIES})`);
+    
+    try {
+      const content = await generateText(prompt, { temperature: 0.9 });
+      
+      if (!content) {
+        console.warn(`[AI] ✗ generateCharacter attempt ${attempt}: No content returned from LLM`);
+        if (attempt < MAX_RETRIES) {
+          console.log('[AI] Retrying character generation...');
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        console.error('[AI] ★★★ CHARACTER GENERATION FAILED after all retries - FALLBACK WILL BE USED');
+        return null;
+      }
+      
+      console.log('[AI] Character response length:', content.length);
+      console.log('[AI] Character response preview:', content.substring(0, 300));
+
+      const parsed = parseJSON<Omit<GeneratedCharacter, 'isGenerated' | 'generatedAt'>>(content);
+      if (!parsed) {
+        console.warn(`[AI] ✗ generateCharacter attempt ${attempt}: Failed to parse JSON`);
+        console.warn('[AI] Raw content:', content.substring(0, 500));
+        if (attempt < MAX_RETRIES) {
+          console.log('[AI] Retrying character generation...');
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        console.error('[AI] ★★★ CHARACTER JSON PARSE FAILED after all retries - FALLBACK WILL BE USED');
+        return null;
+      }
+
+      console.log('[AI] ✓✓✓ Generated character:', parsed.name, '-', parsed.title);
+      return {
+        ...parsed,
+        isGenerated: true,
+        generatedAt: new Date().toISOString(),
+      };
+    } catch (err) {
+      console.error(`[AI] ✗ generateCharacter attempt ${attempt} threw error:`, err);
+      if (attempt < MAX_RETRIES) {
+        console.log('[AI] Retrying character generation after error...');
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+      console.error('[AI] ★★★ CHARACTER GENERATION ERROR after all retries - FALLBACK WILL BE USED');
+      return null;
+    }
   }
   
-  console.log('[AI] Character response length:', content.length);
-
-  const parsed = parseJSON<Omit<GeneratedCharacter, 'isGenerated' | 'generatedAt'>>(content);
-  if (!parsed) {
-    console.warn('[AI] generateCharacter: Failed to parse JSON:', content.substring(0, 200));
-    return null;
-  }
-
-  console.log('[AI] ✓ Generated character:', parsed.name, '-', parsed.title);
-  return {
-    ...parsed,
-    isGenerated: true,
-    generatedAt: new Date().toISOString(),
-  };
+  return null;
 }
 
 // Generate a story beat (dialogue) for a character with boon rewards
@@ -1900,6 +1932,7 @@ export async function generateFloorBatch(request: FloorBatchRequest): Promise<Fl
 
   // Generate character if requested
   if (request.generateCharacter) {
+    console.log('[AI] ★ Character generation REQUESTED for floors', request.floorRange);
     try {
       result.character = await generateCharacter({
         playerClass: request.playerClass,
@@ -1909,12 +1942,17 @@ export async function generateFloorBatch(request: FloorBatchRequest): Promise<Fl
       });
       if (result.character) {
         existingCharacterNames.push(result.character.name);
-        // Portrait generation moved to progressiveLoader to prioritize story beat
-        console.log('[AI] ✓ Character ready (portrait will be generated after story beat)');
+        console.log('[AI] ✓✓ Character READY:', result.character.name, '- portrait will be generated after story beat');
+      } else {
+        console.error('[AI] ✗✗ Character generation returned NULL - Elder Mira fallback will be used!');
+        result.errors.push('Character generation returned null');
       }
     } catch (e) {
+      console.error('[AI] ✗✗ Character generation THREW ERROR:', e);
       result.errors.push(`Character generation failed: ${e}`);
     }
+  } else {
+    console.log('[AI] Character generation NOT requested for this wave');
   }
 
   // Generate encounters
