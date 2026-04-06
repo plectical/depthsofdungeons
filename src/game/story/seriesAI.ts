@@ -12,6 +12,7 @@ import type {
   CharacterQuestType,
 } from '../types';
 import { fetchOrGenerateImageUrl, fetchOrGenerate, type PooledEnemyEncounter } from './contentPool';
+import { compressImageUrl } from './imageCompression';
 
 // Available LLM models from Series SDK (as of 2026)
 export type LLMModel = 'gpt-5' | 'gpt-5.4-mini' | 'claude-haiku-4-5' | 'claude-sonnet-4-6' | 'claude-opus-4-1' | 'deepseek/deepseek-chat';
@@ -136,7 +137,13 @@ async function generateText(
   }
 }
 
-// Generate image using Series AI
+// Image compression settings
+const COMPRESS_IMAGES = true;
+const COMPRESSION_QUALITY = 0.90; // 90% JPEG quality
+const MAX_PORTRAIT_DIMENSION = 512; // Max dimension for portraits
+const MAX_SCENE_DIMENSION = 1024; // Max dimension for scene art (16:9)
+
+// Generate image using Series AI (with optional compression)
 async function generateImage(
   prompt: string,
   options: ImageGenOptions = {}
@@ -166,8 +173,29 @@ async function generateImage(
       referenceImages: options.referenceImages,
     });
 
-    console.log('[AI] Image generated successfully:', result.imageUrl?.substring(0, 50) + '...');
-    return result.imageUrl;
+    let imageUrl = result.imageUrl;
+    console.log('[AI] Image generated successfully:', imageUrl?.substring(0, 50) + '...');
+    
+    // Compress image if enabled
+    if (COMPRESS_IMAGES && imageUrl) {
+      try {
+        const maxDim = options.aspectRatio === '16:9' || options.aspectRatio === '9:16' 
+          ? MAX_SCENE_DIMENSION 
+          : MAX_PORTRAIT_DIMENSION;
+        
+        console.log('[AI] Compressing image to', maxDim, 'px max @', COMPRESSION_QUALITY * 100, '% quality...');
+        const compressed = await compressImageUrl(imageUrl, COMPRESSION_QUALITY, maxDim);
+        
+        if (compressed && compressed !== imageUrl) {
+          console.log(`[AI] Compression complete: ${(compressed.length / 1024).toFixed(1)}KB data URL`);
+          imageUrl = compressed;
+        }
+      } catch (compressErr) {
+        console.warn('[AI] Compression failed, using original:', compressErr);
+      }
+    }
+    
+    return imageUrl;
   } catch (e: unknown) {
     const errorName = (e as { name?: string })?.name;
     const errorMessage = (e as { message?: string })?.message;

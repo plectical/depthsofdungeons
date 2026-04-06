@@ -179,3 +179,10 @@ export {
   type PooledRoomEventArt,
   type PooledEnemyEncounter,
 } from './contentPool';
+
+// Image Compression
+export {
+  compressImageUrl,
+  compressImageToBlob,
+  getDataUrlSizeKB,
+} from './imageCompression';
