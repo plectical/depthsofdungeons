@@ -1,0 +1,895 @@
+{
+  "meta": {
+    "profilerVersion": "1.0",
+    "url": "https://h5-apps.getreel.com/production/TnwiXCIVrrnLXVcED65D/1.56.15/index.html",
+    "exportedAt": "2026-03-21T22:02:54.946Z",
+    "sessionDurationMs": 262433
+  },
+  "device": {
+    "browser": "?",
+    "os": "?",
+    "cores": 4,
+    "ram": "?",
+    "screen": "390x844",
+    "dpr": 3,
+    "viewport": "390x749"
+  },
+  "summary": {
+    "avgFps": 30,
+    "minFps": 30,
+    "maxFps": 30,
+    "totalFrames": 7862,
+    "jsErrorCount": 0,
+    "longTaskCount": 0,
+    "longTaskTotalMs": 0,
+    "worstLongTaskMs": 0,
+    "cls": 0,
+    "avgInputLagMs": 38,
+    "memUsedBytes": null,
+    "memLimitBytes": null,
+    "thermalThrottled": false
+  },
+  "issues": [
+    {
+      "t": 4,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 12,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 20,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 28,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 36,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 44,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 52,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 60,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 68,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 76,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 84,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 92,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 100,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 108,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 116,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 124,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 132,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 140,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 148,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 156,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 164,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 173,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 181,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 189,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 197,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 205,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 213,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 221,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 229,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 237,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 245,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 253,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    },
+    {
+      "t": 261,
+      "level": "warn",
+      "category": "fps",
+      "msg": "Low FPS: 30",
+      "detail": "Lag detected"
+    }
+  ],
+  "fpsHistory": [
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30
+  ],
+  "memSamples": [],
+  "actionStats": {
+    "engine:fov": {
+      "count": 1080,
+      "totalMs": 478.99999999994,
+      "maxMs": 6,
+      "minMs": 0,
+      "avgMs": 0.44
+    },
+    "engine:newGame": {
+      "count": 1,
+      "totalMs": 6,
+      "maxMs": 6,
+      "minMs": 6,
+      "avgMs": 6
+    },
+    "render:grid": {
+      "count": 1119,
+      "totalMs": 1086.9999999998308,
+      "maxMs": 8,
+      "minMs": 0,
+      "avgMs": 0.97
+    },
+    "render:fingerprint": {
+      "count": 1119,
+      "totalMs": 140.99999999990723,
+      "maxMs": 4,
+      "minMs": 0,
+      "avgMs": 0.13
+    },
+    "render:draw": {
+      "count": 1107,
+      "totalMs": 635.9999999999818,
+      "maxMs": 9.000000000001819,
+      "minMs": 0,
+      "avgMs": 0.57
+    },
+    "autoplay:clone": {
+      "count": 1091,
+      "totalMs": 2855.000000000133,
+      "maxMs": 15.000000000029104,
+      "minMs": 0,
+      "avgMs": 2.62
+    },
+    "engine:processTurn": {
+      "count": 1074,
+      "totalMs": 587.9999999997926,
+      "maxMs": 6,
+      "minMs": 0,
+      "avgMs": 0.55
+    },
+    "engine:descend": {
+      "count": 6,
+      "totalMs": 26.000000000029104,
+      "maxMs": 6,
+      "minMs": 2,
+      "avgMs": 4.33
+    },
+    "save": {
+      "count": 1,
+      "totalMs": 3,
+      "maxMs": 3,
+      "minMs": 3,
+      "avgMs": 3
+    }
+  },
+  "recentActions": [
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 2,
+      "t": 224
+    },
+    {
+      "action": "engine:fov",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 224
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 1,
+      "t": 224
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 4,
+      "t": 224
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 224
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 4,
+      "t": 225
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "render:grid",
+      "ms": 4,
+      "t": 225
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 225
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:grid",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 225
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 225
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:grid",
+      "ms": 2,
+      "t": 225
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 225
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 226
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:grid",
+      "ms": 2,
+      "t": 226
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 226
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 226
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 226
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 226
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 2,
+      "t": 226
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:grid",
+      "ms": 3,
+      "t": 226
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 226
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 226
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 226
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 226
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:grid",
+      "ms": 2,
+      "t": 226
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 226
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 226
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 2,
+      "t": 227
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 227
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 3,
+      "t": 227
+    },
+    {
+      "action": "engine:fov",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:draw",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "autoplay:clone",
+      "ms": 2,
+      "t": 227
+    },
+    {
+      "action": "engine:processTurn",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "render:grid",
+      "ms": 5,
+      "t": 227
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "render:draw",
+      "ms": 2,
+      "t": 227
+    },
+    {
+      "action": "render:grid",
+      "ms": 1,
+      "t": 227
+    },
+    {
+      "action": "render:fingerprint",
+      "ms": 0,
+      "t": 227
+    },
+    {
+      "action": "render:draw",
+      "ms": 0,
+      "t": 227
+    }
+  ]
+}

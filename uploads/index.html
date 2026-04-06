@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Game Profiler</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #08080f; --bg2: #0e0e1a; --bg3: #141426;
+      --border: #1e1e30; --accent: #7c3aed; --accent2: #4f46e5;
+      --green: #4ade80; --yellow: #facc15; --red: #f87171; --blue: #60a5fa;
+      --text: #c8c8e0; --muted: #555;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px; line-height: 1.6;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre {
+      font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+      font-size: 13px;
+    }
+
+    /* Layout */
+    .page { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+    h1 { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .subtitle { color: var(--muted); margin-bottom: 40px; font-size: 0.95rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: #e0e0f0; margin: 32px 0 12px; }
+    h3 { font-size: 0.9rem; font-weight: 600; color: #aaa; text-transform: uppercase;
+      letter-spacing: 1px; margin: 24px 0 8px; }
+    p { color: #888; margin-bottom: 12px; }
+
+    /* Cards */
+    .card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px 24px; margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--accent); margin-bottom: 14px;
+    }
+
+    /* Steps */
+    .steps { counter-reset: step; display: flex; flex-direction: column; gap: 12px; }
+    .step {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .step-num {
+      flex-shrink: 0; width: 26px; height: 26px;
+      background: var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: #fff;
+      counter-increment: step;
+    }
+    .step-body { flex: 1; }
+    .step-body strong { display: block; color: #ddd; margin-bottom: 4px; font-size: 0.9rem; }
+    .step-body p { margin: 0; font-size: 0.85rem; color: #666; }
+
+    /* Code blocks */
+    .code-block {
+      background: #050508; border: 1px solid #1a1a2a; border-radius: 8px;
+      padding: 12px 16px; overflow-x: auto; margin: 8px 0;
+      position: relative;
+    }
+    .code-block code { color: #c0c0e0; white-space: pre; }
+    .copy-btn {
+      position: absolute; top: 8px; right: 8px;
+      background: #1a1a2a; border: 1px solid #2a2a3a;
+      color: #888; border-radius: 5px; padding: 3px 10px;
+      font-size: 11px; cursor: pointer;
+    }
+    .copy-btn:hover { color: #fff; border-color: var(--accent); }
+
+    /* Bookmarklet */
+    .bookmarklet-wrap { text-align: center; padding: 10px 0; }
+    .bookmarklet-link {
+      display: inline-block;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff !important; font-weight: 700; font-size: 0.95rem;
+      padding: 12px 28px; border-radius: 10px;
+      box-shadow: 0 2px 16px rgba(124,58,237,0.4);
+      cursor: grab; text-decoration: none !important;
+    }
+    .bm-note { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+
+    /* Metrics table */
+    .metrics-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .metrics-table th {
+      text-align: left; color: var(--muted); font-weight: 600;
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 6px 10px; border-bottom: 1px solid var(--border);
+    }
+    .metrics-table td {
+      padding: 8px 10px; border-bottom: 1px solid #0e0e18; vertical-align: top;
+    }
+    .metrics-table tr:last-child td { border-bottom: none; }
+    .metrics-table td:first-child { font-family: monospace; color: #a5b4fc; width: 140px; }
+    .metrics-table td:nth-child(2) { color: var(--muted); }
+
+    /* Issue table */
+    .issue-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #0e0e18; font-size: 0.85rem; }
+    .issue-row:last-child { border-bottom: none; }
+    .level-badge {
+      flex-shrink: 0; padding: 1px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 700; height: fit-content; margin-top: 2px;
+    }
+    .l-error { background: rgba(239,68,68,.2); color: #f87171; }
+    .l-warn  { background: rgba(250,204,21,.2); color: #facc15; }
+    .l-info  { background: rgba(96,165,250,.2); color: #60a5fa; }
+    .issue-text strong { color: #ccc; display: block; margin-bottom: 2px; }
+    .issue-text span { color: #555; font-size: 0.78rem; }
+
+    /* Pillars */
+    .pillars { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 500px) { .pillars { grid-template-columns: 1fr; } }
+    .pillar {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .pillar-icon { font-size: 1.4rem; margin-bottom: 6px; }
+    .pillar strong { display: block; color: #ddd; font-size: 0.9rem; margin-bottom: 4px; }
+    .pillar p { font-size: 0.8rem; color: #555; margin: 0; }
+
+    /* API */
+    .api-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .api-table td { padding: 7px 10px; border-bottom: 1px solid #0e0e18; vertical-align: top; }
+    .api-table tr:last-child td { border-bottom: none; }
+    .api-table td:first-child { font-family: monospace; color: #86efac; width: 200px; }
+    .api-table td:nth-child(2) { color: var(--muted); }
+
+    /* Tag */
+    .tag {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 4px; margin-left: 6px;
+      vertical-align: middle;
+    }
+    .tag-chrome { background: rgba(96,165,250,.15); color: #60a5fa; }
+    .tag-all    { background: rgba(74,222,128,.15); color: #4ade80; }
+    .tag-ios    { background: rgba(250,204,21,.15); color: #facc15; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Mobile Game Profiler</h1>
+  <p class="subtitle">Real-time performance profiling for browser-based games — injectable into any page, no build step required.</p>
+
+  <!-- ─── INJECT ─── -->
+  <div class="card">
+    <div class="card-title">Inject the Profiler</div>
+
+    <h3>Option A — Script Tag (recommended for your own game)</h3>
+    <p>Add this to the <code>&lt;head&gt;</code> or end of <code>&lt;body&gt;</code> in your game's HTML during development:</p>
+    <div class="code-block">
+      <button class="copy-btn" data-copy='<script src="profiler.js"></script>'>Copy</button>
+      <code>&lt;script src="profiler.js"&gt;&lt;/script&gt;</code>
+    </div>
+    <p>Copy <code>profiler.js</code> into your game's public/static folder. For slime-debug-react, drop it in <code>/public/</code> and add the script tag to <code>index.html</code>.</p>
+
+    <h3>Option B — Browser Console (any running page)</h3>
+    <p>Open DevTools → Console, paste and run:</p>
+    <div class="code-block">
+      <button class="copy-btn" data-copy="var s=document.createElement('script');s.src='http://YOUR_LOCAL_IP:PORT/profiler.js';document.head.appendChild(s);">Copy</button>
+      <code>var s=document.createElement('script');
+s.src='http://YOUR_LOCAL_IP:PORT/profiler.js';
+document.head.appendChild(s);</code>
+    </div>
+    <p>Serve profiler.js locally: <code>cd mobile-game-profiler && npx serve .</code> — then replace the URL with your local IP shown in the serve output.</p>
+
+    <h3>Option C — Bookmarklet (drag to toolbar)</h3>
+    <p>Drag this link to your bookmarks bar. On mobile, save it as a bookmark then edit the URL to be the javascript: code.</p>
+    <div class="bookmarklet-wrap">
+      <a class="bookmarklet-link" id="bookmarklet-link" href="#">&#9658; Inject Game Profiler</a>
+      <p class="bm-note">Drag to browser toolbar, then click it on any game page to inject the profiler.</p>
+    </div>
+    <p style="font-size:0.8rem;color:#444;">Note: The bookmarklet works by loading profiler.js from wherever you host it. Edit the <code>PROFILER_URL</code> below if you change its location.</p>
+    <div class="code-block">
+      <code>// Edit this URL, then re-open this page to regenerate the bookmarklet:
+const PROFILER_URL = 'http://localhost:3000/profiler.js';</code>
+    </div>
+  </div>
+
+  <!-- ─── USING THE HUD ─── -->
+  <h2>Using the HUD</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>FPS Pill appears top-right</strong>
+        <p>Shows current FPS (color-coded green/yellow/red) + mini sparkline of the last 60 seconds. Drag to reposition.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Tap the pill to expand the panel</strong>
+        <p>Opens a full panel with 4 tabs: Metrics, Issues, Device, Export. The red badge on the pill shows error count.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Play your game normally</strong>
+        <p>The profiler runs silently in the background, collecting data and auto-flagging issues as they occur.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <strong>Export a full JSON report</strong>
+        <p>Go to the Export tab and download or copy the report. Share it for offline analysis, or paste into the browser console to inspect.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHAT IT DETECTS ─── -->
+  <h2>What It Detects</h2>
+  <div class="pillars">
+    <div class="pillar"><div class="pillar-icon">📉</div><strong>FPS Drops</strong><p>Flags when FPS falls below 45 (warn) or 25 (critical). Shows avg, min, sparkline history.</p></div>
+    <div class="pillar"><div class="pillar-icon">🧱</div><strong>Main Thread Blocking</strong><p>Long tasks >100ms that cause jank. Uses native Long Task API on Chrome, rAF delta fallback on iOS.</p></div>
+    <div class="pillar"><div class="pillar-icon">🔴</div><strong>JS Crashes & Errors</strong><p>Catches all uncaught exceptions and unhandled promise rejections with file + line info.</p></div>
+    <div class="pillar"><div class="pillar-icon">📈</div><strong>Memory Leaks</strong><p>Samples heap every 5s. Flags if heap grows >25% in 30s or exceeds 80% of the browser's heap limit.</p></div>
+    <div class="pillar"><div class="pillar-icon">🌡️</div><strong>Thermal Throttling</strong><p>Detects when the device overheats and throttles the CPU — FPS degrades >35% in a 10s window.</p></div>
+    <div class="pillar"><div class="pillar-icon">👆</div><strong>Input Lag</strong><p>Measures time from touchstart to next rAF frame. Flags if consistently >100ms.</p></div>
+    <div class="pillar"><div class="pillar-icon">📐</div><strong>Layout Shifts (CLS)</strong><p>Cumulative Layout Shift from the Web Vitals spec. Indicates unwanted reflows during gameplay.</p></div>
+    <div class="pillar"><div class="pillar-icon">🎮</div><strong>WebGL Context Loss</strong><p>Detects when the GPU context is forcibly revoked by the OS (common on mobile under memory pressure).</p></div>
+    <div class="pillar"><div class="pillar-icon">📱</div><strong>Device Issues</strong><p>Low RAM, high DPR, slow network, low battery, low-end GPU — all flagged at session start.</p></div>
+    <div class="pillar"><div class="pillar-icon">🌐</div><strong>Network Conditions</strong><p>Reports connection type (4G/3G/2G), downlink speed, RTT, and Data Saver mode status.</p></div>
+  </div>
+
+  <!-- ─── METRICS REFERENCE ─── -->
+  <h2>Metrics Reference</h2>
+  <div class="card">
+    <table class="metrics-table">
+      <tr><th>Metric</th><th>What it means</th><th>Platform</th></tr>
+      <tr><td>Current FPS</td><td>Frames per second sampled once per second via rAF</td><td><span class="tag tag-all">All</span></td></tr>
+      <tr><td>Avg FPS</td><td>Rolling 10-second average</td><td><span class="tag tag-all">All</span></td></tr>
+      <tr><td>Min FPS</td><td>Lowest FPS recorded in the session — shows worst-case jank</td><td><span class="tag tag-all">All</span></td></tr>
+      <tr><td>Frame Time</td><td>ms between the last two rAF calls. >16ms = dropped frame at 60Hz</td><td><span class="tag tag-all">All</span></td></tr>
+      <tr><td>JS Heap</td><td>Bytes used vs heap size limit in the JS engine</td><td><span class="tag tag-chrome">Chrome/Android</span></td></tr>
+      <tr><td>Long Tasks</td><td>Count of main-thread tasks >50ms that block rendering and input</td><td><span class="tag tag-chrome">Chrome/Android</span></td></tr>
+      <tr><td>Worst Task</td><td>Duration of the single longest main-thread block seen</td><td><span class="tag tag-all">All (fallback)</span></td></tr>
+      <tr><td>Total Blocked</td><td>Sum of all long-task durations — total time the thread was frozen</td><td><span class="tag tag-all">All (fallback)</span></td></tr>
+      <tr><td>Input Lag</td><td>Avg ms from touchstart to next rAF — measures touch-to-frame pipeline</td><td><span class="tag tag-all">All</span></td></tr>
+      <tr><td>CLS</td><td>Cumulative Layout Shift score. >0.1 = poor, >0.25 = very poor</td><td><span class="tag tag-chrome">Chrome/Android</span></td></tr>
+      <tr><td>JS Errors</td><td>Count of uncaught JS exceptions in the session</td><td><span class="tag tag-all">All</span></td></tr>
+    </table>
+  </div>
+
+  <!-- ─── ISSUES REFERENCE ─── -->
+  <h2>Issues Reference</h2>
+  <div class="card">
+    <div class="issue-row">
+      <span class="level-badge l-error">ERROR</span>
+      <div class="issue-text"><strong>Critical FPS (&lt;25)</strong><span>Game is nearly unplayable. Look for runaway loops, synchronous XHR, or heavy DOM work on the main thread.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-error">ERROR</span>
+      <div class="issue-text"><strong>JS Error</strong><span>Uncaught exception — may halt game logic. Fix or catch all exceptions. On cross-origin scripts you'll see "Script error." — enable CORS headers.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-error">ERROR</span>
+      <div class="issue-text"><strong>WebGL Context Lost</strong><span>OS reclaimed the GPU context — game will freeze. Add a <code>webglcontextrestored</code> handler to reload assets and resume rendering.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-error">ERROR</span>
+      <div class="issue-text"><strong>Critical Memory (&gt;80% heap)</strong><span>Browser tab is about to crash. Audit asset loading, dispose unused textures/buffers, and avoid holding large arrays in memory.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Low FPS (&lt;45)</strong><span>Noticeable lag. Profile the main thread in Chrome DevTools Performance tab. Common causes: physics loop not using delta-time, unthrottled resize handlers, canvas overdraw.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Long Task (&gt;100ms)</strong><span>Main thread was blocked — input events and rendering stall. Break heavy work into chunks using <code>setTimeout(0)</code>, Web Workers, or <code>scheduler.postTask</code>.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Memory Leak (&gt;25% growth / 30s)</strong><span>Heap is growing without being freed. Common causes: event listeners not removed, retained DOM nodes, unbounded arrays/maps, missing WebGL buffer disposal.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Thermal Throttling</strong><span>Device is hot and slowing the CPU down. Reduce your rAF work budget, lower particle counts, or add a frame-rate cap to preserve thermal headroom.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Input Lag &gt;100ms</strong><span>Touch feels sluggish. Ensure touch handlers are <code>passive: true</code> where possible, move processing off the main thread, and avoid long tasks during touch response.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>High DPR (≥3×)</strong><span>Canvas may be rendering at 3× the display pixels. Cap with <code>Math.min(window.devicePixelRatio, 2)</code> for significant GPU savings on high-DPI phones.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Low Device RAM (≤2GB)</strong><span>High risk of tab kill on Android &amp; iOS. Minimize texture sizes, use compressed formats (WebP, ASTC/ETC2 for WebGL), and lazy-load assets.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-warn">WARN</span>
+      <div class="issue-text"><strong>Low-end GPU Detected</strong><span>Mali-400, Adreno 3xx, or PowerVR SGX chipsets have limited fill rate and shader capability. Reduce fragment shader complexity and draw calls.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-info">INFO</span>
+      <div class="issue-text"><strong>Long Task API Unavailable</strong><span>iOS Safari doesn't support the Long Task Observer. rAF delta gaps are used as a fallback — less precise but still useful for catching severe blocking.</span></div>
+    </div>
+  </div>
+
+  <!-- ─── COMMON FIXES ─── -->
+  <h2>Common Mobile Performance Fixes</h2>
+  <div class="card">
+    <table class="metrics-table">
+      <tr><th>Problem</th><th>Fix</th></tr>
+      <tr><td>FPS drops during combat/effects</td><td>Profile the rAF callback with Chrome DevTools → Performance → Record. Look for large yellow (scripting) blocks. Move particle/physics math to a Web Worker.</td></tr>
+      <tr><td>Memory grows each fight</td><td>Ensure all event listeners are removed when components unmount. Check for retained canvas 2D/WebGL buffers, forgotten setInterval/setTimeout, and growing React state arrays.</td></tr>
+      <tr><td>Input lag on touch</td><td>Add <code>touch-action: none</code> to the canvas CSS. All touch listeners that don't call preventDefault should be <code>{ passive: true }</code>. Move input processing out of the touch handler into the rAF loop.</td></tr>
+      <tr><td>iOS Safari tab crash</td><td>Monitor heap via profiler export + memSamples. iOS allows ~1.2–1.5GB before killing the tab. Use compressed textures, reduce canvas resolution on low-RAM devices, and dispose WebGL resources explicitly.</td></tr>
+      <tr><td>High DPR overdraw</td><td><code>canvas.width = Math.floor(canvas.offsetWidth * Math.min(devicePixelRatio, 2))</code>. Cuts render workload by ~44% on 3× devices.</td></tr>
+      <tr><td>Thermal throttle after ~5 min</td><td>Add a frame-rate cap: only call game logic every Nth rAF (e.g., cap at 30fps during idle). Reduce shadow/particle effects during prolonged sessions.</td></tr>
+      <tr><td>Slow first load on 3G/4G</td><td>Lazy-load non-critical assets. Use a Service Worker to cache everything after first load. Compress assets (WebP images, gzip/brotli JS).</td></tr>
+      <tr><td>CLS from UI panels</td><td>Set explicit <code>width</code> and <code>height</code> on all images/sprites. Avoid inserting DOM nodes above existing content. Use <code>transform</code> for animations instead of layout properties.</td></tr>
+    </table>
+  </div>
+
+  <!-- ─── CONSOLE API ─── -->
+  <h2>Console API</h2>
+  <div class="card">
+    <p>The profiler exposes <code>window.__GP__</code> in the browser console:</p>
+    <table class="api-table">
+      <tr><td>__GP__.show()</td><td>Open the HUD panel</td></tr>
+      <tr><td>__GP__.hide()</td><td>Collapse to pill</td></tr>
+      <tr><td>__GP__.toggle()</td><td>Toggle open/closed</td></tr>
+      <tr><td>__GP__.export()</td><td>Download the JSON report</td></tr>
+      <tr><td>__GP__.report()</td><td>Return the report object (inspect in console)</td></tr>
+      <tr><td>__GP__.state</td><td>Live state object — all raw metric data</td></tr>
+    </table>
+    <div class="code-block" style="margin-top:12px">
+      <code>// Inspect live state in console:
+console.table(__GP__.report().summary)
+
+// Watch FPS in real time:
+setInterval(() => console.log('FPS:', __GP__.state.currentFps), 1000)
+
+// Export after a combat session:
+__GP__.export()</code>
+    </div>
+  </div>
+
+  <!-- ─── PLATFORM NOTES ─── -->
+  <h2>Platform Notes</h2>
+  <div class="card">
+    <div class="issue-row">
+      <span class="level-badge l-warn" style="align-self:center">iOS</span>
+      <div class="issue-text"><strong>Safari (iOS)</strong><span>No Long Task Observer → rAF delta used as fallback. No <code>performance.memory</code> → heap metrics unavailable. No <code>navigator.deviceMemory</code>. WebGL context loss is more frequent than Chrome. Tab crash limit ~1.2–1.5GB.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-info">Chrome</span>
+      <div class="issue-text"><strong>Chrome (Android)</strong><span>Full metric support: Long Task API, <code>performance.memory</code>, Layout Shift, <code>navigator.deviceMemory</code>, <code>navigator.connection</code>. Use this for the most complete profiling data.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-info">Samsung</span>
+      <div class="issue-text"><strong>Samsung Browser</strong><span>Chromium-based — most Chrome APIs work. May have different JS engine tuning. Check if game uses any Samsung-specific APIs.</span></div>
+    </div>
+    <div class="issue-row">
+      <span class="level-badge l-info">Firefox</span>
+      <div class="issue-text"><strong>Firefox (Android)</strong><span>No <code>performance.memory</code> or <code>navigator.deviceMemory</code>. Long Task API may be behind a flag. FPS and error tracking still work.</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ─── COPY BUTTONS ───
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.dataset.copy || btn.closest('.code-block').querySelector('code').textContent;
+      navigator.clipboard?.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+      });
+    });
+  });
+
+  // ─── BOOKMARKLET GENERATOR ───
+  // The bookmarklet loads profiler.js from a configurable URL
+  const PROFILER_URL = 'http://localhost:3000/profiler.js';
+  const bookmarkletCode = `javascript:(function(){var s=document.getElementById('__gp_host__');if(s){window.__GP__&&window.__GP__.toggle();return;}s=document.createElement('script');s.src='${PROFILER_URL}?v='+Date.now();document.head.appendChild(s);})();`;
+  document.getElementById('bookmarklet-link').href = bookmarkletCode;
+</script>
+</body>
+</html>

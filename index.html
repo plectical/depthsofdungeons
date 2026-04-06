@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>React + Vite + TypeScript + RundotGameAPI</title>
+    <!-- Meta Pixel Code -->
+    <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1938108636803653');  // general - fires on page load
+</script>
+    <!-- End Meta Pixel Code -->
+    <!-- Early boot crash detection — fires BEFORE any module JS loads.
+         Captures errors that kill the session before React/SDK can report. -->
+    <script>
+    (function(){
+      var t0 = Date.now();
+      window.__bootTimestamp = t0;
+      window.__bootPhase = 'html_parsed';
+      window.__bootErrors = [];
+
+      // Collect device fingerprint for crash correlation
+      var nav = navigator || {};
+      window.__bootDevice = {
+        ua: (nav.userAgent || '').slice(0, 200),
+        lang: nav.language || '',
+        mem: nav.deviceMemory || -1,
+        cores: nav.hardwareConcurrency || -1,
+        online: nav.onLine !== false,
+        conn: (nav.connection || nav.mozConnection || nav.webkitConnection || {}).effectiveType || '',
+        screen_w: screen.width || 0,
+        screen_h: screen.height || 0,
+        dpr: window.devicePixelRatio || 1,
+        touch: 'ontouchstart' in window
+      };
+
+      // Catch any error that happens before our module JS loads
+      window.addEventListener('error', function(e){
+        if (window.__bootErrors.length >= 10) return;
+        window.__bootErrors.push({
+          ts: Date.now() - t0,
+          phase: window.__bootPhase || 'unknown',
+          msg: (e.message || '').slice(0, 300),
+          src: (e.filename || '').slice(-80),
+          line: e.lineno || 0,
+          col: e.colno || 0
+        });
+      });
+      window.addEventListener('unhandledrejection', function(e){
+        if (window.__bootErrors.length >= 10) return;
+        var reason = e.reason;
+        var msg = reason instanceof Error ? reason.message : String(reason || '');
+        window.__bootErrors.push({
+          ts: Date.now() - t0,
+          phase: window.__bootPhase || 'unknown',
+          msg: msg.slice(0, 300),
+          src: 'promise',
+          line: 0,
+          col: 0
+        });
+      });
+    })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

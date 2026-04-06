@@ -1,0 +1,34 @@
+{
+  "rooms": {
+    "necropolis": {
+      "minPlayers": 1,
+      "maxPlayers": 1000,
+      "matchmaking": {
+        "defaultCriteria": {
+          "hasSpace": true,
+          "isPrivate": false
+        }
+      },
+      "createOptions": {
+        "maxPlayers": 1000,
+        "isPrivate": false
+      },
+      "defaultRules": {
+        "turnBased": false,
+        "allowedMessageTypes": {
+          "playing": {
+            "death_report": {
+              "requiredFields": ["communalDeaths"]
+            },
+            "kill_report": {
+              "requiredFields": ["communalDeaths"]
+            }
+          }
+        }
+      }
+    }
+  },
+  "leaderboard": {
+    "requiresToken": true
+  }
+}
