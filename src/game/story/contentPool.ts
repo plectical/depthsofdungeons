@@ -1,6 +1,6 @@
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 
-const FRESH_GENERATION_PERCENT = 25;
+const FRESH_GENERATION_PERCENT = 60;
 const POOL_ENABLED = true;
 
 export interface PooledPortrait {
