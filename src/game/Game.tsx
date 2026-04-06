@@ -213,6 +213,10 @@ export function Game() {
   const [autoPlay, setAutoPlay] = useState(false);
   // 'full' = auto-play everything including combat; 'explore' = pause when enemies are visible
   const [autoPlayMode, setAutoPlayMode] = useState<'full' | 'explore'>('full');
+  // Seeder mode: trigger all enemy encounters and auto-select choices to generate content
+  const [autoPlaySeederMode, setAutoPlaySeederMode] = useState(false);
+  // Track if we're waiting for an encounter to complete in seeder mode
+  const seederEncounterPendingRef = useRef(false);
   // Tracks tab visibility — toggled so the auto-play effect re-runs and restarts the worker
   const [tabVisible, setTabVisible] = useState(true);
   // Tutorial bar — only shown on the very first run (generation === 0, tutorialComplete !== true)
@@ -2822,6 +2826,61 @@ export function Game() {
     };
   }, [autoPlay, autoPlayMode, tabVisible, screen, state?.gameOver, processDeathBloodline, isPremium, pendingEncounter]);
 
+  // Seeder mode: auto-trigger enemy encounters before autoplay attacks
+  useEffect(() => {
+    if (!autoPlay || !autoPlaySeederMode || !state || state.gameOver) return;
+    if (showEnemyEncounter || seederEncounterPendingRef.current) return; // Already showing encounter
+    
+    // Find visible enemies that haven't been encountered yet
+    const unencounteredEnemy = state.monsters.find(m => 
+      !m.isDead && 
+      state.floor.visible[m.pos.y]?.[m.pos.x] &&
+      !state.encounteredEnemyIds?.includes(m.id)
+    );
+    
+    if (unencounteredEnemy) {
+      console.log('[Seeder] Found unencountered enemy, triggering dialogue:', unencounteredEnemy.name);
+      seederEncounterPendingRef.current = true;
+      checkEnemyEncounter(unencounteredEnemy.id, unencounteredEnemy.name, unencounteredEnemy)
+        .then(() => {
+          seederEncounterPendingRef.current = false;
+        })
+        .catch(() => {
+          seederEncounterPendingRef.current = false;
+        });
+    }
+  }, [autoPlay, autoPlaySeederMode, state, showEnemyEncounter, checkEnemyEncounter]);
+
+  // Seeder mode: auto-progress through enemy dialogue by simulating clicks
+  useEffect(() => {
+    if (!autoPlaySeederMode || !showEnemyEncounter || !enemyEncounterData) return;
+    
+    // Auto-click continue or make random choice after delay
+    const timer = setTimeout(() => {
+      // Find dialogue buttons and click one
+      const dialogueButtons = document.querySelectorAll('[data-dialogue-choice]');
+      if (dialogueButtons.length > 0) {
+        // Prefer peaceful/diplomatic options if available
+        const peaceButton = Array.from(dialogueButtons).find(btn => 
+          btn.textContent?.toLowerCase().includes('peace') ||
+          btn.textContent?.toLowerCase().includes('talk') ||
+          btn.textContent?.toLowerCase().includes('leave') ||
+          btn.textContent?.toLowerCase().includes('diplomat')
+        );
+        const targetButton = peaceButton || dialogueButtons[Math.floor(Math.random() * dialogueButtons.length)];
+        (targetButton as HTMLElement)?.click();
+      } else {
+        // Look for continue button
+        const continueBtn = document.querySelector('[data-dialogue-continue]');
+        if (continueBtn) {
+          (continueBtn as HTMLElement)?.click();
+        }
+      }
+    }, 1500); // 1.5 second delay between choices
+    
+    return () => clearTimeout(timer);
+  }, [autoPlaySeederMode, showEnemyEncounter, enemyEncounterData]);
+
   async function submitScore(score: number, duration: number) {
     // Guard: don't submit invalid scores
     if (!score || score <= 0 || !Number.isFinite(score)) return;
@@ -4712,6 +4771,20 @@ export function Game() {
               })}
             >
               {autoPlayMode === 'full' ? 'FULL' : 'EXP'}
+            </button>
+            <button
+              style={{
+                ...actionBtnStyle,
+                fontSize: 9,
+                padding: '2px 5px',
+                color: autoPlaySeederMode ? '#ff8844' : '#8888aa',
+                borderColor: autoPlaySeederMode ? '#ff8844' : undefined,
+                background: autoPlaySeederMode ? '#332200' : undefined,
+              }}
+              title={autoPlaySeederMode ? 'Seeder ON: Triggers all enemy dialogues to generate content' : 'Seeder OFF: Normal autoplay'}
+              onClick={() => setAutoPlaySeederMode(v => !v)}
+            >
+              {autoPlaySeederMode ? 'SEED' : 'seed'}
             </button>
           </div>
         </div>

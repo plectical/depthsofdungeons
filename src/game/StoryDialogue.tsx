@@ -357,7 +357,7 @@ export function StoryDialogue({
             </div>
           ) : (
             <div style={continueContainerStyle}>
-              <button style={primaryButtonStyle} onClick={handleContinue}>
+              <button data-dialogue-continue="true" style={primaryButtonStyle} onClick={handleContinue}>
                 {currentNode.nextNodeId ? '[ CONTINUE ]' : '[ END ]'}
               </button>
             </div>
@@ -407,6 +407,7 @@ function ChoiceButton({ choice, index, state, onSelect }: ChoiceButtonProps) {
 
   return (
     <button
+      data-dialogue-choice={choice.id}
       style={{
         ...choiceButtonStyle,
         opacity: isLocked ? 0.4 : 1,
