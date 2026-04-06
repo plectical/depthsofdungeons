@@ -2871,12 +2871,13 @@ export function Game() {
   }, [autoPlay, autoPlaySeederMode, state, showEnemyEncounter, checkEnemyEncounter]);
 
   // Seeder mode: auto-progress through enemy dialogue by simulating clicks
+  // Uses interval to keep checking for buttons as dialogue progresses through nodes
   useEffect(() => {
     if (!autoPlaySeederMode || !showEnemyEncounter || !enemyEncounterData) return;
     
-    // Auto-click continue or make random choice after delay
-    const timer = setTimeout(() => {
-      // Find dialogue buttons and click one
+    // Keep checking for buttons to click every 1.5 seconds
+    const interval = setInterval(() => {
+      // Find dialogue choice buttons
       const dialogueButtons = document.querySelectorAll('[data-dialogue-choice]');
       if (dialogueButtons.length > 0) {
         // Prefer peaceful/diplomatic options if available
@@ -2887,25 +2888,30 @@ export function Game() {
           btn.textContent?.toLowerCase().includes('diplomat')
         );
         const targetButton = peaceButton || dialogueButtons[Math.floor(Math.random() * dialogueButtons.length)];
+        console.log('[Seeder] Auto-clicking dialogue choice:', (targetButton as HTMLElement)?.textContent?.trim());
         (targetButton as HTMLElement)?.click();
-      } else {
-        // Look for continue button
-        const continueBtn = document.querySelector('[data-dialogue-continue]');
-        if (continueBtn) {
-          (continueBtn as HTMLElement)?.click();
-        }
+        return;
       }
-    }, 1500); // 1.5 second delay between choices
+      
+      // Look for continue button
+      const continueBtn = document.querySelector('[data-dialogue-continue]');
+      if (continueBtn) {
+        console.log('[Seeder] Auto-clicking continue button');
+        (continueBtn as HTMLElement)?.click();
+        return;
+      }
+    }, 1500); // Check every 1.5 seconds
     
-    return () => clearTimeout(timer);
+    return () => clearInterval(interval);
   }, [autoPlaySeederMode, showEnemyEncounter, enemyEncounterData]);
 
   // Auto-play: auto-complete room events by clicking available buttons
+  // Uses interval to keep checking as the room event progresses through phases
   useEffect(() => {
     if (!autoPlay || !showRoomEvent || !state?.pendingRoomEvent) return;
     
-    // Auto-click available buttons after a short delay
-    const timer = setTimeout(() => {
+    // Keep checking for buttons every 500ms
+    const interval = setInterval(() => {
       // Priority: skill check roll button (during skill check phase)
       const rollBtn = document.querySelector('[data-skill-check-roll]');
       if (rollBtn) {
@@ -2934,17 +2940,9 @@ export function Game() {
         (continueBtn as HTMLElement)?.click();
         return;
       }
-      // Fallback: close the modal entirely
-      console.log('[AutoPlay] No room event buttons found, closing modal');
-      setShowRoomEvent(false);
-      if (state?.pendingRoomEvent) {
-        const next = cloneState(state);
-        next.pendingRoomEvent = null;
-        setState(next);
-      }
-    }, 500); // 0.5 second delay
+    }, 500); // Check every 500ms
     
-    return () => clearTimeout(timer);
+    return () => clearInterval(interval);
   }, [autoPlay, showRoomEvent, state?.pendingRoomEvent]);
 
   async function submitScore(score: number, duration: number) {
