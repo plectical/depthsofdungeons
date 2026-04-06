@@ -42,7 +42,7 @@ export interface ImageGenOptions {
 // Portrait generation will rely on detailed prompts instead.
 
 // Style reference for all character portraits - green/orange/black pixel art
-const CHARACTER_PORTRAIT_STYLE = 'https://i.imgur.com/PRiO50h.png';
+const CHARACTER_PORTRAIT_STYLE = 'https://i.imgur.com/blvhjo8.png';
 
 function getPortraitStyleReferences(): string[] {
   console.log('[AI] getPortraitStyleReferences returning:', [CHARACTER_PORTRAIT_STYLE]);
@@ -1073,7 +1073,7 @@ IMPORTANT: Make this encounter MEMORABLE. The player should FEEL something.
 }
 
 // Style reference for enemy portraits - green/orange/black pixel art
-const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/PRiO50h.png';
+const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/blvhjo8.png';
 
 // Generate a pixel art portrait from an enemy portrait prompt
 export async function generateEnemyPortraitFromPrompt(
