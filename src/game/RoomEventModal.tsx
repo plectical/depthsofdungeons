@@ -235,14 +235,14 @@ export function RoomEventModal({
         <div style={secondaryFrameStyle}>
           {phase === 'intro' && (
             <div style={buttonContainerStyle}>
-              <button style={primaryButtonStyle} onClick={handleBeginCheck}>
+              <button data-room-event-attempt="true" style={primaryButtonStyle} onClick={handleBeginCheck}>
                 [ ATTEMPT {formatSkillName(event.primarySkill).toUpperCase()} CHECK ]
               </button>
             </div>
           )}
           {phase === 'outcome' && (
             <div style={buttonContainerStyle}>
-              <button style={primaryButtonStyle} onClick={handleContinue}>
+              <button data-room-event-continue="true" style={primaryButtonStyle} onClick={handleContinue}>
                 [ CONTINUE ]
               </button>
             </div>

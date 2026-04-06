@@ -2747,6 +2747,13 @@ export function Game() {
           setPendingEncounter(null);
           return dismissed;
         }
+        // Auto-dismiss room events during autoplay (resolve with failure outcome to continue)
+        if (prev.pendingRoomEvent && !prev.pendingRoomEvent.resolved) {
+          const dismissed = cloneState(prev);
+          dismissed.pendingRoomEvent = null;
+          setShowRoomEvent(false);
+          return dismissed;
+        }
         // Explore mode: pause auto-play when any enemy is visible so the player can fight manually
         if (autoPlayMode === 'explore') {
           const hasVisibleEnemy = prev.monsters.some(
@@ -2892,6 +2899,53 @@ export function Game() {
     
     return () => clearTimeout(timer);
   }, [autoPlaySeederMode, showEnemyEncounter, enemyEncounterData]);
+
+  // Auto-play: auto-complete room events by clicking available buttons
+  useEffect(() => {
+    if (!autoPlay || !showRoomEvent || !state?.pendingRoomEvent) return;
+    
+    // Auto-click available buttons after a short delay
+    const timer = setTimeout(() => {
+      // Priority: skill check roll button (during skill check phase)
+      const rollBtn = document.querySelector('[data-skill-check-roll]');
+      if (rollBtn) {
+        console.log('[AutoPlay] Auto-clicking skill check roll button');
+        (rollBtn as HTMLElement)?.click();
+        return;
+      }
+      // Priority: skill check continue button (after roll)
+      const skillContinueBtn = document.querySelector('[data-skill-check-continue]');
+      if (skillContinueBtn) {
+        console.log('[AutoPlay] Auto-clicking skill check continue button');
+        (skillContinueBtn as HTMLElement)?.click();
+        return;
+      }
+      // Look for the attempt skill check button (intro phase)
+      const attemptBtn = document.querySelector('[data-room-event-attempt]');
+      if (attemptBtn) {
+        console.log('[AutoPlay] Auto-clicking room event attempt button');
+        (attemptBtn as HTMLElement)?.click();
+        return;
+      }
+      // Look for continue button (outcome phase)
+      const continueBtn = document.querySelector('[data-room-event-continue]');
+      if (continueBtn) {
+        console.log('[AutoPlay] Auto-clicking room event continue button');
+        (continueBtn as HTMLElement)?.click();
+        return;
+      }
+      // Fallback: close the modal entirely
+      console.log('[AutoPlay] No room event buttons found, closing modal');
+      setShowRoomEvent(false);
+      if (state?.pendingRoomEvent) {
+        const next = cloneState(state);
+        next.pendingRoomEvent = null;
+        setState(next);
+      }
+    }, 500); // 0.5 second delay
+    
+    return () => clearTimeout(timer);
+  }, [autoPlay, showRoomEvent, state?.pendingRoomEvent]);
 
   async function submitScore(score: number, duration: number) {
     // Guard: don't submit invalid scores

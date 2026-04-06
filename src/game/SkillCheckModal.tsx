@@ -214,7 +214,7 @@ export function SkillCheckModal({
           <div style={buttonContainerStyle}>
             {phase === 'ready' && (
               <>
-                <button style={primaryButtonStyle} onClick={performRoll}>
+                <button data-skill-check-roll="true" style={primaryButtonStyle} onClick={performRoll}>
                   [ ROLL ]
                 </button>
                 {onCancel && (
@@ -225,7 +225,7 @@ export function SkillCheckModal({
               </>
             )}
             {phase === 'result' && (
-              <button style={primaryButtonStyle} onClick={handleConfirm}>
+              <button data-skill-check-continue="true" style={primaryButtonStyle} onClick={handleConfirm}>
                 [ CONTINUE ]
               </button>
             )}
