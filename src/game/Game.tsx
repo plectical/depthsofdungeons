@@ -2852,6 +2852,10 @@ export function Game() {
   useEffect(() => {
     if (!autoPlay || !autoPlaySeederMode || !state || state.gameOver) return;
     if (showEnemyEncounter || seederEncounterPendingRef.current) return; // Already showing encounter
+    // Wait for patron/story dialogue to complete first
+    if (state.pendingStoryDialogue || showStoryDialogue) return;
+    // Wait for room events to complete
+    if (state.pendingRoomEvent || showRoomEvent) return;
     
     // Find visible enemies that haven't been encountered yet
     const unencounteredEnemy = state.monsters.find(m => 
@@ -2871,7 +2875,7 @@ export function Game() {
           seederEncounterPendingRef.current = false;
         });
     }
-  }, [autoPlay, autoPlaySeederMode, state, showEnemyEncounter, checkEnemyEncounter]);
+  }, [autoPlay, autoPlaySeederMode, state, showEnemyEncounter, showStoryDialogue, showRoomEvent, checkEnemyEncounter]);
 
   // Seeder mode: auto-progress through enemy dialogue by simulating clicks
   // Uses interval to keep checking for buttons as dialogue progresses through nodes
@@ -2907,6 +2911,34 @@ export function Game() {
     
     return () => clearInterval(interval);
   }, [autoPlaySeederMode, showEnemyEncounter, enemyEncounterData]);
+
+  // Seeder mode: auto-progress through story/patron dialogue
+  useEffect(() => {
+    if (!autoPlaySeederMode || !showStoryDialogue) return;
+    
+    // Keep checking for buttons to click every 1.5 seconds
+    const interval = setInterval(() => {
+      // Find dialogue choice buttons
+      const dialogueButtons = document.querySelectorAll('[data-dialogue-choice]');
+      if (dialogueButtons.length > 0) {
+        // Pick a random choice for story dialogues
+        const targetButton = dialogueButtons[Math.floor(Math.random() * dialogueButtons.length)];
+        console.log('[Seeder] Auto-clicking story dialogue choice');
+        (targetButton as HTMLElement)?.click();
+        return;
+      }
+      
+      // Look for continue button
+      const continueBtn = document.querySelector('[data-dialogue-continue]');
+      if (continueBtn) {
+        console.log('[Seeder] Auto-clicking story dialogue continue button');
+        (continueBtn as HTMLElement)?.click();
+        return;
+      }
+    }, 1500);
+    
+    return () => clearInterval(interval);
+  }, [autoPlaySeederMode, showStoryDialogue]);
 
   // Auto-play: auto-complete room events by clicking available buttons
   // Uses interval to keep checking as the room event progresses through phases
