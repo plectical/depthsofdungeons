@@ -54,6 +54,8 @@ export interface DialogueResult {
   relationshipChange: number;
   effects: Array<{ type: string; value: unknown }>;
   skillCheckResults: SkillCheckResult[];
+  peacefulEnd: boolean;
+  combatStart: boolean;
 }
 
 export function StoryDialogue({
@@ -76,16 +78,32 @@ export function StoryDialogue({
   } | null>(null);
   const [lastChoice, setLastChoice] = useState<StoryDialogueChoice | null>(null);
   const [boonGranted, setBoonGranted] = useState(false);
+  const [peacefulEnd, setPeacefulEnd] = useState(false);
+  const [combatStart, setCombatStart] = useState(false);
 
   const currentNode = dialogue.nodes[currentNodeId];
   
-  // Check for boon granting when we reach a node with grantsBoon: true
+  // Check for special node properties when we reach a new node
   useEffect(() => {
-    if (!currentNode || boonGranted) return;
+    if (!currentNode) return;
     
     // Access dynamic properties from AI-generated nodes
     const nodeData = currentNode as unknown as Record<string, unknown>;
-    if (nodeData['grantsBoon'] && lastChoice) {
+    
+    // Track peaceful end
+    if (nodeData['peacefulEnd'] === true) {
+      setPeacefulEnd(true);
+      console.log('[Dialogue] Peaceful end reached');
+    }
+    
+    // Track combat start
+    if (nodeData['combatStart'] === true) {
+      setCombatStart(true);
+      console.log('[Dialogue] Combat start triggered');
+    }
+    
+    // Check for boon granting when we reach a node with grantsBoon: true
+    if (!boonGranted && nodeData['grantsBoon'] && lastChoice) {
       const boonMeta = nodeData['boonMeta'] as {
         name: string;
         flavorText: string;
@@ -195,9 +213,11 @@ export function StoryDialogue({
         relationshipChange,
         effects,
         skillCheckResults,
+        peacefulEnd,
+        combatStart,
       });
     }
-  }, [currentNode, choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, onComplete]);
+  }, [currentNode, choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, peacefulEnd, combatStart, onComplete]);
 
   const handleClose = useCallback(() => {
     onComplete({
@@ -206,9 +226,11 @@ export function StoryDialogue({
       relationshipChange,
       effects,
       skillCheckResults,
+      peacefulEnd,
+      combatStart,
     });
     onClose?.();
-  }, [choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, onComplete, onClose]);
+  }, [choicesMade, choiceLabels, relationshipChange, effects, skillCheckResults, peacefulEnd, combatStart, onComplete, onClose]);
 
   if (!currentNode) {
     return null;

@@ -1,9 +1,6 @@
-import { useState, useMemo } from 'react';
-import type { CSSProperties } from 'react';
-import type { BloodlineData } from './types';
-import type { QuestEchoData } from './types';
-import type { LoreEntry, LoreCategory, LoreContext } from './lore';
-import { ALL_LORE, getUnlockedLore, getLoreByCategory, CATEGORY_META } from './lore';
+import { useState, type CSSProperties } from 'react';
+import type { BloodlineData, QuestEchoData } from './types';
+import { getUnlockedLore, type LoreEntry, type LoreCategory, type LoreContext } from './lore';
 
 interface JournalProps {
   bloodline: BloodlineData;
@@ -13,293 +10,218 @@ interface JournalProps {
   onClose: () => void;
 }
 
-const CATEGORY_ORDER: LoreCategory[] = ['origins', 'zones', 'bosses', 'creatures', 'ancestors', 'artifacts', 'factions'];
+const CATEGORY_LABELS: Record<LoreCategory, string> = {
+  origins: 'Origins',
+  zones: 'Zones',
+  bosses: 'Bosses',
+  creatures: 'Creatures',
+  ancestors: 'Bloodline',
+  artifacts: 'Artifacts',
+  factions: 'Factions',
+};
+
+const CATEGORY_ORDER: LoreCategory[] = [
+  'origins',
+  'zones',
+  'bosses',
+  'creatures',
+  'ancestors',
+  'artifacts',
+  'factions',
+];
 
 export function Journal({ bloodline, questEchoData, seenIds, onMarkSeen, onClose }: JournalProps) {
-  const [selectedCategory, setSelectedCategory] = useState<LoreCategory>('origins');
   const [selectedEntry, setSelectedEntry] = useState<LoreEntry | null>(null);
-
-  const ctx: LoreContext = useMemo(() => ({ bloodline, questEchoData }), [bloodline, questEchoData]);
-
-  const unlockedEntries = useMemo(() => getUnlockedLore(ctx), [ctx]);
-  const byCategory = useMemo(() => getLoreByCategory(unlockedEntries), [unlockedEntries]);
-
-  const totalUnlocked = unlockedEntries.length;
-  const totalEntries = ALL_LORE.length;
-
-  // Count new (unseen) entries
-  const unseenSet = useMemo(() => {
-    const s = new Set<string>();
-    for (const e of unlockedEntries) {
-      if (!seenIds.includes(e.id)) s.add(e.id);
-    }
-    return s;
-  }, [unlockedEntries, seenIds]);
-
+  const [expandedCategory, setExpandedCategory] = useState<LoreCategory | null>('origins');
+  
+  const ctx: LoreContext = { bloodline, questEchoData };
+  const unlockedLore = getUnlockedLore(ctx);
+  
+  const entriesByCategory = CATEGORY_ORDER.reduce((acc, cat) => {
+    acc[cat] = unlockedLore.filter(e => e.category === cat).sort((a, b) => a.order - b.order);
+    return acc;
+  }, {} as Record<LoreCategory, LoreEntry[]>);
+  
   const handleSelectEntry = (entry: LoreEntry) => {
     setSelectedEntry(entry);
-    // Mark as seen if not already
     if (!seenIds.includes(entry.id)) {
       onMarkSeen([...seenIds, entry.id]);
     }
   };
-
-  // ── Entry detail view ──
-  if (selectedEntry) {
-    return (
-      <div style={overlayStyle}>
-        <div style={containerStyle}>
-          <div style={headerStyle}>
-            <button style={backBtnStyle} onClick={() => setSelectedEntry(null)}>{'< Back'}</button>
-            <span style={{ color: selectedEntry.color, fontWeight: 'bold', fontSize: 16 }}>
-              {selectedEntry.icon} {selectedEntry.title}
-            </span>
-          </div>
-          <div style={entryDetailStyle}>
-            <div style={{ color: '#8888aa', fontSize: 12, marginBottom: 8, fontStyle: 'italic' }}>
-              {selectedEntry.subtitle}
-            </div>
-            {selectedEntry.text.split('\n').map((paragraph, i) => (
-              <p key={i} style={paragraphStyle}>
-                {paragraph}
-              </p>
-            ))}
-          </div>
-          <div style={footerStyle}>
-            <span style={{ color: '#444466', fontSize: 11 }}>
-              {CATEGORY_META[selectedEntry.category].name}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Category list view ──
-  const categoryEntries = byCategory[selectedCategory] ?? [];
-
+  
   return (
     <div style={overlayStyle}>
-      <div style={containerStyle}>
-        {/* Header */}
+      <div style={panelStyle}>
         <div style={headerStyle}>
-          <button style={closeBtnStyle} onClick={onClose}>{'[ X ]'}</button>
-          <span style={{ color: '#33ff66', fontWeight: 'bold', fontSize: 16 }}>
-            {'Journal'}
-          </span>
-          <span style={{ color: '#555577', fontSize: 12 }}>
-            {totalUnlocked}/{totalEntries}
-          </span>
+          <span style={titleStyle}>Journal</span>
+          <button style={closeBtnStyle} onClick={onClose}>X</button>
         </div>
-
-        {/* Category tabs */}
-        <div style={tabRowStyle}>
-          {CATEGORY_ORDER.map(cat => {
-            const meta = CATEGORY_META[cat];
-            const count = byCategory[cat]?.length ?? 0;
-            const newCount = byCategory[cat]?.filter(e => unseenSet.has(e.id)).length ?? 0;
-            const isActive = cat === selectedCategory;
-            return (
-              <button
-                key={cat}
-                style={{
-                  ...tabBtnStyle,
-                  color: isActive ? meta.color : '#555577',
-                  borderBottom: isActive ? `2px solid ${meta.color}` : '2px solid transparent',
-                  opacity: count === 0 ? 0.3 : 1,
-                }}
-                onClick={() => count > 0 && setSelectedCategory(cat)}
+        
+        <div style={contentStyle}>
+          {selectedEntry ? (
+            <div style={entryDetailStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 18, color: selectedEntry.color }}>{selectedEntry.icon}</span>
+                <span style={{ color: selectedEntry.color, fontWeight: 'bold', fontSize: 14 }}>{selectedEntry.title}</span>
+              </div>
+              <div style={{ color: '#888', fontSize: 10, marginBottom: 12, fontStyle: 'italic' }}>
+                {selectedEntry.subtitle}
+              </div>
+              <div style={{ color: '#aaa', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {selectedEntry.text}
+              </div>
+              <button 
+                style={{ ...backBtnStyle, marginTop: 16 }} 
+                onClick={() => setSelectedEntry(null)}
               >
-                <span>{meta.icon}</span>
-                {newCount > 0 && <span style={newBadgeStyle}>{newCount}</span>}
+                Back
               </button>
-            );
-          })}
-        </div>
-
-        {/* Category name */}
-        <div style={{ padding: '4px 12px', color: CATEGORY_META[selectedCategory].color, fontSize: 13, fontWeight: 'bold' }}>
-          {CATEGORY_META[selectedCategory].name}
-        </div>
-
-        {/* Entry list */}
-        <div style={entryListStyle}>
-          {categoryEntries.length === 0 && (
-            <div style={{ color: '#444466', padding: 16, textAlign: 'center', fontSize: 13 }}>
-              No entries unlocked yet. Keep exploring!
+            </div>
+          ) : (
+            <div style={listStyle}>
+              {CATEGORY_ORDER.map(cat => {
+                const entries = entriesByCategory[cat];
+                if (entries.length === 0) return null;
+                const isExpanded = expandedCategory === cat;
+                
+                return (
+                  <div key={cat} style={{ marginBottom: 8 }}>
+                    <div 
+                      style={categoryHeaderStyle} 
+                      onClick={() => setExpandedCategory(isExpanded ? null : cat)}
+                    >
+                      <span>{isExpanded ? '▾' : '▸'} {CATEGORY_LABELS[cat]}</span>
+                      <span style={{ color: '#555', fontSize: 10 }}>{entries.length}</span>
+                    </div>
+                    {isExpanded && entries.map(entry => {
+                      const isNew = !seenIds.includes(entry.id);
+                      return (
+                        <div 
+                          key={entry.id}
+                          style={entryRowStyle}
+                          onClick={() => handleSelectEntry(entry)}
+                        >
+                          <span style={{ color: entry.color, marginRight: 8 }}>{entry.icon}</span>
+                          <span style={{ flex: 1, color: isNew ? '#fff' : '#888' }}>{entry.title}</span>
+                          {isNew && <span style={newBadgeStyle}>NEW</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           )}
-          {categoryEntries.map(entry => {
-            const isNew = unseenSet.has(entry.id);
-            return (
-              <button
-                key={entry.id}
-                style={entryRowStyle}
-                onClick={() => handleSelectEntry(entry)}
-              >
-                <span style={{ color: entry.color, fontSize: 16, width: 20, textAlign: 'center' }}>
-                  {entry.icon}
-                </span>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ color: isNew ? '#ffffff' : '#aaaacc', fontSize: 13, fontWeight: isNew ? 'bold' : 'normal' }}>
-                    {entry.title}
-                    {isNew && <span style={{ ...newLabelStyle, color: '#55ccff' }}> NEW</span>}
-                  </div>
-                  <div style={{ color: '#555577', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {entry.subtitle}
-                  </div>
-                </div>
-                <span style={{ color: '#333355', fontSize: 14 }}>{'>'}</span>
-              </button>
-            );
-          })}
-
-          {/* Locked entries hint */}
-          {(() => {
-            const lockedInCat = ALL_LORE.filter(e => e.category === selectedCategory && !unlockedEntries.includes(e)).length;
-            if (lockedInCat === 0) return null;
-            return (
-              <div style={{ color: '#333355', padding: '8px 12px', fontSize: 11, textAlign: 'center', fontStyle: 'italic' }}>
-                {lockedInCat} more {lockedInCat === 1 ? 'entry' : 'entries'} to discover...
-              </div>
-            );
-          })()}
         </div>
       </div>
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════════
-// STYLES
-// ══════════════════════════════════════════════════════════════
-
 const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  width: '100%',
-  height: '100%',
-  background: 'rgba(0,0,0,0.75)',
-  zIndex: 1000,
+  position: 'absolute',
+  inset: 0,
+  background: 'rgba(0, 0, 0, 0.95)',
   display: 'flex',
-  justifyContent: 'center',
   alignItems: 'center',
-  fontFamily: 'monospace',
+  justifyContent: 'center',
+  zIndex: 50,
+  padding: 12,
 };
 
-const containerStyle: CSSProperties = {
+const panelStyle: CSSProperties = {
   width: '100%',
-  maxWidth: 420,
-  height: '100%',
-  maxHeight: '100dvh',
+  maxWidth: 400,
+  maxHeight: '90%',
+  background: '#000',
+  border: '1px solid #1a5a2a',
   display: 'flex',
   flexDirection: 'column',
-  background: '#0a0a16',
-  border: '1px solid #1a5a2a',
+  overflow: 'hidden',
 };
 
 const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  justifyContent: 'space-between',
   padding: '8px 12px',
-  borderBottom: '1px solid #1a3a1a',
-  flexShrink: 0,
+  borderBottom: '1px solid #0a3a0a',
+};
+
+const titleStyle: CSSProperties = {
+  fontFamily: 'monospace',
+  fontSize: 14,
+  fontWeight: 'bold',
+  color: '#33ff66',
 };
 
 const closeBtnStyle: CSSProperties = {
-  background: 'none',
-  border: '1px solid #333355',
-  color: '#ff5566',
-  fontFamily: 'monospace',
+  padding: '4px 8px',
   fontSize: 12,
-  padding: '2px 8px',
-  cursor: 'pointer',
-};
-
-const backBtnStyle: CSSProperties = {
-  background: 'none',
-  border: '1px solid #333355',
-  color: '#44bbff',
-  fontFamily: 'monospace',
-  fontSize: 12,
-  padding: '2px 8px',
-  cursor: 'pointer',
-};
-
-const tabRowStyle: CSSProperties = {
-  display: 'flex',
-  gap: 0,
-  borderBottom: '1px solid #1a2a1a',
-  overflowX: 'auto',
-  flexShrink: 0,
-};
-
-const tabBtnStyle: CSSProperties = {
-  background: 'none',
-  border: 'none',
-  fontFamily: 'monospace',
-  fontSize: 16,
-  padding: '6px 10px',
-  cursor: 'pointer',
-  position: 'relative',
-  whiteSpace: 'nowrap',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 2,
-};
-
-const newBadgeStyle: CSSProperties = {
-  fontSize: 9,
-  color: '#55ccff',
   fontWeight: 'bold',
-  position: 'absolute',
-  top: 2,
-  right: 2,
+  background: 'transparent',
+  color: '#ff3333',
+  border: '1px solid #4a0a0a',
+  fontFamily: 'monospace',
+  cursor: 'pointer',
 };
 
-const entryListStyle: CSSProperties = {
+const contentStyle: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
-  overflowX: 'hidden',
+  padding: 12,
+};
+
+const listStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const categoryHeaderStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '6px 8px',
+  background: '#0a0a0a',
+  border: '1px solid #1a3a1a',
+  cursor: 'pointer',
+  fontFamily: 'monospace',
+  fontSize: 11,
+  color: '#33ff66',
+  marginBottom: 4,
 };
 
 const entryRowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
-  width: '100%',
-  padding: '8px 12px',
-  background: 'none',
-  border: 'none',
-  borderBottom: '1px solid #111122',
-  fontFamily: 'monospace',
+  padding: '6px 8px',
+  marginLeft: 12,
+  borderLeft: '2px solid #1a3a1a',
   cursor: 'pointer',
-  textAlign: 'left',
-};
-
-const newLabelStyle: CSSProperties = {
+  fontFamily: 'monospace',
   fontSize: 10,
-  fontWeight: 'bold',
+  marginBottom: 2,
 };
 
 const entryDetailStyle: CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: '8px 16px',
+  fontFamily: 'monospace',
 };
 
-const paragraphStyle: CSSProperties = {
-  color: '#aaaacc',
-  fontSize: 13,
-  lineHeight: '1.6',
-  margin: '0 0 12px 0',
-};
-
-const footerStyle: CSSProperties = {
+const backBtnStyle: CSSProperties = {
   padding: '6px 12px',
-  borderTop: '1px solid #1a2a1a',
-  textAlign: 'center',
-  flexShrink: 0,
+  background: 'transparent',
+  border: '1px solid #1a5a2a',
+  color: '#33ff66',
+  fontFamily: 'monospace',
+  fontSize: 11,
+  cursor: 'pointer',
+};
+
+const newBadgeStyle: CSSProperties = {
+  background: '#ff3333',
+  color: '#fff',
+  padding: '1px 4px',
+  fontSize: 8,
+  fontWeight: 'bold',
+  borderRadius: 2,
 };

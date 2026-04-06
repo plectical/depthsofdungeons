@@ -2535,6 +2535,19 @@ export function movePlayer(state: GameState, dx: number, dy: number): boolean {
 
   const monster = state.monsters.find((m) => !m.isDead && m.pos.x === nx && m.pos.y === ny);
   if (monster) {
+    // Don't attack befriended creatures - just pass by
+    if (monster.isBefriended || monster.isHostile === false) {
+      addMessage(state, `${monster.name} nods as you pass.`, '#88ff88');
+      // Swap positions with the befriended creature
+      const oldPos = { ...state.player.pos };
+      state.player.pos.x = nx;
+      state.player.pos.y = ny;
+      monster.pos.x = oldPos.x;
+      monster.pos.y = oldPos.y;
+      processTurn(state);
+      return true;
+    }
+    
     // Ranger — First Strike: stun the monster for 1 turn so it can't retaliate
     if (hasChosenAbility(state, 'rng_swift_strike')) {
       if (!monster.statusEffects) monster.statusEffects = [];
@@ -2868,6 +2881,9 @@ function processBossAbility(state: GameState, boss: Entity, ability: BossAbility
 
 function processMonsterTurn(state: GameState, monster: Entity) {
   if (monster.isDead) return;
+  
+  // Befriended creatures don't attack
+  if (monster.isBefriended || monster.isHostile === false) return;
 
   const dist = manhattan(monster.pos, state.player.pos);
   const aggroRange = monster.aggroRange ?? 8;

@@ -41,6 +41,7 @@ import { setEchoUnlockedNodes } from './entities';
 import { QuestLog } from './QuestLog';
 import { EchoTreeView } from './EchoTreeView';
 import { Journal } from './Journal';
+import { StoryJournal } from './StoryJournal';
 import { ensureLegacyData, addEssenceShards, getGearForClass, LEGACY_GEAR_DEFS } from './legacyGear';
 import { LegacyGearView } from './LegacyGearView';
 import { getNewLoreIds, ALL_LORE } from './lore';
@@ -269,6 +270,7 @@ export function Game() {
   const [showQuestLog, setShowQuestLog] = useState(false);
   const [showEchoTree, setShowEchoTree] = useState(false);
   const [showJournal, setShowJournal] = useState(false);
+  const [showStoryJournal, setShowStoryJournal] = useState(false);
   const [pendingLorePopup, setPendingLorePopup] = useState<string | null>(null);
   // Extra quest tracking counters (not in runStats)
   const questExtraRef = useRef<Partial<RunQuestTracker>>({});
@@ -1689,7 +1691,9 @@ export function Game() {
     next.encounteredEnemyIds.push(pendingEnemyId);
     
     // Check for special outcomes in the dialogue result
-    let shouldStartCombat = true;
+    // Use the explicit peacefulEnd/combatStart flags from the dialogue
+    let shouldStartCombat = result.combatStart || false;
+    let isPeaceful = result.peacefulEnd || false;
     let combatAdvantage = 0;
     
     // Process effects from the dialogue
@@ -1704,12 +1708,16 @@ export function Game() {
       }
     }
     
-    // Check the last choice made for special outcomes
+    // Check the last choice made for special outcomes (fallback for older dialogue)
     const lastChoice = result.choicesMade[result.choicesMade.length - 1];
     if (lastChoice) {
-      // Peaceful endings skip combat
-      if (lastChoice.includes('peaceful') || lastChoice.includes('escape') || lastChoice.includes('flee') || lastChoice.includes('talk_reward') || lastChoice.includes('peaceful_end') || lastChoice.includes('extort')) {
-        shouldStartCombat = false;
+      // Peaceful endings skip combat (fallback check)
+      if (!isPeaceful && (lastChoice.includes('peaceful') || lastChoice.includes('escape') || lastChoice.includes('flee') || lastChoice.includes('talk_reward') || lastChoice.includes('peaceful_end') || lastChoice.includes('extort'))) {
+        isPeaceful = true;
+      }
+      // Combat start (fallback check)
+      if (!shouldStartCombat && (lastChoice.includes('attack') || lastChoice.includes('fight') || lastChoice.includes('combat'))) {
+        shouldStartCombat = true;
       }
       // Advantage bonuses
       if (lastChoice.includes('exploit') || lastChoice.includes('observe_success')) {
@@ -1717,6 +1725,11 @@ export function Game() {
       } else if (lastChoice.includes('fight_anyway')) {
         combatAdvantage = 10;
       }
+    }
+    
+    // Peaceful resolution means no combat
+    if (isPeaceful) {
+      shouldStartCombat = false;
     }
     
     // Apply rewards from the encounter
@@ -1803,13 +1816,14 @@ export function Game() {
         // Apply advantage as damage bonus on first hit (handled in engine)
         addMessage(next, `Combat begins with ${enemy.name}!`, '#ff6644');
       }
-    } else {
-      // Peaceful resolution - remove the enemy or mark as non-hostile
+    } else if (isPeaceful) {
+      // Peaceful resolution - mark enemy as befriended (NOT dead!)
       const enemy = next.monsters.find(m => m.id === pendingEnemyId);
       if (enemy) {
-        // Mark enemy as dead (peacefully resolved)
-        enemy.isDead = true;
-        addMessage(next, `${enemy.name} lets you pass.`, '#88ff88');
+        // Mark enemy as befriended - they become non-hostile and stay in the dungeon
+        (enemy as any).isBefriended = true;
+        (enemy as any).isHostile = false;
+        addMessage(next, `${enemy.name} regards you with newfound respect.`, '#88ff88');
         // Give partial XP for peaceful resolution
         const xpGain = Math.floor(enemy.xp * 0.5);
         if (xpGain > 0) {
@@ -1817,6 +1831,35 @@ export function Game() {
           addMessage(next, `Gained ${xpGain} XP for diplomacy.`, '#aaffaa');
         }
       }
+    }
+    
+    // Record journal entry for this encounter
+    if (next._bloodlineRef && enemyEncounterData) {
+      const journalEntry: import('./types').JournalEntry = {
+        id: `journal_${pendingEnemyId}_${Date.now()}`,
+        name: enemyEncounterData.characterName || enemyEncounterData.enemyName,
+        title: enemyEncounterData.characterTitle,
+        portraitUrl: enemyEncounterData.portraitUrl,
+        summary: isPeaceful 
+          ? `You resolved your encounter with ${enemyEncounterData.characterName || enemyEncounterData.enemyName} peacefully.`
+          : shouldStartCombat
+          ? `You entered combat with ${enemyEncounterData.characterName || enemyEncounterData.enemyName}.`
+          : `You encountered ${enemyEncounterData.characterName || enemyEncounterData.enemyName}.`,
+        outcome: isPeaceful ? 'befriended' : shouldStartCombat ? 'combat' : 'peaceful',
+        floor: next.floorNumber,
+        zone: next.zone,
+        timestamp: Date.now(),
+        rewards: result.effects
+          .filter(e => e.type === 'gold' || e.type === 'boon')
+          .map(e => e.type === 'gold' ? `${e.value} gold` : `Boon: ${(e.value as any)?.name || 'Unknown'}`),
+        gaveQuest: !!enemyEncounterData.quest,
+      };
+      
+      if (!next._bloodlineRef.storyJournal) {
+        next._bloodlineRef.storyJournal = [];
+      }
+      next._bloodlineRef.storyJournal.push(journalEntry);
+      console.log('[Journal] Added entry:', journalEntry.name);
     }
     
     setShowEnemyEncounter(false);
@@ -4596,6 +4639,15 @@ export function Game() {
           <button style={actionBtnStyle} onClick={() => setShowInventory(true)}>
             {'[ Bag ]'}
           </button>
+          <button 
+            style={{
+              ...actionBtnStyle,
+              color: (bloodline.storyJournal?.length ?? 0) > 0 ? '#aa88ff' : '#33ff66',
+            }}
+            onClick={() => setShowStoryJournal(true)}
+          >
+            {(bloodline.storyJournal?.length ?? 0) > 0 ? `[ Stories ${bloodline.storyJournal?.length} ]` : '[ Stories ]'}
+          </button>
           {isAtShop(state) && state.shop && state.shop.stock.length > 0 && (
             <button style={shopBtnStyle} onClick={() => setShowShop(true)}>
               {'[ Shop ]'}
@@ -4655,6 +4707,7 @@ export function Game() {
       {showQuestLog && <QuestLog data={questEchoData} characterQuests={state?.activeCharacterQuests} onClaim={handleClaimQuest} onClaimCharacterQuest={handleClaimCharacterQuest} onClose={() => setShowQuestLog(false)} onOpenEchoTree={() => { setShowQuestLog(false); openEchoTree('game_quest_log'); }} />}
       {showEchoTree && <EchoTreeView data={questEchoData} onUnlock={handleUnlockEchoNode} onClose={() => setShowEchoTree(false)} />}
       {showJournal && <Journal bloodline={bloodline} questEchoData={questEchoData} seenIds={bloodline.journalSeenIds ?? []} onMarkSeen={handleJournalMarkSeen} onClose={() => setShowJournal(false)} />}
+      {showStoryJournal && <StoryJournal entries={bloodline.storyJournal ?? []} onClose={() => setShowStoryJournal(false)} />}
       {showInventory && <Inventory
         state={state}
         onChange={handleChange}

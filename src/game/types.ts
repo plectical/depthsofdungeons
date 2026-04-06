@@ -197,6 +197,10 @@ export interface Entity {
   isMercenary?: boolean;
   mercName?: string;
   element?: Element;
+  /** Whether this creature has been befriended through dialogue */
+  isBefriended?: boolean;
+  /** Whether this creature is hostile (default true for monsters) */
+  isHostile?: boolean;
   /** When this monster attacks, it creates terrain around the target */
   terrainOnHit?: { terrain: TerrainType; radius: number; chance: number };
   /** Innate combat abilities for non-boss monsters */
@@ -413,6 +417,33 @@ export interface BloodlineData {
   storyData?: BloodlineStoryData;
   /** Faction reputation system — persists creature faction relationships across runs */
   factionReputations?: FactionReputation[];
+  /** Story journal — records all encountered stories/characters with images */
+  storyJournal?: JournalEntry[];
+}
+
+/** A journal entry recording an encountered character/story */
+export interface JournalEntry {
+  id: string;
+  /** Character/creature name */
+  name: string;
+  /** Character title if any */
+  title?: string;
+  /** Portrait URL */
+  portraitUrl?: string;
+  /** Brief summary of the encounter */
+  summary: string;
+  /** How the encounter ended */
+  outcome: 'peaceful' | 'combat' | 'fled' | 'befriended' | 'killed';
+  /** Floor where encountered */
+  floor: number;
+  /** Zone where encountered */
+  zone: ZoneId;
+  /** Timestamp */
+  timestamp: number;
+  /** Any rewards gained */
+  rewards?: string[];
+  /** Whether they gave a quest */
+  gaveQuest?: boolean;
 }
 
 export type TutorialStepId =

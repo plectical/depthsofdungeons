@@ -1128,13 +1128,15 @@ async function _generateEnemyPortraitDirect(
 ): Promise<string | null> {
   const pixelArtPrompt = `PIXEL ART portrait in retro dungeon crawler style.
 
-Subject: ${enemyRace} creature named ${characterName}
+Subject: A ${enemyRace} creature
 ${portraitPrompt}
+
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS, NO NAMES in the image. Pure visual art only.
 
 STYLE REQUIREMENTS:
 1. STRICT COLOR PALETTE - ONLY USE:
    - GREEN (#00ff00, #44ff44, #22aa22, #115511) - main color for most elements
-   - ORANGE/AMBER (#ffcc44, #ff8800, #cc6600) - for accents, eyes, highlights, name text
+   - ORANGE/AMBER (#ffcc44, #ff8800, #cc6600) - for accents, eyes, highlights
    - BLACK (#000000, #111111) - background only
 
 2. PIXEL ART STYLE:
@@ -1152,7 +1154,11 @@ STYLE REQUIREMENTS:
 4. NO OTHER COLORS:
    - No red, no blue, no purple, no brown, no pink
    - No realistic skin tones or full color rendering
-   - Everything must be rendered in green and orange on black`;
+   - Everything must be rendered in green and orange on black
+
+5. NO TEXT OR WRITING:
+   - Do NOT include any text, labels, names, or letters
+   - Pure visual portrait only`;
 
   console.log('[AI] Generating pixel art portrait for:', characterName);
   return generateImage(pixelArtPrompt, {
@@ -1199,8 +1205,9 @@ async function _generateRoomEventArtDirect(
 ): Promise<string | null> {
   const pixelArtPrompt = `PIXEL ART scene in retro dungeon crawler style.
 
-EVENT: ${eventName}
-${artPrompt}
+Scene: ${artPrompt}
+
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS, NO NAMES in the image. Pure visual art only.
 
 STYLE REQUIREMENTS:
 1. STRICT COLOR PALETTE - ONLY USE:
@@ -1228,7 +1235,8 @@ STYLE REQUIREMENTS:
 5. COMPOSITION:
    - Square format, centered subject
    - Clear focal point showing the event
-   - Dark atmospheric background`;
+   - Dark atmospheric background
+   - NO text, labels, or writing of any kind`;
 
   console.log('[AI] Generating pixel art for room event:', eventName);
   return generateImage(pixelArtPrompt, {
@@ -1406,7 +1414,9 @@ async function _generateMercenaryPortraitDirect(merc: MercenaryDef): Promise<str
 STRICT COLOR PALETTE: Only use GREEN (#00ff00, #44ff44, #228822), ORANGE (#ff8800, #ffaa44, #cc6600), and BLACK (#000000, #111111, #222222).
 NO other colors allowed - this is critical.
 
-Character: ${merc.name} - ${merc.title}
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS, NO NAMES in the image. Pure visual art only.
+
+Character: A mercenary warrior
 ${merc.description}
 Personality: ${merc.personality || 'Battle-hardened veteran'}
 
@@ -1416,7 +1426,8 @@ STYLE REQUIREMENTS:
 - Dark dungeon atmosphere with torch lighting
 - Bold outlines, no anti-aliasing
 - Low resolution chunky pixels visible
-- Armored warrior ready for battle`;
+- Armored warrior ready for battle
+- NO text, labels, or writing of any kind`;
 
   console.log('[AI] Using', styleRefs.length, 'reference images for mercenary portrait');
   
@@ -1543,7 +1554,9 @@ async function _generateCharacterPortraitDirect(character: StoryCharacter): Prom
 STRICT COLOR PALETTE: Only use GREEN (#00ff00, #44ff44, #228822), ORANGE (#ff8800, #ffaa44, #cc6600), and BLACK (#000000, #111111, #222222).
 NO other colors allowed - this is critical.
 
-Character: ${character.race} named ${character.name}.
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS, NO NAMES in the image. Pure visual art only.
+
+Character: A ${character.race} creature.
 ${character.appearanceDescription}
 Expression: ${character.role === 'ally' ? 'Approachable, friendly' : character.role === 'enemy' ? 'Menacing, hostile' : 'Mysterious, enigmatic'}.
 
@@ -1552,7 +1565,8 @@ STYLE REQUIREMENTS:
 - CRT monitor glow effect
 - Dark dungeon atmosphere
 - Bold outlines, no anti-aliasing
-- Low resolution chunky pixels visible`;
+- Low resolution chunky pixels visible
+- NO text, labels, or writing of any kind`;
 
   console.log('[AI] Using', styleRefs.length, 'reference images for portrait style');
   

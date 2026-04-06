@@ -492,6 +492,52 @@ export function CharacterInfo({ state, questEchoData, onClose }: CharacterInfoPr
             </>
           )}
 
+          {/* Active Boons */}
+          {state.activeCharacterBoons && state.activeCharacterBoons.length > 0 && (
+            <>
+              <div style={sectionTitleStyle}>ACTIVE BOONS</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 9, color: '#666', marginBottom: 6 }}>
+                Temporary buffs from creature encounters.
+              </div>
+              {state.activeCharacterBoons.filter(b => b.isActive).map(boon => (
+                <div key={boon.id} style={{
+                  padding: '6px 8px',
+                  marginBottom: 4,
+                  background: '#0a0808',
+                  border: `1px solid ${boon.color || '#3a3a1a'}`,
+                  fontFamily: 'monospace',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: boon.color || '#ffcc33', fontSize: 11, fontWeight: 'bold' }}>
+                      {boon.icon} {boon.name}
+                    </span>
+                    {boon.duration === 'floors' && boon.floorsRemaining && (
+                      <span style={{ color: '#666', fontSize: 9 }}>
+                        {boon.floorsRemaining} floors
+                      </span>
+                    )}
+                    {boon.duration === 'run' && (
+                      <span style={{ color: '#44ff88', fontSize: 9 }}>
+                        Entire run
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color: '#aaa', fontSize: 10, marginTop: 3 }}>
+                    {boon.description}
+                  </div>
+                  {boon.flavorText && (
+                    <div style={{ color: '#666', fontSize: 9, fontStyle: 'italic', marginTop: 2 }}>
+                      "{boon.flavorText}"
+                    </div>
+                  )}
+                  <div style={{ color: '#888', fontSize: 9, marginTop: 2 }}>
+                    From: {boon.characterName}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
           {/* Mercenaries */}
           {state.mercenaries.filter(m => !m.isDead).length > 0 && (
             <>
