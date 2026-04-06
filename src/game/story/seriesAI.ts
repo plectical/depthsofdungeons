@@ -11,6 +11,7 @@ import type {
   CharacterQuest,
   CharacterQuestType,
 } from '../types';
+import { fetchOrGenerateImageUrl, fetchOrGenerate, type PooledEnemyEncounter } from './contentPool';
 
 // Available LLM models from Series SDK (as of 2026)
 export type LLMModel = 'gpt-5' | 'gpt-5.4-mini' | 'claude-haiku-4-5' | 'claude-sonnet-4-6' | 'claude-opus-4-1' | 'deepseek/deepseek-chat';
@@ -579,14 +580,8 @@ const SOUL_ARCHETYPES = [
   'merchant', // Found purpose in trading, neutral but opportunistic
 ];
 
-// Generate an enemy encounter with deep backstory and meaningful choices
-export async function generateEnemyEncounter(enemy: {
-  name: string;
-  race: string;
-  description: string;
-  isBoss: boolean;
-  element?: string;
-}): Promise<{
+// Enemy encounter return type
+type EnemyEncounterResult = {
   portraitPrompt: string;
   characterName: string;
   characterTitle: string;
@@ -601,7 +596,16 @@ export async function generateEnemyEncounter(enemy: {
     goldReward: number;
     echoReward: number;
   };
-} | null> {
+};
+
+// Internal enemy encounter generation (without pool)
+async function _generateEnemyEncounterDirect(enemy: {
+  name: string;
+  race: string;
+  description: string;
+  isBoss: boolean;
+  element?: string;
+}): Promise<EnemyEncounterResult | null> {
   const archetype = SOUL_ARCHETYPES[Math.floor(Math.random() * SOUL_ARCHETYPES.length)];
   
   const prompt = `Generate a DEEP, MEANINGFUL enemy encounter for a dark fantasy dungeon game.
@@ -1072,11 +1076,52 @@ IMPORTANT: Make this encounter MEMORABLE. The player should FEEL something.
   };
 }
 
+// Generate an enemy encounter with deep backstory and meaningful choices (uses shared content pool)
+export async function generateEnemyEncounter(enemy: {
+  name: string;
+  race: string;
+  description: string;
+  isBoss: boolean;
+  element?: string;
+}): Promise<EnemyEncounterResult | null> {
+  const result = await fetchOrGenerate<PooledEnemyEncounter>(
+    'enemy_encounter',
+    {
+      enemy_type: enemy.name || 'unknown',
+      race: enemy.race || 'creature',
+      is_boss: String(enemy.isBoss)
+    },
+    async () => {
+      const encounter = await _generateEnemyEncounterDirect(enemy);
+      if (!encounter) return null;
+      return {
+        characterName: encounter.characterName,
+        characterTitle: encounter.characterTitle,
+        dialogue: encounter.dialogue,
+        portraitPrompt: encounter.portraitPrompt,
+        rewards: encounter.rewards,
+        quest: encounter.quest
+      };
+    }
+  );
+  
+  if (!result) return null;
+  
+  return {
+    portraitPrompt: result.portraitPrompt || '',
+    characterName: result.characterName,
+    characterTitle: result.characterTitle,
+    dialogue: result.dialogue as import('../types').StoryDialogueTree,
+    rewards: result.rewards as Record<string, { gold?: number; item?: string; boonType?: string; boonValue?: number }>,
+    quest: result.quest as EnemyEncounterResult['quest']
+  };
+}
+
 // Style reference for enemy portraits - green/orange/black pixel art
 const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/blvhjo8.png';
 
-// Generate a pixel art portrait from an enemy portrait prompt
-export async function generateEnemyPortraitFromPrompt(
+// Internal enemy portrait generation (without pool)
+async function _generateEnemyPortraitDirect(
   portraitPrompt: string,
   enemyRace: string,
   characterName: string
@@ -1117,6 +1162,26 @@ STYLE REQUIREMENTS:
   });
 }
 
+// Generate a pixel art portrait from an enemy portrait prompt (uses shared content pool)
+export async function generateEnemyPortraitFromPrompt(
+  portraitPrompt: string,
+  enemyRace: string,
+  characterName: string
+): Promise<string | null> {
+  return fetchOrGenerateImageUrl(
+    'portrait_enemy',
+    { 
+      race: enemyRace || 'creature',
+      name: characterName || 'enemy'
+    },
+    () => _generateEnemyPortraitDirect(portraitPrompt, enemyRace, characterName),
+    {
+      enemyId: characterName,
+      portraitPrompt: portraitPrompt
+    }
+  );
+}
+
 // Preload an image and return a promise that resolves when loaded
 export function preloadImage(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -1127,8 +1192,8 @@ export function preloadImage(url: string): Promise<void> {
   });
 }
 
-// Generate pixel art for room events
-export async function generateRoomEventArt(
+// Internal room event art generation (without pool)
+async function _generateRoomEventArtDirect(
   eventName: string,
   artPrompt: string
 ): Promise<string | null> {
@@ -1171,6 +1236,23 @@ STYLE REQUIREMENTS:
     removeBackground: false,
     referenceImages: [PORTRAIT_STYLE_REFERENCE],
   });
+}
+
+// Generate pixel art for room events (uses shared content pool)
+export async function generateRoomEventArt(
+  eventName: string,
+  artPrompt: string
+): Promise<string | null> {
+  return fetchOrGenerateImageUrl(
+    'room_event_art',
+    { 
+      event: eventName || 'unknown_event'
+    },
+    () => _generateRoomEventArtDirect(eventName, artPrompt),
+    {
+      appearancePrompt: artPrompt
+    }
+  );
 }
 
 // Generate a quest from a character
@@ -1316,8 +1398,8 @@ Make stats balanced - high attack means low defense, high HP means low speed, et
   };
 }
 
-// Generate portrait for a mercenary
-export async function generateMercenaryPortrait(merc: MercenaryDef): Promise<string | null> {
+// Internal mercenary portrait generation (without pool)
+async function _generateMercenaryPortraitDirect(merc: MercenaryDef): Promise<string | null> {
   const styleRefs = getPortraitStyleReferences();
   
   const prompt = `PIXEL ART mercenary portrait for a retro dungeon crawler game.
@@ -1343,6 +1425,23 @@ STYLE REQUIREMENTS:
     removeBackground: false,
     referenceImages: styleRefs,
   });
+}
+
+// Generate portrait for a mercenary (uses shared content pool)
+export async function generateMercenaryPortrait(merc: MercenaryDef): Promise<string | null> {
+  return fetchOrGenerateImageUrl(
+    'portrait_mercenary',
+    { 
+      name: merc.name || 'unknown',
+      title: merc.title || 'mercenary'
+    },
+    () => _generateMercenaryPortraitDirect(merc),
+    {
+      name: merc.name,
+      class: merc.title,
+      appearancePrompt: merc.description
+    }
+  );
 }
 
 // Generate a skill encounter
@@ -1436,8 +1535,8 @@ Note: statBonus and skillBonus should only include non-zero values. Keep bonuses
   };
 }
 
-// Generate a character portrait with style references
-export async function generateCharacterPortrait(character: StoryCharacter): Promise<string | null> {
+// Internal character portrait generation (without pool)
+async function _generateCharacterPortraitDirect(character: StoryCharacter): Promise<string | null> {
   const styleRefs = getPortraitStyleReferences();
   
   const prompt = `PIXEL ART character portrait for a retro dungeon crawler game.
@@ -1462,6 +1561,24 @@ STYLE REQUIREMENTS:
     removeBackground: false,
     referenceImages: styleRefs,
   });
+}
+
+// Generate a character portrait with style references (uses shared content pool)
+export async function generateCharacterPortrait(character: StoryCharacter): Promise<string | null> {
+  return fetchOrGenerateImageUrl(
+    'portrait_character',
+    { 
+      faction: (character as any).faction || 'unknown',
+      race: character.race || 'humanoid',
+      role: character.role || 'neutral'
+    },
+    () => _generateCharacterPortraitDirect(character),
+    { 
+      factionId: (character as any).faction,
+      creatureType: character.race,
+      appearancePrompt: character.appearanceDescription
+    }
+  );
 }
 
 // Generate item art

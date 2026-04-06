@@ -755,20 +755,33 @@ export function markRoomVisited(state: GameState, roomId: string): void {
   }
 }
 
-// ── Background Art Generation Cache ──
-// Pre-generates art for room events in the background
+// ── Two-Tier Art Cache ──
+// Tier 1: Local session cache (fast, per-session)
+// Tier 2: Content pool via generateRoomEventArt (shared, cross-player)
+// When art is needed: check local cache → if miss, fetch from pool/generate → cache locally
 
 const roomEventArtCache: Map<string, string> = new Map();
 let isGeneratingBackground = false;
 let backgroundGenerationQueue: RoomEventDef[] = [];
 
 export function getRoomEventArtFromCache(eventId: string): string | null {
-  return roomEventArtCache.get(eventId) ?? null;
+  const cached = roomEventArtCache.get(eventId);
+  if (cached) {
+    console.log(`[RoomEvent] Art cache HIT for ${eventId} (local session cache)`);
+  }
+  return cached ?? null;
 }
 
 export function cacheRoomEventArt(eventId: string, artUrl: string): void {
   roomEventArtCache.set(eventId, artUrl);
-  console.log(`[RoomEvent] Cached art for ${eventId}, total cached: ${roomEventArtCache.size}`);
+  console.log(`[RoomEvent] Cached art for ${eventId}, total cached: ${roomEventArtCache.size} (session cache + pool synced)`);
+}
+
+export function getPoolCacheStats(): { localCacheSize: number; eventIds: string[] } {
+  return {
+    localCacheSize: roomEventArtCache.size,
+    eventIds: Array.from(roomEventArtCache.keys())
+  };
 }
 
 export function getEligibleEventsForFloor(floorNumber: number): RoomEventDef[] {

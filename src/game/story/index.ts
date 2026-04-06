@@ -166,3 +166,16 @@ export {
   type GenerationOptions,
   type ImageGenOptions,
 } from './seriesAI';
+
+// Content Pool - Shared content across players
+export {
+  fetchFromPool,
+  saveToPool,
+  recordPoolUse,
+  fetchOrGenerate,
+  fetchOrGenerateImageUrl,
+  getPoolStats,
+  type PooledPortrait,
+  type PooledRoomEventArt,
+  type PooledEnemyEncounter,
+} from './contentPool';
