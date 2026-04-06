@@ -42,6 +42,7 @@ import { QuestLog } from './QuestLog';
 import { EchoTreeView } from './EchoTreeView';
 import { Journal } from './Journal';
 import { StoryJournal } from './StoryJournal';
+import { ContentSeeder } from './ContentSeeder';
 import { ensureLegacyData, addEssenceShards, getGearForClass, LEGACY_GEAR_DEFS } from './legacyGear';
 import { LegacyGearView } from './LegacyGearView';
 import { getNewLoreIds, ALL_LORE } from './lore';
@@ -223,6 +224,7 @@ export function Game() {
   const [showRunHistory, setShowRunHistory] = useState(false);
   const [showTips, setShowTips] = useState(false);
   const [showBugReport, setShowBugReport] = useState(false);
+  const [showContentSeeder, setShowContentSeeder] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showCharInfo, setShowCharInfo] = useState(false);
@@ -2658,6 +2660,18 @@ export function Game() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [screen, state, handleChange, handleWait, checkEnemyEncounter]);
 
+  // Secret key combo for content seeder (Ctrl+Shift+G)
+  useEffect(() => {
+    const handleSeederKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+        e.preventDefault();
+        setShowContentSeeder(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handleSeederKey);
+    return () => window.removeEventListener('keydown', handleSeederKey);
+  }, []);
+
   // Auto-play loop — uses a Web Worker timer for consistent tick rate
   useEffect(() => {
     if (!autoPlay || !tabVisible || screen !== 'game' || !state || state.gameOver) {
@@ -4708,6 +4722,7 @@ export function Game() {
       {showEchoTree && <EchoTreeView data={questEchoData} onUnlock={handleUnlockEchoNode} onClose={() => setShowEchoTree(false)} />}
       {showJournal && <Journal bloodline={bloodline} questEchoData={questEchoData} seenIds={bloodline.journalSeenIds ?? []} onMarkSeen={handleJournalMarkSeen} onClose={() => setShowJournal(false)} />}
       {showStoryJournal && <StoryJournal entries={bloodline.storyJournal ?? []} onClose={() => setShowStoryJournal(false)} />}
+      {showContentSeeder && <ContentSeeder onClose={() => setShowContentSeeder(false)} />}
       {showInventory && <Inventory
         state={state}
         onChange={handleChange}
