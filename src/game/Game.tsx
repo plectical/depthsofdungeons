@@ -1869,14 +1869,17 @@ export function Game() {
         next._bloodlineRef.storyJournal = [];
       }
       next._bloodlineRef.storyJournal.push(journalEntry);
-      console.log('[Journal] Added entry:', journalEntry.name);
+      console.log('[Journal] Added entry:', journalEntry.name, 'portraitUrl:', journalEntry.portraitUrl?.substring(0, 50));
+      
+      // Persist the bloodline with the new journal entry
+      saveBloodline(next._bloodlineRef);
     }
     
     setShowEnemyEncounter(false);
     setEnemyEncounterData(null);
     setPendingEnemyId(null);
     setState(next);
-  }, [state, pendingEnemyId, enemyEncounterData]);
+  }, [state, pendingEnemyId, enemyEncounterData, saveBloodline]);
 
   // Check if we should show enemy encounter dialogue before combat
   const checkEnemyEncounter = useCallback(async (enemyId: string, enemyName: string, enemy: import('./types').Entity): Promise<boolean> => {
