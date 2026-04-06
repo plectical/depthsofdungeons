@@ -39,6 +39,9 @@ export function createEmptyRunStats(): RunStats {
     rangedAttacks: 0,
     terrainSteps: {},
     essenceShardsEarned: 0,
+    namedFoodEaten: {},
+    namedPotionsUsed: {},
+    abilitiesUsed: 0,
   };
 }
 

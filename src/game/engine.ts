@@ -2088,6 +2088,8 @@ export function useItem(state: GameState, itemIndex: number): boolean {
 
   if (item.type === 'potion') {
     state.runStats.potionsUsed++;
+    // Track named potion for quests (e.g., "Use 5 Health Potions")
+    state.runStats.namedPotionsUsed[item.name] = (state.runStats.namedPotionsUsed[item.name] ?? 0) + 1;
     const hpBefore = state.player.stats.hp;
     let healAmt = 0;
     if (item.name === 'Health Potion') healAmt = 15;
@@ -2136,6 +2138,8 @@ export function useItem(state: GameState, itemIndex: number): boolean {
     }
     
     state.runStats.foodEaten++;
+    // Track named food for quests (e.g., "Eat 3 Bread")
+    state.runStats.namedFoodEaten[item.name] = (state.runStats.namedFoodEaten[item.name] ?? 0) + 1;
     const hpBefore = state.player.stats.hp;
     const hungerBefore = state.hunger.current;
     const foragerBonus = hasPassive(state, 'Forager') ? 1.5 : 1;
@@ -2170,6 +2174,8 @@ export function useItem(state: GameState, itemIndex: number): boolean {
 
   if (item.type === 'scroll') {
     state.runStats.scrollsUsed++;
+    // Count scrolls as abilities used for quest tracking
+    state.runStats.abilitiesUsed++;
     if (item.name === 'Scroll of Mapping') {
       for (let y = 0; y < state.floor.height; y++) {
         for (let x = 0; x < state.floor.width; x++) {
@@ -4449,11 +4455,11 @@ export function buildRunTracker(
     damageDelt: rs.damageDealt,
     turnsSurvived: state.turn,
     foodEaten: rs.foodEaten,
-    namedFoodEaten: extra.namedFoodEaten ?? {},
+    namedFoodEaten: { ...rs.namedFoodEaten },  // Use RunStats directly
     potionsUsed: rs.potionsUsed,
-    namedPotionsUsed: extra.namedPotionsUsed ?? {},
+    namedPotionsUsed: { ...rs.namedPotionsUsed },  // Use RunStats directly
     scrollsUsed: rs.scrollsUsed,
-    abilitiesUsed: extra.abilitiesUsed ?? 0,
+    abilitiesUsed: rs.abilitiesUsed ?? 0,  // Use RunStats directly
     classAbilitiesUsed: extra.classAbilitiesUsed ?? {},
     mercenariesHired: rs.mercenariesHired,
     shopPurchases: extra.shopPurchases ?? 0,

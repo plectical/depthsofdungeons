@@ -361,6 +361,12 @@ export interface RunStats {
   terrainSteps: Record<string, number>;
   /** Essence Shards earned this run (for Legacy Gear) */
   essenceShardsEarned: number;
+  /** Named food items eaten (for quests like "Eat 3 Bread") */
+  namedFoodEaten: Record<string, number>;
+  /** Named potions used (for quests like "Use 5 Health Potions") */
+  namedPotionsUsed: Record<string, number>;
+  /** Class abilities used this run */
+  abilitiesUsed: number;
 }
 
 export interface AncestorRecord {
