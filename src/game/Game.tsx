@@ -4369,79 +4369,60 @@ export function Game() {
           left: 0,
           width: '100vw',
           height: '100vh',
-          background: '#000000',
+          background: '#000',
           zIndex: 999999,
-          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}>
-          {/* Portrait fills the ENTIRE screen */}
+          {/* Image fills screen, maintaining aspect ratio */}
           {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
             <img
               src={classPortraits[`${showClassDetail}-fullscreen`] ?? classPortraits[showClassDetail]!}
               alt={showClassDetail}
               style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                minWidth: '100%',
-                minHeight: '100%',
+                maxWidth: '100%',
+                maxHeight: '100%',
                 width: 'auto',
                 height: '100%',
-                objectFit: 'cover',
+                objectFit: 'contain',
                 imageRendering: 'pixelated',
               }}
             />
           )}
           
-          {/* Tap the BACK area in the image or use this small corner button */}
+          {/* Invisible tap zone for BACK (bottom 8% of screen) */}
           <button
             style={{
               position: 'absolute',
-              top: 8,
-              left: 8,
-              background: 'rgba(0, 0, 0, 0.6)',
-              border: '2px solid #4a6a4a',
-              borderRadius: 4,
-              padding: '6px 12px',
-              color: '#8ab88a',
-              fontSize: 12,
-              fontFamily: 'monospace',
-              fontWeight: 'bold',
+              bottom: 0,
+              left: '25%',
+              width: '50%',
+              height: '8%',
+              background: 'transparent',
+              border: 'none',
               cursor: 'pointer',
-              zIndex: 10,
             }}
             onClick={() => setShowClassDetail(null)}
-          >
-            ← BACK
-          </button>
+          />
           
-          {/* START button - top right corner to not cover art */}
+          {/* Tap anywhere else to START (covers rest of screen) */}
           <button
             style={{
               position: 'absolute',
-              top: 8,
-              right: 8,
-              background: 'linear-gradient(180deg, #5a2a7a 0%, #3a1a5a 100%)',
-              border: '2px solid #aa44dd',
-              borderRadius: 4,
-              padding: '6px 16px',
-              color: '#ffffff',
-              fontSize: 12,
-              fontFamily: 'monospace',
-              fontWeight: 'bold',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '92%',
+              background: 'transparent',
+              border: 'none',
               cursor: 'pointer',
-              textShadow: '0 0 6px #aa44dd88',
-              boxShadow: '0 0 10px rgba(170, 68, 221, 0.4)',
-              letterSpacing: 2,
-              zIndex: 10,
             }}
             onClick={() => {
               setShowClassDetail(null);
               setScreen('zoneSelect');
             }}
-          >
-            START →
-          </button>
+          />
         </div>,
         document.body,
       )}
