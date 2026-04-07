@@ -4464,7 +4464,8 @@ export function Game() {
             setSavedGeneratedClasses(updated);
             safeSetItem('savedGeneratedClasses', JSON.stringify(updated));
           }
-          setScreen('zoneSelect');
+          // Generated classes go directly to narrative_test zone
+          beginGame('narrative_test');
         }}
         onBack={() => setScreen('classSelect')}
       />
