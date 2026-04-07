@@ -197,7 +197,9 @@ export function Game() {
     'ranger-damaged': useCdnImage('ranger-damaged.jpg'),
     hellborn: useCdnImage('hellborn-portrait.jpg'),
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
-    necromancer: useCdnImage('necromancer-portrait.png'),
+    necromancer: useCdnImage('necromancer-thumb.png'),
+    'necromancer-fullscreen': useCdnImage('necromancer-portrait.png'),
+    revenant: useCdnImage('necromancer-thumb.png'),
   };
   const classBorderColors: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
@@ -4316,9 +4318,10 @@ export function Game() {
             overflow: 'hidden',
           }}>
             {/* Portrait fills most of the screen */}
-            {classPortraits[showClassDetail] && (
+            {/* Use fullscreen version if available, otherwise regular portrait */}
+            {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
               <img
-                src={classPortraits[showClassDetail]!}
+                src={classPortraits[`${showClassDetail}-fullscreen`] ?? classPortraits[showClassDetail]!}
                 alt={showClassDetail}
                 style={{
                   width: '100%',
@@ -5186,34 +5189,39 @@ export function Game() {
             >
               {autoPlayMode === 'full' ? 'FULL' : 'EXP'}
             </button>
-            <button
-              style={{
-                ...actionBtnStyle,
-                fontSize: 9,
-                padding: '2px 5px',
-                color: autoPlaySeederMode ? '#ff8844' : '#8888aa',
-                borderColor: autoPlaySeederMode ? '#ff8844' : undefined,
-                background: autoPlaySeederMode ? '#332200' : undefined,
-              }}
-              title={autoPlaySeederMode ? 'Seeder ON: Triggers all enemy dialogues to generate content' : 'Seeder OFF: Normal autoplay'}
-              onClick={() => setAutoPlaySeederMode(v => !v)}
-            >
-              {autoPlaySeederMode ? 'SEED' : 'seed'}
-            </button>
-            <button
-              style={{
-                ...actionBtnStyle,
-                fontSize: 9,
-                padding: '2px 5px',
-                color: runInBackground ? '#44ff88' : '#8888aa',
-                borderColor: runInBackground ? '#44ff88' : undefined,
-                background: runInBackground ? '#003322' : undefined,
-              }}
-              title={runInBackground ? 'Background ON: Game continues when tabbed away' : 'Background OFF: Game pauses when tabbed away'}
-              onClick={() => setRunInBackground(v => !v)}
-            >
-              {runInBackground ? 'BG' : 'bg'}
-            </button>
+            {/* Debug-only buttons */}
+            {debugMode && (
+              <>
+                <button
+                  style={{
+                    ...actionBtnStyle,
+                    fontSize: 9,
+                    padding: '2px 5px',
+                    color: autoPlaySeederMode ? '#ff8844' : '#8888aa',
+                    borderColor: autoPlaySeederMode ? '#ff8844' : undefined,
+                    background: autoPlaySeederMode ? '#332200' : undefined,
+                  }}
+                  title={autoPlaySeederMode ? 'Seeder ON: Triggers all enemy dialogues to generate content' : 'Seeder OFF: Normal autoplay'}
+                  onClick={() => setAutoPlaySeederMode(v => !v)}
+                >
+                  {autoPlaySeederMode ? 'SEED' : 'seed'}
+                </button>
+                <button
+                  style={{
+                    ...actionBtnStyle,
+                    fontSize: 9,
+                    padding: '2px 5px',
+                    color: runInBackground ? '#44ff88' : '#8888aa',
+                    borderColor: runInBackground ? '#44ff88' : undefined,
+                    background: runInBackground ? '#003322' : undefined,
+                  }}
+                  title={runInBackground ? 'Background ON: Game continues when tabbed away' : 'Background OFF: Game pauses when tabbed away'}
+                  onClick={() => setRunInBackground(v => !v)}
+                >
+                  {runInBackground ? 'BG' : 'bg'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

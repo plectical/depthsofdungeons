@@ -65,11 +65,14 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
     'ranger-damaged': useCdnImage('ranger-damaged.jpg'),
     hellborn: useCdnImage('hellborn-portrait.jpg'),
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
+    necromancer: useCdnImage('necromancer-thumb.png'),
+    revenant: useCdnImage('necromancer-thumb.png'),
   };
 
   const classBorders: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
+    necromancer: '#aa44dd', revenant: '#ff4444',
   };
 
   const normalSrc = portraits[playerClass] ?? null;

@@ -187,9 +187,15 @@ export function getClassDef(cls: PlayerClass): ClassDef {
   // Check base classes first, then necropolis classes
   const base = CLASS_DEFS.find((c) => c.id === cls);
   if (base) return base;
-  // Check necropolis classes (pass undefined for echo nodes - engine doesn't have direct access)
-  const necroClasses = getNecropolisClasses(getNecropolisState().communalDeaths);
-  return necroClasses.find((c) => c.id === cls) ?? CLASS_DEFS[0]!;
+  
+  // For necropolis classes, always return a valid class def if the player is playing as one
+  // (they must have unlocked it somehow to be playing as it)
+  const necroClasses = getNecropolisClasses(getNecropolisState().communalDeaths, ['mas_class_3', 'mas_class_4']);
+  const necroClass = necroClasses.find((c) => c.id === cls);
+  if (necroClass) return necroClass;
+  
+  // Final fallback
+  return CLASS_DEFS[0]!;
 }
 
 export function hasPassive(state: GameState, passiveName: string): boolean {
