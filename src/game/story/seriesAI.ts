@@ -11,7 +11,7 @@ import type {
   CharacterQuest,
   CharacterQuestType,
 } from '../types';
-import { fetchOrGenerateImageUrl, fetchOrGenerate, type PooledEnemyEncounter } from './contentPool';
+import { fetchOrGenerateImageUrl } from './contentPool';
 import { compressImageUrl } from './imageCompression';
 
 // Available LLM models from Series SDK (as of 2026)
@@ -1296,7 +1296,8 @@ IMPORTANT: Make this encounter MEMORABLE. The player should FEEL something.
   };
 }
 
-// Generate an enemy encounter with deep backstory and meaningful choices (uses shared content pool)
+// Generate an enemy encounter with deep backstory and meaningful choices
+// NOTE: Always generates fresh content - no pooling to avoid duplicate names/portraits
 export async function generateEnemyEncounter(enemy: {
   name: string;
   race: string;
@@ -1304,36 +1305,17 @@ export async function generateEnemyEncounter(enemy: {
   isBoss: boolean;
   element?: string;
 }): Promise<EnemyEncounterResult | null> {
-  const result = await fetchOrGenerate<PooledEnemyEncounter>(
-    'enemy_encounter',
-    {
-      enemy_type: enemy.name || 'unknown',
-      race: enemy.race || 'creature',
-      is_boss: String(enemy.isBoss)
-    },
-    async () => {
-      const encounter = await _generateEnemyEncounterDirect(enemy);
-      if (!encounter) return null;
-      return {
-        characterName: encounter.characterName,
-        characterTitle: encounter.characterTitle,
-        dialogue: encounter.dialogue,
-        portraitPrompt: encounter.portraitPrompt,
-        rewards: encounter.rewards,
-        quest: encounter.quest
-      };
-    }
-  );
-  
-  if (!result) return null;
+  // Generate fresh encounter directly - don't use pool to avoid reusing names
+  const encounter = await _generateEnemyEncounterDirect(enemy);
+  if (!encounter) return null;
   
   return {
-    portraitPrompt: result.portraitPrompt || '',
-    characterName: result.characterName,
-    characterTitle: result.characterTitle,
-    dialogue: result.dialogue as import('../types').StoryDialogueTree,
-    rewards: result.rewards as Record<string, { gold?: number; item?: string; boonType?: string; boonValue?: number }>,
-    quest: result.quest as EnemyEncounterResult['quest']
+    portraitPrompt: encounter.portraitPrompt || '',
+    characterName: encounter.characterName,
+    characterTitle: encounter.characterTitle,
+    dialogue: encounter.dialogue,
+    rewards: encounter.rewards as Record<string, { gold?: number; item?: string; boonType?: string; boonValue?: number }>,
+    quest: encounter.quest as EnemyEncounterResult['quest']
   };
 }
 
@@ -1399,28 +1381,15 @@ function hashPrompt(prompt: string): string {
   return Math.abs(hash).toString(36).slice(0, 8);
 }
 
-// Generate a pixel art portrait from an enemy portrait prompt (uses shared content pool)
+// Generate a pixel art portrait from an enemy portrait prompt
+// NOTE: Always generates fresh content - no pooling to avoid reusing portraits
 export async function generateEnemyPortraitFromPrompt(
   portraitPrompt: string,
   enemyRace: string,
   characterName: string
 ): Promise<string | null> {
-  // Include hash of portraitPrompt so different descriptions get different portraits
-  const promptHash = hashPrompt(portraitPrompt);
-  
-  return fetchOrGenerateImageUrl(
-    'portrait_enemy',
-    { 
-      race: enemyRace || 'creature',
-      name: characterName || 'enemy',
-      prompt_hash: promptHash
-    },
-    () => _generateEnemyPortraitDirect(portraitPrompt, enemyRace, characterName),
-    {
-      enemyId: characterName,
-      portraitPrompt: portraitPrompt
-    }
-  );
+  // Generate fresh portrait directly - don't use pool to avoid reusing images
+  return _generateEnemyPortraitDirect(portraitPrompt, enemyRace, characterName);
 }
 
 // Preload an image and return a promise that resolves when loaded
