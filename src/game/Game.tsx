@@ -3752,6 +3752,17 @@ export function Game() {
                       style={{ background: '#002244', color: '#44ccff', border: '1px solid #44ccff44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
                       onClick={() => { setActiveElderTip(ELDER_LEGACY_SHARD); }}
                     >Elder Tip</button>
+                    <button
+                      style={{ background: '#220044', color: '#aa44dd', border: '1px solid #aa44dd44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
+                      onClick={() => {
+                        const qe = structuredClone(questEchoRef.current);
+                        if (!qe.unlockedEchoNodes.includes('mas_class_3')) qe.unlockedEchoNodes.push('mas_class_3');
+                        if (!qe.unlockedEchoNodes.includes('mas_class_4')) qe.unlockedEchoNodes.push('mas_class_4');
+                        questEchoRef.current = qe;
+                        setQuestEchoData(qe);
+                        safeSetItem('questEchoData', JSON.stringify(qe));
+                      }}
+                    >Unlock Necro</button>
                   </div>
                 </div>
               )}
