@@ -52,6 +52,7 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
 
   const nextXp = player.level < XP_PER_LEVEL.length ? (XP_PER_LEVEL[player.level] ?? 9999) : 9999;
 
+  const generatedClassThumb = useCdnImage('generated-class-thumb.png');
   const portraits: Record<string, string | null> = {
     warrior: useCdnImage('warrior-portrait.jpg'),
     'warrior-damaged': useCdnImage('warrior-damaged.jpg'),
@@ -67,12 +68,13 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
     necromancer: useCdnImage('necromancer-thumb.png'),
     revenant: useCdnImage('necromancer-thumb.png'),
+    generated: generatedClassThumb,
   };
 
   const classBorders: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
-    necromancer: '#aa44dd', revenant: '#ff4444',
+    necromancer: '#aa44dd', revenant: '#ff4444', generated: '#44ff88',
   };
 
   // For generated classes, get portrait from the generated class data
@@ -84,7 +86,7 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
   })() : null;
 
   const normalSrc = playerClass === 'generated' 
-    ? (genClass?.portraitUrl ?? null)
+    ? (genClass?.portraitUrl ?? generatedClassThumb)
     : (portraits[playerClass] ?? null);
   const damagedSrc = portraits[`${playerClass}-damaged`] ?? null;
   const hasDamaged = !!damagedSrc;
