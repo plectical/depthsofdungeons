@@ -137,11 +137,11 @@ async function generateText(
   }
 }
 
-// Image compression settings
+// Image compression settings - must stay under 100KB (102400 bytes) for content pool
 const COMPRESS_IMAGES = true;
-const COMPRESSION_QUALITY = 0.90; // 90% JPEG quality
-const MAX_PORTRAIT_DIMENSION = 512; // Max dimension for portraits
-const MAX_SCENE_DIMENSION = 1024; // Max dimension for scene art (16:9)
+const COMPRESSION_QUALITY = 0.70; // 70% JPEG quality (reduced to fit 100KB limit)
+const MAX_PORTRAIT_DIMENSION = 384; // Max dimension for portraits (reduced from 512)
+const MAX_SCENE_DIMENSION = 512; // Max dimension for scene art (reduced from 1024)
 
 // Generate image using Series AI (with optional compression)
 async function generateImage(
