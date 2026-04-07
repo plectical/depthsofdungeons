@@ -3761,8 +3761,21 @@ export function Game() {
                         questEchoRef.current = qe;
                         setQuestEchoData(qe);
                         safeSetItem('questEchoData', JSON.stringify(qe));
+                        selectClassAndPickZone('necromancer');
                       }}
-                    >Unlock Necro</button>
+                    >Play Necro</button>
+                    <button
+                      style={{ background: '#440022', color: '#ff4444', border: '1px solid #ff444444', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
+                      onClick={() => {
+                        const qe = structuredClone(questEchoRef.current);
+                        if (!qe.unlockedEchoNodes.includes('mas_class_3')) qe.unlockedEchoNodes.push('mas_class_3');
+                        if (!qe.unlockedEchoNodes.includes('mas_class_4')) qe.unlockedEchoNodes.push('mas_class_4');
+                        questEchoRef.current = qe;
+                        setQuestEchoData(qe);
+                        safeSetItem('questEchoData', JSON.stringify(qe));
+                        selectClassAndPickZone('revenant');
+                      }}
+                    >Play Rev</button>
                   </div>
                 </div>
               )}
