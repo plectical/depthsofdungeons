@@ -4290,137 +4290,141 @@ export function Game() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#0a0a0a',
+          background: '#000',
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 9999,
         }}>
-          {/* Dark dungeon background */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'linear-gradient(180deg, #1a1a2e 0%, #0a0a0a 50%, #1a0a1a 100%)',
-            opacity: 0.8,
-          }} />
-          
-          {/* Class Portrait */}
+          {/* Fullscreen container with 9:16 aspect ratio like class select */}
           <div style={{
             position: 'relative',
-            zIndex: 1,
+            height: '100%',
+            aspectRatio: '9 / 16',
+            maxWidth: '100%',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 16,
-            padding: 20,
+            justifyContent: 'flex-start',
+            overflow: 'hidden',
           }}>
+            {/* Portrait fills most of the screen */}
             {classPortraits[showClassDetail] && (
               <img
                 src={classPortraits[showClassDetail]!}
                 alt={showClassDetail}
                 style={{
-                  maxWidth: '80%',
-                  maxHeight: '60vh',
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '78%',
                   objectFit: 'contain',
                   imageRendering: 'pixelated',
-                  border: `3px solid ${classBorderColors[showClassDetail] ?? '#aa44dd'}`,
-                  boxShadow: `0 0 30px ${classBorderColors[showClassDetail] ?? '#aa44dd'}44`,
                 }}
               />
             )}
             
-            {/* Class Name */}
+            {/* Bottom info panel */}
             <div style={{
-              color: classBorderColors[showClassDetail] ?? '#aa44dd',
-              fontSize: 28,
-              fontFamily: 'monospace',
-              fontWeight: 'bold',
-              textTransform: 'uppercase',
-              textShadow: `0 0 10px ${classBorderColors[showClassDetail] ?? '#aa44dd'}88`,
-              letterSpacing: 4,
-            }}>
-              {showClassDetail.charAt(0).toUpperCase() + showClassDetail.slice(1)}
-            </div>
-            
-            {/* Class Description */}
-            <div style={{
-              color: '#88aa88',
-              fontSize: 12,
-              fontFamily: 'monospace',
-              textAlign: 'center',
-              maxWidth: 300,
-            }}>
-              {allClasses.find(c => c.id === showClassDetail)?.description ?? ''}
-            </div>
-            
-            {/* Navigation Buttons */}
-            <div style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'linear-gradient(180deg, transparent 0%, rgba(10, 10, 20, 0.95) 30%)',
+              padding: '40px 20px 20px',
               display: 'flex',
-              gap: 20,
-              marginTop: 20,
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
             }}>
-              <button
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-                onClick={() => setShowClassDetail(null)}
-              >
-                <div style={{
-                  background: '#2a2a2a',
-                  border: '2px solid #666666',
-                  borderRadius: 4,
-                  padding: '8px 24px',
-                  color: '#aaaaaa',
-                  fontSize: 14,
-                  fontFamily: 'monospace',
-                  fontWeight: 'bold',
-                }}>
-                  BACK
-                </div>
-              </button>
+              {/* Class Name */}
+              <div style={{
+                color: classBorderColors[showClassDetail] ?? '#aa44dd',
+                fontSize: 'clamp(20px, 5vw, 28px)',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                textShadow: `0 0 10px ${classBorderColors[showClassDetail] ?? '#aa44dd'}88`,
+                letterSpacing: 4,
+              }}>
+                {showClassDetail.charAt(0).toUpperCase() + showClassDetail.slice(1)}
+              </div>
               
-              {nextButtonImg ? (
-                <img
-                  src={nextButtonImg}
-                  alt="NEXT"
-                  style={{
-                    height: 40,
-                    cursor: 'pointer',
-                    imageRendering: 'pixelated',
-                  }}
-                  onClick={() => {
-                    setShowClassDetail(null);
-                    setScreen('zoneSelect');
-                  }}
-                />
-              ) : (
+              {/* Class Description */}
+              <div style={{
+                color: '#88aa88',
+                fontSize: 'clamp(10px, 2.5vw, 14px)',
+                fontFamily: 'monospace',
+                textAlign: 'center',
+                maxWidth: '90%',
+              }}>
+                {allClasses.find(c => c.id === showClassDetail)?.description ?? ''}
+              </div>
+              
+              {/* Navigation Buttons */}
+              <div style={{
+                display: 'flex',
+                gap: 20,
+                marginTop: 8,
+              }}>
                 <button
                   style={{
-                    background: classBorderColors[showClassDetail] ?? '#aa44dd',
+                    background: 'transparent',
                     border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                  onClick={() => setShowClassDetail(null)}
+                >
+                  <div style={{
+                    background: '#2a2a2a',
+                    border: '2px solid #666666',
                     borderRadius: 4,
-                    padding: '8px 24px',
-                    color: '#ffffff',
-                    fontSize: 14,
+                    padding: '10px 28px',
+                    color: '#aaaaaa',
+                    fontSize: 'clamp(12px, 3vw, 16px)',
                     fontFamily: 'monospace',
                     fontWeight: 'bold',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    setShowClassDetail(null);
-                    setScreen('zoneSelect');
-                  }}
-                >
-                  NEXT
-                </button>
-              )}
+                  }}>
+                    BACK
+                  </div>
+              </button>
+              
+                {nextButtonImg ? (
+                  <img
+                    src={nextButtonImg}
+                    alt="NEXT"
+                    style={{
+                      height: 'clamp(36px, 8vw, 48px)',
+                      cursor: 'pointer',
+                      imageRendering: 'pixelated',
+                    }}
+                    onClick={() => {
+                      setShowClassDetail(null);
+                      setScreen('zoneSelect');
+                    }}
+                  />
+                ) : (
+                  <button
+                    style={{
+                      background: classBorderColors[showClassDetail] ?? '#aa44dd',
+                      border: 'none',
+                      borderRadius: 4,
+                      padding: '10px 28px',
+                      color: '#ffffff',
+                      fontSize: 'clamp(12px, 3vw, 16px)',
+                      fontFamily: 'monospace',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      setShowClassDetail(null);
+                      setScreen('zoneSelect');
+                    }}
+                  >
+                    NEXT
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>,
