@@ -3,6 +3,11 @@ import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 const FRESH_GENERATION_PERCENT = 60;
 const POOL_ENABLED = true;
 
+// Track if pool is full to avoid repeated 429 errors
+let _poolFull = false;
+let _lastSaveAttempt = 0;
+const SAVE_COOLDOWN_MS = 5000; // 5 seconds between save attempts
+
 export interface PooledPortrait {
   imageUrl: string;
   factionId?: string;
@@ -98,6 +103,20 @@ export async function saveToPool<T extends PooledContent>(
   title?: string
 ): Promise<string | null> {
   if (!isPoolEnabled()) return null;
+  
+  // Skip if pool is known to be full
+  if (_poolFull) {
+    console.log('[ContentPool] Skipping save - pool is full');
+    return null;
+  }
+  
+  // Rate limit save attempts
+  const now = Date.now();
+  if (now - _lastSaveAttempt < SAVE_COOLDOWN_MS) {
+    console.log('[ContentPool] Skipping save - rate limited');
+    return null;
+  }
+  _lastSaveAttempt = now;
 
   try {
     const tagArray = Object.entries(tags).map(([k, v]) => `${k}:${v}`);
@@ -112,8 +131,18 @@ export async function saveToPool<T extends PooledContent>(
 
     console.log(`[ContentPool] Saved to pool: ${contentType} -> ${entry.id}`);
     return entry.id;
-  } catch (error) {
-    console.warn('[ContentPool] Failed to save to pool:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Check for pool full error
+    if (errorMessage.includes('Maximum entries') || errorMessage.includes('100')) {
+      console.warn('[ContentPool] Pool is full (100 entries max) - switching to read-only mode');
+      _poolFull = true;
+    } else if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+      console.warn('[ContentPool] Rate limited - will retry later');
+    } else {
+      console.warn('[ContentPool] Failed to save to pool:', error);
+    }
     return null;
   }
 }
@@ -135,7 +164,7 @@ export async function fetchOrGenerate<T extends PooledContent>(
   generateFn: () => Promise<T | null>,
   title?: string
 ): Promise<T | null> {
-  console.log(`[ContentPool] fetchOrGenerate called for ${contentType}, poolEnabled:`, isPoolEnabled());
+  console.log(`[ContentPool] fetchOrGenerate called for ${contentType}, poolEnabled:`, isPoolEnabled(), 'poolFull:', _poolFull);
   
   if (!isPoolEnabled()) {
     console.log(`[ContentPool] Pool disabled, calling generateFn directly for ${contentType}`);
@@ -145,6 +174,25 @@ export async function fetchOrGenerate<T extends PooledContent>(
       return result;
     } catch (err) {
       console.error(`[ContentPool] Direct generation error for ${contentType}:`, err);
+      return null;
+    }
+  }
+
+  // If pool is full, try to fetch from pool first before generating
+  if (_poolFull) {
+    console.log(`[ContentPool] Pool is full - trying pool first for ${contentType}`);
+    const pooled = await fetchFromPool<T>(contentType, tags);
+    if (pooled) {
+      console.log(`[ContentPool] Found in pool for ${contentType}:`, pooled.entryId);
+      recordPoolUse(pooled.entryId).catch(() => {});
+      return pooled.data;
+    }
+    // Pool full but no match - generate fresh without saving
+    console.log(`[ContentPool] Pool full, no match - generating without saving for ${contentType}`);
+    try {
+      return await generateFn();
+    } catch (err) {
+      console.error(`[ContentPool] Generation error for ${contentType}:`, err);
       return null;
     }
   }

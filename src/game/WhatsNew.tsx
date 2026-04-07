@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react';
  * When the player opens the game and their stored "lastSeenVersion" differs
  * from this value, the What's New screen auto-appears.
  */
-export const BUILD_VERSION = '1.68.0';
+export const BUILD_VERSION = '1.69.0';
 
 /** A single update entry shown in the changelog. */
 export interface UpdateEntry {
