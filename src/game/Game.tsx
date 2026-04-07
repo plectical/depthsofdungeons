@@ -3324,6 +3324,15 @@ export function Game() {
               >
                 [ Narrative Depths (AI Test) ]
               </button>
+              <button
+                style={{ background: '#002244', border: '1px solid #44aaff', color: '#44aaff', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
+                onClick={() => {
+                  setDebugMode(false);
+                  setScreen('generativeClassSelect');
+                }}
+              >
+                [ Gen Class (AI) ]
+              </button>
               <a
                 href="project.tar.gz"
                 download="project.tar.gz"
@@ -3993,6 +4002,16 @@ export function Game() {
                 }}
               >
                 Unlock Necro/Rev
+              </button>
+              <button
+                style={{
+                  background: '#002244', color: '#44aaff',
+                  border: '1px solid #44aaff', borderRadius: 4, padding: '2px 6px',
+                  fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
+                }}
+                onClick={() => setScreen('generativeClassSelect')}
+              >
+                Gen Class
               </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
