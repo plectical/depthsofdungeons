@@ -113,13 +113,15 @@ async function generateWave(
   // Mark as generating
   generationState.cache = markBatchGenerating(generationState.cache, wave.key);
   
-  // Always load fallback content first (AI doesn't generate storyBeats)
+  // Load fallback content - but skip characters if AI is enabled (to avoid Elder Mira duplicates)
   onProgress?.(25, `Loading story content for floors ${floorRange[0]}-${floorRange[1]}...`);
   const fallback = getFallbackBatch(floorRange);
   
   console.log('[Story] Loading fallback content for', wave.key, 'storyBeats:', fallback.storyBeats);
+  // When AI is enabled, only load storyBeats/encounters/items from fallback, NOT characters
+  // This prevents Elder Mira and other fallback characters from appearing in AI mode
   generationState.cache = updateBatchContent(generationState.cache, wave.key, {
-    characters: fallback.characters,
+    characters: generationState.useAI ? [] : fallback.characters, // Skip fallback chars when AI enabled
     encounters: fallback.encounters,
     items: fallback.items,
     storyBeats: fallback.storyBeats,
