@@ -65,7 +65,7 @@ export function createDefaultBloodline(): BloodlineData {
       totalGoldEarned: 0,
       totalNpcsTalkedTo: 0,
       totalMonsterKills: {},
-      classDeaths: { warrior: 0, rogue: 0, mage: 0, ranger: 0, necromancer: 0, revenant: 0, paladin: 0, hellborn: 0 },
+      classDeaths: { warrior: 0, rogue: 0, mage: 0, ranger: 0, necromancer: 0, revenant: 0, paladin: 0, hellborn: 0, generated: 0 },
       highestFloor: 0,
       highestScore: 0,
     },

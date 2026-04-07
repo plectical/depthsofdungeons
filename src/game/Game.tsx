@@ -6,7 +6,7 @@ import type { CSSProperties } from 'react';
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 import type { GameState, PlayerClass, BloodlineData, AncestorRecord, TraitDef, ZoneId, TutorialStepId } from './types';
 import { TutorialBar, TUTORIAL_STEPS } from './TutorialBar';
-import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, addMessage } from './engine';
+import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, addMessage, useGeneratedAbility, getGeneratedClassInfo } from './engine';
 import { CLASS_DEFS, getHellbornClass } from './constants';
 import { createDefaultBloodline, mergeRunIntoBloodline, checkForNewTraits, generateAncestorName, computeBloodlineBonuses } from './traits';
 import { GameView } from './GameView';
@@ -48,6 +48,8 @@ import { LegacyGearView } from './LegacyGearView';
 import { getNewLoreIds, ALL_LORE } from './lore';
 import { GenerationLoadingScreen } from './GenerationLoadingScreen';
 import { StoryDialogue, type DialogueResult } from './StoryDialogue';
+import { GenerativeClassSelect } from './GenerativeClassSelect';
+import type { GeneratedClass } from './generativeClass';
 import { SkillCheckModal } from './SkillCheckModal';
 import {
   prepareRunContent,
@@ -130,7 +132,7 @@ function getFallbackEnemyPortrait(enemyName: string): string | undefined {
   return ENEMY_PORTRAIT_FALLBACKS['default'];
 }
 
-type Screen = 'title' | 'classSelect' | 'zoneSelect' | 'game' | 'gameover';
+type Screen = 'title' | 'classSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect';
 
 interface StatGain {
   label: string;
@@ -258,6 +260,8 @@ export function Game() {
   const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [unlockInfoClass, setUnlockInfoClass] = useState<string | null>(null);
   const [showClassDetail, setShowClassDetail] = useState<PlayerClass | null>(null);
+  const [, setActiveGeneratedClass] = useState<GeneratedClass | null>(null);
+  const [savedGeneratedClasses, setSavedGeneratedClasses] = useState<GeneratedClass[]>([]);
   const startTimeRef = useRef(0);
   const scoreTokenRef = useRef<string | null>(null);
   const lastScoreSubmitRef = useRef(0);
@@ -3776,6 +3780,10 @@ export function Game() {
                         selectClassAndPickZone('revenant');
                       }}
                     >Play Rev</button>
+                    <button
+                      style={{ background: '#002244', color: '#44aaff', border: '1px solid #44aaff44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
+                      onClick={() => setScreen('generativeClassSelect')}
+                    >Gen Class</button>
                   </div>
                 </div>
               )}
@@ -4422,6 +4430,28 @@ export function Game() {
     );
   }
 
+  if (screen === 'generativeClassSelect') {
+    return (
+      <GenerativeClassSelect
+        savedClasses={savedGeneratedClasses}
+        onSelectClass={(genClass) => {
+          setActiveGeneratedClass(genClass);
+          setSelectedClass('generated');
+          // Save to local storage for engine access
+          safeSetItem('activeGeneratedClass', JSON.stringify(genClass));
+          // Add to saved classes if not already there
+          if (!savedGeneratedClasses.find(c => c.id === genClass.id)) {
+            const updated = [genClass, ...savedGeneratedClasses].slice(0, 10);
+            setSavedGeneratedClasses(updated);
+            safeSetItem('savedGeneratedClasses', JSON.stringify(updated));
+          }
+          setScreen('zoneSelect');
+        }}
+        onBack={() => setScreen('classSelect')}
+      />
+    );
+  }
+
   if (screen === 'zoneSelect') {
     const bossLog = bloodline.bossKillLog ?? [];
     return (
@@ -5019,6 +5049,33 @@ export function Game() {
                 title={ready ? `Summon Skeleton! Raise a skeleton minion to fight for you (${skele.count}/${skele.max})` : skele.count >= skele.max ? `Max skeletons summoned (${skele.count}/${skele.max})` : `Summon on cooldown (${skele.cooldown} turns)`}
               >
                 {skele.cooldown > 0 ? `[ 💀 ${skele.cooldown} ]` : `[ 💀 ${skele.count}/${skele.max} ]`}
+              </button>
+            );
+          })()}
+          {/* Generated Class Ability Button */}
+          {state.playerClass === 'generated' && (() => {
+            const genInfo = getGeneratedClassInfo(state);
+            if (!genInfo) return null;
+            const ready = genInfo.abilityCooldown === 0 && genInfo.resource >= genInfo.abilityCost;
+            return (
+              <button
+                style={{
+                  ...actionBtnStyle,
+                  color: ready ? genInfo.resourceColor : '#555',
+                  borderColor: ready ? `${genInfo.resourceColor}44` : undefined,
+                  cursor: ready ? 'pointer' : 'not-allowed',
+                }}
+                onClick={() => {
+                  if (!state || state.gameOver) return;
+                  const next = { ...state };
+                  const ok = useGeneratedAbility(next);
+                  trackAbilityUsed({ ability: 'generated_ability', playerClass: next.playerClass, floor: next.floorNumber, zone: next.zone, hpPercent: next.player.stats.hp / next.player.stats.maxHp, success: ok, source: 'manual' });
+                  if (ok) handleChange(next);
+                }}
+                disabled={!ready}
+                title={ready ? `${genInfo.abilityName}: Use your class ability (Cost: ${genInfo.abilityCost} ${genInfo.resourceName})` : genInfo.abilityCooldown > 0 ? `${genInfo.abilityName} on cooldown (${genInfo.abilityCooldown} turns)` : `Not enough ${genInfo.resourceName} (${genInfo.resource}/${genInfo.abilityCost})`}
+              >
+                {genInfo.abilityCooldown > 0 ? `[ ${genInfo.abilityIcon} ${genInfo.abilityCooldown} ]` : `[ ${genInfo.abilityIcon} ${genInfo.resource}/${genInfo.abilityCost} ]`}
               </button>
             );
           })()}

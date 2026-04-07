@@ -287,7 +287,7 @@ export interface HungerState {
 }
 
 // ── Player classes ──
-export type PlayerClass = 'warrior' | 'rogue' | 'mage' | 'ranger' | 'necromancer' | 'revenant' | 'paladin' | 'hellborn';
+export type PlayerClass = 'warrior' | 'rogue' | 'mage' | 'ranger' | 'necromancer' | 'revenant' | 'paladin' | 'hellborn' | 'generated';
 
 export interface PassiveAbility {
   name: string;

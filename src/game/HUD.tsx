@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { GameState } from './types';
 import { XP_PER_LEVEL, HUNGER_WARNING } from './constants';
-import { getPlayerEffectiveStats, getClassDef, getPlayerRange, getWarriorRage, getPaladinVow, isPaladinVowActive, getRogueShadowCooldown, getMageBlastCooldown, getRangerMark, getNecroSkeletons, getLegacyAbilityState, hasLegacyAbility } from './engine';
+import { getPlayerEffectiveStats, getClassDef, getPlayerRange, getWarriorRage, getPaladinVow, isPaladinVowActive, getRogueShadowCooldown, getMageBlastCooldown, getRangerMark, getNecroSkeletons, getLegacyAbilityState, hasLegacyAbility, getGeneratedClassInfo } from './engine';
 import { getZoneDef } from './zones';
 import { useCdnImage } from './useCdnImage';
 import { LEGACY_ABILITY_DESCRIPTIONS } from './legacyGear';
@@ -206,6 +206,31 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
                 {skele.cooldown === 0 && skele.count < skele.max && (
                   <span style={{ ...compactStatStyle, color: '#aa44dd', fontWeight: 'bold', textShadow: '0 0 6px #aa44dd88' }}>
                     {'💀 READY'}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+          {playerClass === 'generated' && (() => {
+            const genInfo = getGeneratedClassInfo(state);
+            if (!genInfo) return null;
+            const isReady = genInfo.abilityCooldown === 0 && genInfo.resource >= genInfo.abilityCost;
+            const resourceColor = isReady ? genInfo.resourceColor : '#666688';
+            return (
+              <div style={rowStyle}>
+                <span style={{ ...compactLabelStyle, color: resourceColor }}>
+                  {genInfo.resourceIcon} {genInfo.resourceName}
+                </span>
+                <CompactBar current={genInfo.resource} max={genInfo.maxResource} color={resourceColor} width={showPortrait ? 7 : 10} />
+                <span style={{ ...compactStatStyle, color: resourceColor }}>
+                  {genInfo.resource}/{genInfo.maxResource}
+                </span>
+                {genInfo.abilityCooldown > 0 && (
+                  <span style={{ ...compactStatStyle, color: '#666688' }}>CD:{genInfo.abilityCooldown}</span>
+                )}
+                {isReady && (
+                  <span style={{ ...compactStatStyle, color: genInfo.resourceColor, fontWeight: 'bold', textShadow: `0 0 6px ${genInfo.resourceColor}88` }}>
+                    {genInfo.abilityIcon} READY
                   </span>
                 )}
               </div>

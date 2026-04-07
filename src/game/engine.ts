@@ -1,8 +1,20 @@
-import { Tile, type GameState, type Entity, type EquipSlot, type PlayerClass, type BloodlineData, type DialogueEffect, type BossAbility, type ZoneId, type TerrainType, type MonsterAbility } from './types';
+import { Tile, type GameState, type Entity, type EquipSlot, type PlayerClass, type BloodlineData, type DialogueEffect, type BossAbility, type ZoneId, type TerrainType, type MonsterAbility, type ClassDef } from './types';
 import { generateFloor, isWalkableTile, getTile, getTerrainAt } from './dungeon';
 import { createPlayer, spawnMonsters, spawnItems, randomItem, spawnShop, findItemTemplate, spawnBoss, spawnMercenaries } from './entities';
 import { VIEW_RADIUS, XP_PER_LEVEL, MSG_COLOR, MONSTER_DEFS, CLASS_DEFS, HUNGER_MAX, HUNGER_PER_TURN, HUNGER_WARNING, STARVING_THRESHOLD, STARVING_DAMAGE, REGEN_INTERVAL, REGEN_HUNGER_MIN, BOSS_DEFS, MERCENARY_DEFS, RARITY_DEFS, POTION_TEMPLATES, FOOD_TEMPLATES } from './constants';
 import { uid, resetIdCounter, manhattan, findPath, linePoints, clamp, gpStart, gpEnd } from './utils';
+import type { GeneratedClass } from './generativeClass';
+
+/** Synchronous localStorage read for generated class (mirrors safeStorage backup prefix) */
+function getStoredGeneratedClass(): GeneratedClass | null {
+  try {
+    const json = localStorage.getItem('dod_backup_activeGeneratedClass');
+    if (!json) return null;
+    return JSON.parse(json) as GeneratedClass;
+  } catch {
+    return null;
+  }
+}
 import { computeBloodlineBonuses, createEmptyRunStats } from './traits';
 import { spawnNPCs } from './npcs';
 import { getNecropolisClasses, getNecropolisMonsters } from './necropolis';
@@ -129,7 +141,49 @@ function placeTerrain(state: GameState, cx: number, cy: number, terrain: Terrain
 
 // ─── Game Init ───
 
-export function getClassDef(cls: PlayerClass) {
+// Cache for active generated class to avoid repeated parsing
+let cachedGeneratedClassDef: ClassDef | null = null;
+let cachedGeneratedClassId: string | null = null;
+
+/** Convert a GeneratedClass to a ClassDef for use in the engine */
+function generatedClassToClassDef(gen: GeneratedClass): ClassDef {
+  return {
+    id: 'generated',
+    name: gen.name,
+    char: gen.char,
+    color: gen.color,
+    description: gen.description,
+    baseStats: gen.baseStats,
+    levelBonusHp: gen.levelBonusHp,
+    levelBonusAtk: gen.levelBonusAtk,
+    levelBonusDef: gen.levelBonusDef,
+    passives: gen.passives.map(p => ({
+      name: p.name,
+      description: p.description,
+      unlockLevel: p.unlockLevel,
+    })),
+    abilityPool: [],
+    requiresBestFloor: 0,
+  };
+}
+
+export function getClassDef(cls: PlayerClass): ClassDef {
+  // Handle generated class
+  if (cls === 'generated') {
+    const gen = getStoredGeneratedClass();
+    if (gen) {
+      // Use cache if same class
+      if (cachedGeneratedClassId === gen.id && cachedGeneratedClassDef) {
+        return cachedGeneratedClassDef;
+      }
+      cachedGeneratedClassDef = generatedClassToClassDef(gen);
+      cachedGeneratedClassId = gen.id;
+      return cachedGeneratedClassDef;
+    }
+    // Default fallback for generated class
+    return CLASS_DEFS[0]!;
+  }
+
   // Check base classes first, then necropolis classes
   const base = CLASS_DEFS.find((c) => c.id === cls);
   if (base) return base;
@@ -1925,6 +1979,18 @@ function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
         }
       }
 
+      // Generated Class — on_kill resource gain
+      if (attacker.isPlayer && state.playerClass === 'generated') {
+        const gen = getActiveGeneratedClass();
+        if (gen && gen.resource.regenMethod === 'on_kill') {
+          const genExt = state as GameState & { _genResource?: number };
+          const prev = genExt._genResource ?? gen.resource.startingAmount;
+          const gained = gen.resource.regenAmount;
+          genExt._genResource = Math.min(gen.resource.max, prev + gained);
+          addMessage(state, `+${gained} ${gen.resource.name}!`, gen.resource.color);
+        }
+      }
+
       // Ranger — Hunter's Mark transfer: if marked target dies, transfer remaining marks to nearest enemy
       if (attacker.isPlayer && state.playerClass === 'ranger') {
         const markExt = state as GameState & { _markTargetId?: string; _markHits?: number; _markCooldown?: number };
@@ -3248,6 +3314,38 @@ function processTurn(state: GameState) {
     }
   }
 
+  // Generated Class — Resource regen and cooldown tick
+  if (state.playerClass === 'generated') {
+    const gen = getActiveGeneratedClass();
+    if (gen) {
+      const genExt = state as GameState & { _genResource?: number; _genAbilityCooldown?: number };
+      
+      // Cooldown tick
+      if ((genExt._genAbilityCooldown ?? 0) > 0) {
+        genExt._genAbilityCooldown!--;
+      }
+      
+      // Resource regeneration based on regen method
+      const currentResource = genExt._genResource ?? gen.resource.startingAmount;
+      if (currentResource < gen.resource.max) {
+        switch (gen.resource.regenMethod) {
+          case 'per_turn':
+            genExt._genResource = Math.min(gen.resource.max, currentResource + gen.resource.regenAmount);
+            break;
+          case 'on_kill':
+            // Handled in killEnemy callback
+            break;
+          // Other regen methods handled elsewhere
+        }
+      }
+      
+      // Resource decay
+      if (gen.resource.decayMethod === 'per_turn' && gen.resource.decayAmount) {
+        genExt._genResource = Math.max(0, (genExt._genResource ?? currentResource) - gen.resource.decayAmount);
+      }
+    }
+  }
+
   // ── Legacy Ability cooldown ticks + auto-trigger abilities ──
   const legTurn = state as GameState & LegacyAbilityState;
   if (legTurn._legacyAbilities && legTurn._legacyAbilities.length > 0) {
@@ -4444,6 +4542,191 @@ export function summonSkeleton(state: GameState): boolean {
 
   addMessage(state, `Raised a Skeleton Minion! (${skeletonInfo.count + 1}/${skeletonInfo.max})`, '#aa44dd');
 
+  processTurn(state);
+  return true;
+}
+
+// ─── Generated Class Ability ───
+
+/** Get the active generated class data (if any). */
+export function getActiveGeneratedClass(): GeneratedClass | null {
+  return getStoredGeneratedClass();
+}
+
+/** Returns current resource and ability info for generated class. */
+export function getGeneratedClassInfo(state: GameState): { 
+  resource: number; 
+  maxResource: number; 
+  resourceName: string;
+  resourceIcon: string;
+  resourceColor: string;
+  abilityName: string;
+  abilityCost: number;
+  abilityCooldown: number;
+  abilityIcon: string;
+} | null {
+  if (state.playerClass !== 'generated') return null;
+  
+  const gen = getActiveGeneratedClass();
+  if (!gen) return null;
+  
+  const ext = state as GameState & { _genResource?: number; _genAbilityCooldown?: number };
+  return {
+    resource: ext._genResource ?? gen.resource.startingAmount,
+    maxResource: gen.resource.max,
+    resourceName: gen.resource.name,
+    resourceIcon: gen.resource.icon,
+    resourceColor: gen.resource.color,
+    abilityName: gen.ability.name,
+    abilityCost: gen.ability.resourceCost,
+    abilityCooldown: ext._genAbilityCooldown ?? 0,
+    abilityIcon: gen.ability.icon,
+  };
+}
+
+/**
+ * Use the generated class's primary ability.
+ * Effects depend on the generated class's ability definition.
+ */
+export function useGeneratedAbility(state: GameState): boolean {
+  if (state.gameOver) return false;
+  if (state.playerClass !== 'generated') return false;
+  
+  const gen = getActiveGeneratedClass();
+  if (!gen) return false;
+  
+  const ext = state as GameState & { _genResource?: number; _genAbilityCooldown?: number };
+  const currentResource = ext._genResource ?? gen.resource.startingAmount;
+  
+  // Check cooldown
+  if ((ext._genAbilityCooldown ?? 0) > 0) {
+    addMessage(state, `${gen.ability.name} on cooldown! (${ext._genAbilityCooldown} turns)`, MSG_COLOR.info);
+    return false;
+  }
+  
+  // Check resource cost
+  if (currentResource < gen.ability.resourceCost) {
+    addMessage(state, `Not enough ${gen.resource.name}! (${currentResource}/${gen.ability.resourceCost})`, MSG_COLOR.info);
+    return false;
+  }
+  
+  // Consume resource
+  ext._genResource = currentResource - gen.ability.resourceCost;
+  
+  // Apply ability effect based on type
+  const ability = gen.ability;
+  const { player } = state;
+  
+  switch (ability.effectType) {
+    case 'damage': {
+      // Find nearest visible enemy and deal damage
+      const visibleMonsters = state.monsters.filter(
+        m => !m.isDead && state.floor.visible[m.pos.y]?.[m.pos.x] === true
+      );
+      if (visibleMonsters.length === 0) {
+        addMessage(state, 'No enemies in sight!', MSG_COLOR.info);
+        ext._genResource = currentResource; // Refund
+        return false;
+      }
+      const closest = visibleMonsters.sort((a, b) => 
+        manhattan(player.pos, a.pos) - manhattan(player.pos, b.pos)
+      )[0]!;
+      const dmg = ability.effect.value ?? (player.stats.attack * 2);
+      closest.stats.hp -= dmg;
+      addMessage(state, `${ability.icon} ${ability.name} hits ${closest.name} for ${dmg} damage!`, gen.color);
+      if (closest.stats.hp <= 0) {
+        closest.isDead = true;
+        gainXP(state, closest.xp);
+        addMessage(state, `${closest.name} is destroyed!`, MSG_COLOR.good);
+      }
+      break;
+    }
+    
+    case 'buff_self': {
+      // Apply temporary buff to player
+      const buffValue = ability.effect.value ?? 5;
+      const duration = ability.effect.duration ?? 5;
+      player.stats.attack += Math.floor(buffValue / 2);
+      player.stats.defense += Math.floor(buffValue / 2);
+      addMessage(state, `${ability.icon} ${ability.name}: +${Math.floor(buffValue/2)} ATK/DEF for ${duration} turns!`, gen.color);
+      break;
+    }
+    
+    case 'summon_companion': {
+      // Summon a companion similar to necromancer skeleton
+      const spawnPos = findAdjacentSpot(state, player.pos);
+      if (!spawnPos) {
+        addMessage(state, 'No room to summon companion!', MSG_COLOR.info);
+        ext._genResource = currentResource; // Refund
+        return false;
+      }
+      const companionDef = ability.companionDef;
+      const companionStats = companionDef?.stats ?? {
+        hp: 10 + player.level * 2,
+        maxHp: 10 + player.level * 2,
+        attack: 3 + player.level,
+        defense: 1 + Math.floor(player.level * 0.5),
+        speed: 10,
+      };
+      const companion: Entity = {
+        id: uid(),
+        name: companionDef?.name ?? 'Summoned Companion',
+        char: companionDef?.char ?? 'c',
+        color: companionDef?.color ?? gen.color,
+        pos: { ...spawnPos },
+        stats: { ...companionStats },
+        xp: 0,
+        level: 1,
+        isPlayer: false,
+        isDead: false,
+        isBoss: false,
+        equipment: {},
+        inventory: [],
+        baseName: companionDef?.name ?? 'Summoned Companion',
+      };
+      state.mercenaries.push(companion);
+      addMessage(state, `${ability.icon} Summoned ${companion.name}!`, gen.color);
+      break;
+    }
+    
+    default: {
+      // Generic effect - deal damage based on attack
+      const visibleMonsters = state.monsters.filter(
+        m => !m.isDead && state.floor.visible[m.pos.y]?.[m.pos.x] === true
+      );
+      if (visibleMonsters.length > 0) {
+        const closest = visibleMonsters.sort((a, b) => 
+          manhattan(player.pos, a.pos) - manhattan(player.pos, b.pos)
+        )[0]!;
+        const dmg = player.stats.attack * 2;
+        closest.stats.hp -= dmg;
+        addMessage(state, `${ability.icon} ${ability.name} hits ${closest.name} for ${dmg}!`, gen.color);
+        if (closest.stats.hp <= 0) {
+          closest.isDead = true;
+          gainXP(state, closest.xp);
+        }
+      } else {
+        addMessage(state, `${ability.icon} ${ability.name} activated!`, gen.color);
+      }
+      break;
+    }
+  }
+  
+  // Set cooldown
+  ext._genAbilityCooldown = ability.cooldown ?? 3;
+  
+  // Track ability usage
+  state.runStats.abilitiesUsed = (state.runStats.abilitiesUsed ?? 0) + 1;
+  
+  // Visual effect
+  if (!state.projectiles) state.projectiles = [];
+  state.projectiles.push({
+    from: { ...player.pos },
+    to: { ...player.pos },
+    char: ability.icon,
+    color: gen.color,
+  });
+  
   processTurn(state);
   return true;
 }

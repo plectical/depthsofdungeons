@@ -61,6 +61,7 @@ const CLASS_SKILL_BONUSES: Record<PlayerClass, Partial<CharacterSkills>> = {
   necromancer: { lore: 3, stealth: 2 },
   revenant:    { stealth: 2, awareness: 3 },
   hellborn:    { athletics: 2, survival: 2, lore: 1 },
+  generated:   { awareness: 2, lore: 2 },
 };
 
 // Compute skill bonuses from bloodline traits
