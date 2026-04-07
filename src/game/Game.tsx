@@ -82,7 +82,7 @@ import {
   trackAbilityUsed, trackDeathScreenAction,
   trackQuestClaimed, trackEchoNodeUnlocked, trackQuestLogOpened,
   trackEchoTreeOpened, trackQuestRunSummary, trackQuestCompleted,
-  trackPlayerIdentity,
+  trackPlayerIdentity, trackGameModeStart,
 } from './analytics';
 import { updateErrorContext, reportError, safeEngineCall } from './errorReporting';
 import { safeSetItem, safeGetItem, safeGetProfile } from './safeStorage';
@@ -1008,6 +1008,9 @@ export function Game() {
   }, []);
 
   const beginGame = useCallback(async (zone: ZoneId) => {
+    // Track game mode for D1 retention analytics
+    trackGameModeStart(zone, selectedClass);
+    
     // Only run AI content generation in the narrative_test debug zone
     const isNarrativeZone = zone === 'narrative_test';
     

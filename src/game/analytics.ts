@@ -2,8 +2,42 @@ import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 
 /**
  * Game analytics — funnel tracking + custom events with platform context.
- * All events include platform (ios/android/web) and client (app/mobile_web/desktop_web).
+ * All events include platform (ios/android/web), client (app/mobile_web/desktop_web),
+ * and game_mode for D1 retention tracking by mode.
  */
+
+// ── Game Mode Tracking ──
+// Tracks which mode the player is using for D1 retention segmentation
+
+export type GameMode = 
+  | 'classic'           // Standard dungeon crawl with built-in classes
+  | 'narrative'         // AI Narrative Dungeon with built-in classes
+  | 'generated_class'   // Playing with AI-generated class (classic zones)
+  | 'narrative_generated'; // AI Narrative Dungeon with AI-generated class
+
+let _gameMode: GameMode = 'classic';
+
+/** Set the current game mode for analytics tracking */
+export function setGameMode(mode: GameMode): void {
+  _gameMode = mode;
+  console.log('[Analytics] Game mode set:', mode);
+}
+
+/** Get current game mode */
+export function getGameMode(): GameMode {
+  return _gameMode;
+}
+
+/** Derive game mode from zone and class */
+export function deriveGameMode(zone: string, playerClass: string): GameMode {
+  const isNarrative = zone === 'narrative_test';
+  const isGenerated = playerClass === 'generated';
+  
+  if (isNarrative && isGenerated) return 'narrative_generated';
+  if (isNarrative) return 'narrative';
+  if (isGenerated) return 'generated_class';
+  return 'classic';
+}
 
 // ── Platform context (cached once at startup) ──
 
@@ -57,7 +91,11 @@ function trackEvent(name: string, params?: Record<string, unknown>) {
   try {
     const ctx = getPlatformContext();
     withAnalyticsTimeout(
-      RundotGameAPI.analytics.recordCustomEvent(name, { ...ctx, ...params })
+      RundotGameAPI.analytics.recordCustomEvent(name, { 
+        ...ctx, 
+        game_mode: _gameMode,
+        ...params 
+      })
     );
   } catch {
     // SDK not ready — event is lost, but gameplay continues
@@ -71,7 +109,11 @@ function trackFunnel(step: number, name: string) {
       RundotGameAPI.analytics.trackFunnelStep(step, name, 'game_funnel', 1)
     );
     withAnalyticsTimeout(
-      RundotGameAPI.analytics.recordCustomEvent(`funnel_${name}`, { ...ctx, funnel_step: step })
+      RundotGameAPI.analytics.recordCustomEvent(`funnel_${name}`, { 
+        ...ctx, 
+        game_mode: _gameMode,
+        funnel_step: step 
+      })
     );
   } catch {
     // SDK not ready — event is lost, but gameplay continues
@@ -122,6 +164,19 @@ export async function trackClassSelected(playerClass: string) {
 export async function trackZoneSelected(zone: string, playerClass: string) {
   await trackFunnel(3, 'zone_selected');
   await trackEvent('zone_selected', { zone, player_class: playerClass });
+}
+
+/** Track game mode session start - key event for D1 retention by mode */
+export async function trackGameModeStart(zone: string, playerClass: string) {
+  const mode = deriveGameMode(zone, playerClass);
+  setGameMode(mode);
+  await trackEvent('game_mode_start', { 
+    mode,
+    zone,
+    player_class: playerClass,
+    is_narrative: zone === 'narrative_test',
+    is_generated_class: playerClass === 'generated',
+  });
 }
 
 export async function trackFloorReached(floor: number, playerClass: string, zone: string) {
