@@ -1,6 +1,6 @@
 import { Tile, type GameState, type Pos } from './types';
 import { getTile, isWalkableTile } from './dungeon';
-import { movePlayer, useItem, equipItem, waitTurn, chooseAbility, rangedAttack, getPlayerRange, buyItem, isAtShop, rageStrike, getWarriorRage, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark } from './engine';
+import { movePlayer, useItem, equipItem, waitTurn, chooseAbility, rangedAttack, getPlayerRange, buyItem, isAtShop, rageStrike, getWarriorRage, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons } from './engine';
 import { findPath, manhattan, cloneState, gpStart, gpEnd } from './utils';
 import { trackShopPurchase, trackAbilityUsed } from './analytics';
 // Hunger thresholds are hardcoded below (40 for eating, 80 for shop buying)
@@ -199,6 +199,16 @@ export function autoplayStep(state: GameState): GameState | null {
       if (mark.hitsLeft === 0 && mark.cooldown === 0) {
         const ok = huntersMark(next);
         trackAbilityUsed({ ability: 'hunters_mark', playerClass: next.playerClass, floor: next.floorNumber, zone: next.zone, hpPercent: _hpPct, success: ok, source: 'autoplay' });
+        if (ok) return next;
+      }
+    }
+
+    // Necromancer: summon skeletons when enemies are visible and we have room
+    if (next.playerClass === 'necromancer') {
+      const skele = getNecroSkeletons(next);
+      if (skele.cooldown === 0 && skele.count < skele.max && visibleMonsters.length > 0) {
+        const ok = summonSkeleton(next);
+        trackAbilityUsed({ ability: 'summon_skeleton', playerClass: next.playerClass, floor: next.floorNumber, zone: next.zone, hpPercent: _hpPct, success: ok, source: 'autoplay' });
         if (ok) return next;
       }
     }

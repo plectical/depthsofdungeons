@@ -3240,6 +3240,14 @@ function processTurn(state: GameState) {
     }
   }
 
+  // Necromancer — Skeleton Summon cooldown tick
+  if (state.playerClass === 'necromancer') {
+    const skeleExt = state as GameState & { _skeletonCooldown?: number };
+    if ((skeleExt._skeletonCooldown ?? 0) > 0) {
+      skeleExt._skeletonCooldown!--;
+    }
+  }
+
   // ── Legacy Ability cooldown ticks + auto-trigger abilities ──
   const legTurn = state as GameState & LegacyAbilityState;
   if (legTurn._legacyAbilities && legTurn._legacyAbilities.length > 0) {
@@ -4349,6 +4357,92 @@ export function huntersMark(state: GameState): boolean {
   });
 
   addMessage(state, `Hunter's Mark on ${target.name}! Next 3 attacks deal double damage.`, '#ffaa00');
+
+  processTurn(state);
+  return true;
+}
+
+// ─── Necromancer Skeleton Summon ───
+
+/** Returns current skeleton summon info: active count, max allowed, and cooldown. */
+export function getNecroSkeletons(state: GameState): { count: number; max: number; cooldown: number } {
+  const ext = state as GameState & { _skeletonCooldown?: number };
+  // Count active skeleton minions
+  const count = state.mercenaries.filter(m => !m.isDead && m.name === 'Skeleton Minion').length;
+  return {
+    count,
+    max: 2, // Max 2 skeletons at a time
+    cooldown: ext._skeletonCooldown ?? 0,
+  };
+}
+
+/**
+ * Necromancer Summon Skeleton — summons a skeleton minion to fight alongside you.
+ * Max 2 skeletons at once. 5-turn cooldown after summoning.
+ * Skeletons gain power based on player level.
+ */
+export function summonSkeleton(state: GameState): boolean {
+  if (state.gameOver) return false;
+  if (state.playerClass !== 'necromancer') return false;
+
+  const ext = state as GameState & { _skeletonCooldown?: number };
+  if ((ext._skeletonCooldown ?? 0) > 0) {
+    addMessage(state, `Summon on cooldown! (${ext._skeletonCooldown} turns)`, MSG_COLOR.info);
+    return false;
+  }
+
+  const skeletonInfo = getNecroSkeletons(state);
+  if (skeletonInfo.count >= skeletonInfo.max) {
+    addMessage(state, 'Maximum skeletons summoned! (2/2)', MSG_COLOR.info);
+    return false;
+  }
+
+  // Find spawn location near player
+  const spawnPos = findAdjacentSpot(state, state.player.pos);
+  if (!spawnPos) {
+    addMessage(state, 'No space to summon skeleton!', MSG_COLOR.bad);
+    return false;
+  }
+
+  // Skeleton stats scale with player level
+  const level = state.player.level;
+  const baseHp = 8 + level * 3;
+  const baseAtk = 3 + Math.floor(level * 0.8);
+  const baseDef = 1 + Math.floor(level * 0.3);
+
+  // Create skeleton as a mercenary (uses existing mercenary AI)
+  const skeleton = {
+    id: uid(),
+    name: 'Skeleton Minion',
+    char: 's',
+    color: '#ddccaa',
+    pos: { ...spawnPos },
+    stats: { hp: baseHp, maxHp: baseHp, attack: baseAtk, defense: baseDef, speed: 8 },
+    xp: 0,
+    level: 1,
+    isPlayer: false,
+    isDead: false,
+    isBoss: false,
+    equipment: {},
+    inventory: [],
+    baseName: 'Skeleton Minion',
+  };
+
+  state.mercenaries.push(skeleton);
+
+  // Set cooldown
+  ext._skeletonCooldown = 5;
+
+  // Visual effect
+  if (!state.projectiles) state.projectiles = [];
+  state.projectiles.push({
+    from: { ...state.player.pos },
+    to: { ...spawnPos },
+    char: '💀',
+    color: '#aa44dd',
+  });
+
+  addMessage(state, `Raised a Skeleton Minion! (${skeletonInfo.count + 1}/${skeletonInfo.max})`, '#aa44dd');
 
   processTurn(state);
   return true;

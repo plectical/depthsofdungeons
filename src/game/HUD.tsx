@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { GameState } from './types';
 import { XP_PER_LEVEL, HUNGER_WARNING } from './constants';
-import { getPlayerEffectiveStats, getClassDef, getPlayerRange, getWarriorRage, getPaladinVow, isPaladinVowActive, getRogueShadowCooldown, getMageBlastCooldown, getRangerMark, getLegacyAbilityState, hasLegacyAbility } from './engine';
+import { getPlayerEffectiveStats, getClassDef, getPlayerRange, getWarriorRage, getPaladinVow, isPaladinVowActive, getRogueShadowCooldown, getMageBlastCooldown, getRangerMark, getNecroSkeletons, getLegacyAbilityState, hasLegacyAbility } from './engine';
 import { getZoneDef } from './zones';
 import { useCdnImage } from './useCdnImage';
 import { LEGACY_ABILITY_DESCRIPTIONS } from './legacyGear';
@@ -186,6 +186,26 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
                 {mark.hitsLeft === 0 && mark.cooldown === 0 && (
                   <span style={{ ...compactStatStyle, color: '#ffaa00', fontWeight: 'bold', textShadow: '0 0 6px #ffaa0088' }}>
                     {'◎ READY'}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+          {playerClass === 'necromancer' && (() => {
+            const skele = getNecroSkeletons(state);
+            const skeleColor = skele.cooldown === 0 && skele.count < skele.max ? '#aa44dd' : '#663388';
+            return (
+              <div style={rowStyle}>
+                <span style={{ ...compactLabelStyle, color: skeleColor }}>Minions</span>
+                <span style={{ ...compactStatStyle, color: skele.count > 0 ? '#aa44dd' : '#663388' }}>
+                  {skele.count}/{skele.max}
+                </span>
+                {skele.cooldown > 0 && (
+                  <span style={{ ...compactStatStyle, color: '#663388' }}>CD:{skele.cooldown}</span>
+                )}
+                {skele.cooldown === 0 && skele.count < skele.max && (
+                  <span style={{ ...compactStatStyle, color: '#aa44dd', fontWeight: 'bold', textShadow: '0 0 6px #aa44dd88' }}>
+                    {'💀 READY'}
                   </span>
                 )}
               </div>

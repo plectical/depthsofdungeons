@@ -6,7 +6,7 @@ import type { CSSProperties } from 'react';
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 import type { GameState, PlayerClass, BloodlineData, AncestorRecord, TraitDef, ZoneId, TutorialStepId } from './types';
 import { TutorialBar, TUTORIAL_STEPS } from './TutorialBar';
-import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, addMessage } from './engine';
+import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, addMessage } from './engine';
 import { CLASS_DEFS, getHellbornClass } from './constants';
 import { createDefaultBloodline, mergeRunIntoBloodline, checkForNewTraits, generateAncestorName, computeBloodlineBonuses } from './traits';
 import { GameView } from './GameView';
@@ -195,11 +195,14 @@ export function Game() {
     'ranger-damaged': useCdnImage('ranger-damaged.jpg'),
     hellborn: useCdnImage('hellborn-portrait.jpg'),
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
+    necromancer: useCdnImage('necromancer-portrait.png'),
   };
   const classBorderColors: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
+    necromancer: '#aa44dd', revenant: '#ff4444',
   };
+  const nextButtonImg = useCdnImage('next-button.png');
   const { muted, toggleMute, onUserInteraction } = useMusic('soundtrack.mp3');
   const [screen, setScreen] = useState<Screen>('title');
   const [state, setState] = useState<GameState | null>(null);
@@ -254,6 +257,7 @@ export function Game() {
   const [selectedClass, setSelectedClass] = useState<PlayerClass>('warrior');
   const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [unlockInfoClass, setUnlockInfoClass] = useState<string | null>(null);
+  const [showClassDetail, setShowClassDetail] = useState<PlayerClass | null>(null);
   const startTimeRef = useRef(0);
   const scoreTokenRef = useRef<string | null>(null);
   const lastScoreSubmitRef = useRef(0);
@@ -962,6 +966,14 @@ export function Game() {
   }, [isFirstTimeBuyer]);
 
   const selectClassAndPickZone = useCallback((cls: PlayerClass) => {
+    // For special classes with detail portraits, show the detail screen first
+    const classesWithDetailScreen = ['necromancer', 'revenant'];
+    if (classesWithDetailScreen.includes(cls)) {
+      setSelectedClass(cls);
+      setShowClassDetail(cls);
+      trackClassSelected(cls);
+      return;
+    }
     setSelectedClass(cls);
     setScreen('zoneSelect');
     trackClassSelected(cls);
@@ -4216,6 +4228,150 @@ export function Game() {
         </div>,
         document.body,
       )}
+      {/* Class Detail Screen - shows stained glass portrait for special classes */}
+      {showClassDetail && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: '#0a0a0a',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          {/* Dark dungeon background */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'linear-gradient(180deg, #1a1a2e 0%, #0a0a0a 50%, #1a0a1a 100%)',
+            opacity: 0.8,
+          }} />
+          
+          {/* Class Portrait */}
+          <div style={{
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16,
+            padding: 20,
+          }}>
+            {classPortraits[showClassDetail] && (
+              <img
+                src={classPortraits[showClassDetail]!}
+                alt={showClassDetail}
+                style={{
+                  maxWidth: '80%',
+                  maxHeight: '60vh',
+                  objectFit: 'contain',
+                  imageRendering: 'pixelated',
+                  border: `3px solid ${classBorderColors[showClassDetail] ?? '#aa44dd'}`,
+                  boxShadow: `0 0 30px ${classBorderColors[showClassDetail] ?? '#aa44dd'}44`,
+                }}
+              />
+            )}
+            
+            {/* Class Name */}
+            <div style={{
+              color: classBorderColors[showClassDetail] ?? '#aa44dd',
+              fontSize: 28,
+              fontFamily: 'monospace',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              textShadow: `0 0 10px ${classBorderColors[showClassDetail] ?? '#aa44dd'}88`,
+              letterSpacing: 4,
+            }}>
+              {showClassDetail.charAt(0).toUpperCase() + showClassDetail.slice(1)}
+            </div>
+            
+            {/* Class Description */}
+            <div style={{
+              color: '#88aa88',
+              fontSize: 12,
+              fontFamily: 'monospace',
+              textAlign: 'center',
+              maxWidth: 300,
+            }}>
+              {allClasses.find(c => c.id === showClassDetail)?.description ?? ''}
+            </div>
+            
+            {/* Navigation Buttons */}
+            <div style={{
+              display: 'flex',
+              gap: 20,
+              marginTop: 20,
+            }}>
+              <button
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+                onClick={() => setShowClassDetail(null)}
+              >
+                <div style={{
+                  background: '#2a2a2a',
+                  border: '2px solid #666666',
+                  borderRadius: 4,
+                  padding: '8px 24px',
+                  color: '#aaaaaa',
+                  fontSize: 14,
+                  fontFamily: 'monospace',
+                  fontWeight: 'bold',
+                }}>
+                  BACK
+                </div>
+              </button>
+              
+              {nextButtonImg ? (
+                <img
+                  src={nextButtonImg}
+                  alt="NEXT"
+                  style={{
+                    height: 40,
+                    cursor: 'pointer',
+                    imageRendering: 'pixelated',
+                  }}
+                  onClick={() => {
+                    setShowClassDetail(null);
+                    setScreen('zoneSelect');
+                  }}
+                />
+              ) : (
+                <button
+                  style={{
+                    background: classBorderColors[showClassDetail] ?? '#aa44dd',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '8px 24px',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setShowClassDetail(null);
+                    setScreen('zoneSelect');
+                  }}
+                >
+                  NEXT
+                </button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
       </>
     );
   }
@@ -4791,6 +4947,32 @@ export function Game() {
                 title={active ? `Hunter's Mark active! ${mark.hitsLeft} double-damage hits left` : ready ? "Hunter's Mark! Mark nearest enemy for 3 double-damage hits" : `Hunter's Mark on cooldown (${mark.cooldown} turns)`}
               >
                 {active ? `[ MARK ${mark.hitsLeft} ]` : mark.cooldown > 0 ? `[ MARK ${mark.cooldown} ]` : '[ MARK ]'}
+              </button>
+            );
+          })()}
+          {state.playerClass === 'necromancer' && (() => {
+            const skele = getNecroSkeletons(state);
+            const ready = skele.cooldown === 0 && skele.count < skele.max;
+            return (
+              <button
+                style={{
+                  ...actionBtnStyle,
+                  color: ready ? '#aa44dd' : '#555555',
+                  borderColor: ready ? '#aa44dd' : '#444444',
+                  textShadow: ready ? '0 0 8px #aa44dd88' : undefined,
+                  cursor: ready ? 'pointer' : 'not-allowed',
+                }}
+                onClick={() => {
+                  if (!state || state.gameOver) return;
+                  const next = { ...state };
+                  const ok = summonSkeleton(next);
+                  trackAbilityUsed({ ability: 'summon_skeleton', playerClass: next.playerClass, floor: next.floorNumber, zone: next.zone, hpPercent: next.player.stats.hp / next.player.stats.maxHp, success: ok, source: 'manual' });
+                  if (ok) handleChange(next);
+                }}
+                disabled={!ready}
+                title={ready ? `Summon Skeleton! Raise a skeleton minion to fight for you (${skele.count}/${skele.max})` : skele.count >= skele.max ? `Max skeletons summoned (${skele.count}/${skele.max})` : `Summon on cooldown (${skele.cooldown} turns)`}
+              >
+                {skele.cooldown > 0 ? `[ 💀 ${skele.cooldown} ]` : `[ 💀 ${skele.count}/${skele.max} ]`}
               </button>
             );
           })()}
