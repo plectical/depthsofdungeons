@@ -4367,14 +4367,11 @@ export function Game() {
           position: 'fixed',
           top: 0,
           left: 0,
-          right: 0,
-          bottom: 0,
-          background: '#000',
-          zIndex: 9999,
+          width: '100vw',
+          height: '100vh',
+          background: '#000000',
+          zIndex: 999999,
           overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
         }}>
           {/* Portrait fills the ENTIRE screen */}
           {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
@@ -4383,62 +4380,59 @@ export function Game() {
               alt={showClassDetail}
               style={{
                 position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                minWidth: '100%',
+                minHeight: '100%',
+                width: 'auto',
                 height: '100%',
                 objectFit: 'cover',
-                objectPosition: 'center center',
                 imageRendering: 'pixelated',
               }}
             />
           )}
           
-          {/* Simple BACK button at bottom */}
+          {/* Tap the BACK area in the image or use this small corner button */}
           <button
             style={{
               position: 'absolute',
-              bottom: 'clamp(16px, 4vh, 32px)',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(20, 30, 20, 0.9)',
-              border: '3px solid #4a6a4a',
-              borderRadius: 6,
-              padding: 'clamp(10px, 2vh, 16px) clamp(32px, 8vw, 64px)',
+              top: 8,
+              left: 8,
+              background: 'rgba(0, 0, 0, 0.6)',
+              border: '2px solid #4a6a4a',
+              borderRadius: 4,
+              padding: '6px 12px',
               color: '#8ab88a',
-              fontSize: 'clamp(16px, 4vw, 24px)',
+              fontSize: 12,
               fontFamily: 'monospace',
               fontWeight: 'bold',
               cursor: 'pointer',
-              textShadow: '0 0 8px #4a8a4a66',
-              boxShadow: '0 0 16px rgba(0,0,0,0.8), inset 0 0 8px rgba(74, 106, 74, 0.3)',
-              letterSpacing: 3,
               zIndex: 10,
             }}
             onClick={() => setShowClassDetail(null)}
           >
-            BACK
+            ← BACK
           </button>
           
-          {/* START button - to begin game */}
+          {/* START button - top right corner to not cover art */}
           <button
             style={{
               position: 'absolute',
-              bottom: 'clamp(70px, 12vh, 100px)',
-              left: '50%',
-              transform: 'translateX(-50%)',
+              top: 8,
+              right: 8,
               background: 'linear-gradient(180deg, #5a2a7a 0%, #3a1a5a 100%)',
-              border: '3px solid #aa44dd',
-              borderRadius: 6,
-              padding: 'clamp(12px, 2.5vh, 18px) clamp(40px, 10vw, 80px)',
+              border: '2px solid #aa44dd',
+              borderRadius: 4,
+              padding: '6px 16px',
               color: '#ffffff',
-              fontSize: 'clamp(18px, 5vw, 28px)',
+              fontSize: 12,
               fontFamily: 'monospace',
               fontWeight: 'bold',
               cursor: 'pointer',
-              textShadow: '0 0 10px #aa44dd88',
-              boxShadow: '0 0 20px rgba(170, 68, 221, 0.5), inset 0 0 10px rgba(170, 68, 221, 0.3)',
-              letterSpacing: 4,
+              textShadow: '0 0 6px #aa44dd88',
+              boxShadow: '0 0 10px rgba(170, 68, 221, 0.4)',
+              letterSpacing: 2,
               zIndex: 10,
             }}
             onClick={() => {
@@ -4446,7 +4440,7 @@ export function Game() {
               setScreen('zoneSelect');
             }}
           >
-            START
+            START →
           </button>
         </div>,
         document.body,
