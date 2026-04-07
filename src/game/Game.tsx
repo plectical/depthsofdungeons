@@ -4300,52 +4300,41 @@ export function Game() {
           right: 0,
           bottom: 0,
           background: '#000',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           zIndex: 9999,
+          overflow: 'hidden',
         }}>
-          {/* Fullscreen container with 9:16 aspect ratio like class select */}
+          {/* Portrait fills the ENTIRE screen */}
+          {/* Use fullscreen version if available, otherwise regular portrait */}
+          {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
+            <img
+              src={classPortraits[`${showClassDetail}-fullscreen`] ?? classPortraits[showClassDetail]!}
+              alt={showClassDetail}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center top',
+                imageRendering: 'pixelated',
+              }}
+            />
+          )}
+          
+          {/* Bottom info panel - overlaid on top of fullscreen image */}
           <div style={{
-            position: 'relative',
-            height: '100%',
-            aspectRatio: '9 / 16',
-            maxWidth: '100%',
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: 'linear-gradient(180deg, transparent 0%, rgba(10, 10, 20, 0.95) 40%)',
+            padding: '60px 20px 20px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'flex-start',
-            overflow: 'hidden',
+            gap: 12,
           }}>
-            {/* Portrait fills most of the screen */}
-            {/* Use fullscreen version if available, otherwise regular portrait */}
-            {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
-              <img
-                src={classPortraits[`${showClassDetail}-fullscreen`] ?? classPortraits[showClassDetail]!}
-                alt={showClassDetail}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  maxHeight: '78%',
-                  objectFit: 'contain',
-                  imageRendering: 'pixelated',
-                }}
-              />
-            )}
-            
-            {/* Bottom info panel */}
-            <div style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              background: 'linear-gradient(180deg, transparent 0%, rgba(10, 10, 20, 0.95) 30%)',
-              padding: '40px 20px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 12,
-            }}>
               {/* Class Name */}
               <div style={{
                 color: classBorderColors[showClassDetail] ?? '#aa44dd',
@@ -4436,7 +4425,6 @@ export function Game() {
                 )}
               </div>
             </div>
-          </div>
         </div>,
         document.body,
       )}
