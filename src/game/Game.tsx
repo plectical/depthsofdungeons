@@ -198,7 +198,7 @@ export function Game() {
     hellborn: useCdnImage('hellborn-portrait.jpg'),
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
     necromancer: useCdnImage('necromancer-thumb.png'),
-    'necromancer-fullscreen': useCdnImage('necromancer-portrait.png'),
+    'necromancer-fullscreen': useCdnImage('necromancer-fullscreen.png'),
     revenant: useCdnImage('necromancer-thumb.png'),
   };
   const classBorderColors: Record<string, string> = {
@@ -206,7 +206,6 @@ export function Game() {
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
     necromancer: '#aa44dd', revenant: '#ff4444',
   };
-  const nextButtonImg = useCdnImage('next-button.png');
   const { muted, toggleMute, onUserInteraction } = useMusic('soundtrack.mp3');
   const [screen, setScreen] = useState<Screen>('title');
   const [state, setState] = useState<GameState | null>(null);
@@ -3811,6 +3810,53 @@ export function Game() {
                 }}
                 onClick={() => { setScreen('title'); setActiveElderTip(null); setUnlockInfoClass(null); }}
               />
+              {/* Small Necromancer button - only shown when unlocked */}
+              {(() => {
+                const necroUnlocked = getNecropolisClasses(getNecropolisState().communalDeaths, questEchoRef.current.unlockedEchoNodes).some(c => c.id === 'necromancer');
+                if (!necroUnlocked) return null;
+                return (
+                  <button
+                    style={{
+                      position: 'absolute',
+                      right: '3%',
+                      bottom: '3%',
+                      width: 'clamp(40px, 10%, 56px)',
+                      height: 'clamp(40px, 10%, 56px)',
+                      background: 'rgba(10, 0, 20, 0.85)',
+                      border: '2px solid #aa44dd',
+                      borderRadius: 8,
+                      padding: 3,
+                      cursor: 'pointer',
+                      zIndex: 3,
+                      boxShadow: '0 0 12px #aa44dd66, inset 0 0 8px #aa44dd33',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    onClick={() => {
+                      setSelectedClass('necromancer');
+                      setShowClassDetail('necromancer');
+                    }}
+                    title="Play as Necromancer"
+                  >
+                    {classPortraits['necromancer'] ? (
+                      <img
+                        src={classPortraits['necromancer']!}
+                        alt="Necromancer"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          borderRadius: 4,
+                          imageRendering: 'pixelated',
+                        }}
+                      />
+                    ) : (
+                      <span style={{ color: '#aa44dd', fontSize: 18 }}>💀</span>
+                    )}
+                  </button>
+                );
+              })()}
             </div>
           </div>
           </>
@@ -4291,7 +4337,7 @@ export function Game() {
         </div>,
         document.body,
       )}
-      {/* Class Detail Screen - shows stained glass portrait for special classes */}
+      {/* Class Detail Screen - FULLSCREEN stained glass portrait */}
       {showClassDetail && createPortal(
         <div style={{
           position: 'fixed',
@@ -4302,9 +4348,11 @@ export function Game() {
           background: '#000',
           zIndex: 9999,
           overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}>
           {/* Portrait fills the ENTIRE screen */}
-          {/* Use fullscreen version if available, otherwise regular portrait */}
           {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
             <img
               src={classPortraits[`${showClassDetail}-fullscreen`] ?? classPortraits[showClassDetail]!}
@@ -4316,115 +4364,66 @@ export function Game() {
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                objectPosition: 'center top',
+                objectPosition: 'center center',
                 imageRendering: 'pixelated',
               }}
             />
           )}
           
-          {/* Bottom info panel - overlaid on top of fullscreen image */}
-          <div style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            background: 'linear-gradient(180deg, transparent 0%, rgba(10, 10, 20, 0.95) 40%)',
-            padding: '60px 20px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 12,
-          }}>
-              {/* Class Name */}
-              <div style={{
-                color: classBorderColors[showClassDetail] ?? '#aa44dd',
-                fontSize: 'clamp(20px, 5vw, 28px)',
-                fontFamily: 'monospace',
-                fontWeight: 'bold',
-                textTransform: 'uppercase',
-                textShadow: `0 0 10px ${classBorderColors[showClassDetail] ?? '#aa44dd'}88`,
-                letterSpacing: 4,
-              }}>
-                {showClassDetail.charAt(0).toUpperCase() + showClassDetail.slice(1)}
-              </div>
-              
-              {/* Class Description */}
-              <div style={{
-                color: '#88aa88',
-                fontSize: 'clamp(10px, 2.5vw, 14px)',
-                fontFamily: 'monospace',
-                textAlign: 'center',
-                maxWidth: '90%',
-              }}>
-                {allClasses.find(c => c.id === showClassDetail)?.description ?? ''}
-              </div>
-              
-              {/* Navigation Buttons */}
-              <div style={{
-                display: 'flex',
-                gap: 20,
-                marginTop: 8,
-              }}>
-                <button
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                  onClick={() => setShowClassDetail(null)}
-                >
-                  <div style={{
-                    background: '#2a2a2a',
-                    border: '2px solid #666666',
-                    borderRadius: 4,
-                    padding: '10px 28px',
-                    color: '#aaaaaa',
-                    fontSize: 'clamp(12px, 3vw, 16px)',
-                    fontFamily: 'monospace',
-                    fontWeight: 'bold',
-                  }}>
-                    BACK
-                  </div>
-              </button>
-              
-                {nextButtonImg ? (
-                  <img
-                    src={nextButtonImg}
-                    alt="NEXT"
-                    style={{
-                      height: 'clamp(36px, 8vw, 48px)',
-                      cursor: 'pointer',
-                      imageRendering: 'pixelated',
-                    }}
-                    onClick={() => {
-                      setShowClassDetail(null);
-                      setScreen('zoneSelect');
-                    }}
-                  />
-                ) : (
-                  <button
-                    style={{
-                      background: classBorderColors[showClassDetail] ?? '#aa44dd',
-                      border: 'none',
-                      borderRadius: 4,
-                      padding: '10px 28px',
-                      color: '#ffffff',
-                      fontSize: 'clamp(12px, 3vw, 16px)',
-                      fontFamily: 'monospace',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => {
-                      setShowClassDetail(null);
-                      setScreen('zoneSelect');
-                    }}
-                  >
-                    NEXT
-                  </button>
-                )}
-              </div>
-            </div>
+          {/* Simple BACK button at bottom */}
+          <button
+            style={{
+              position: 'absolute',
+              bottom: 'clamp(16px, 4vh, 32px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(20, 30, 20, 0.9)',
+              border: '3px solid #4a6a4a',
+              borderRadius: 6,
+              padding: 'clamp(10px, 2vh, 16px) clamp(32px, 8vw, 64px)',
+              color: '#8ab88a',
+              fontSize: 'clamp(16px, 4vw, 24px)',
+              fontFamily: 'monospace',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              textShadow: '0 0 8px #4a8a4a66',
+              boxShadow: '0 0 16px rgba(0,0,0,0.8), inset 0 0 8px rgba(74, 106, 74, 0.3)',
+              letterSpacing: 3,
+              zIndex: 10,
+            }}
+            onClick={() => setShowClassDetail(null)}
+          >
+            BACK
+          </button>
+          
+          {/* START button - to begin game */}
+          <button
+            style={{
+              position: 'absolute',
+              bottom: 'clamp(70px, 12vh, 100px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'linear-gradient(180deg, #5a2a7a 0%, #3a1a5a 100%)',
+              border: '3px solid #aa44dd',
+              borderRadius: 6,
+              padding: 'clamp(12px, 2.5vh, 18px) clamp(40px, 10vw, 80px)',
+              color: '#ffffff',
+              fontSize: 'clamp(18px, 5vw, 28px)',
+              fontFamily: 'monospace',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              textShadow: '0 0 10px #aa44dd88',
+              boxShadow: '0 0 20px rgba(170, 68, 221, 0.5), inset 0 0 10px rgba(170, 68, 221, 0.3)',
+              letterSpacing: 4,
+              zIndex: 10,
+            }}
+            onClick={() => {
+              setShowClassDetail(null);
+              setScreen('zoneSelect');
+            }}
+          >
+            START
+          </button>
         </div>,
         document.body,
       )}
