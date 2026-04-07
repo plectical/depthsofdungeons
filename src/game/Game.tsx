@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { cloneState, gpStart, gpEnd, gpTime } from './utils';
 import type { CSSProperties } from 'react';
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
+import { getVariant, trackExposure, forceVariant, getNarrativeExperimentInfo } from './abTesting';
 import type { GameState, PlayerClass, BloodlineData, AncestorRecord, TraitDef, ZoneId, TutorialStepId } from './types';
 import { TutorialBar, TUTORIAL_STEPS } from './TutorialBar';
 import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, addMessage, useGeneratedAbility, getGeneratedClassInfo } from './engine';
@@ -1132,19 +1133,28 @@ export function Game() {
   }, [isPremium, selectedClass, tryShowElderTip]);
 
   // First-session auto-start: once data is loaded and autoStartRef is set,
-  // drop the player directly into gameplay as Warrior on stone_depths.
+  // drop the player directly into gameplay based on A/B test variant.
   useEffect(() => {
     if (!isLoaded || !autoStartRef.current) return;
     autoStartRef.current = false;
+    
+    // Determine zone based on A/B test variant
+    const abInfo = getNarrativeExperimentInfo();
+    const startZone = abInfo.isNarrative ? 'narrative_test' : 'stone_depths';
+    
+    // Track A/B test exposure
+    trackExposure('narrative_vs_classic');
+    
     // Fire analytics so we can track first-session auto-starts
     try {
       RundotGameAPI.analytics.recordCustomEvent('first_session_autostart', {
         class: 'warrior',
-        zone: 'stone_depths',
+        zone: startZone,
+        ab_variant: abInfo.variant,
         ...(() => { try { const e = RundotGameAPI.system.getEnvironment(); return { platform: e.platform ?? 'unknown' }; } catch { return {}; } })(),
       }).catch(() => {});
     } catch { /* analytics unavailable */ }
-    beginGame('stone_depths' as ZoneId);
+    beginGame(startZone as ZoneId);
   }, [isLoaded, beginGame]);
 
   const processDeathBloodline = useCallback((finalState: GameState) => {
@@ -4015,6 +4025,41 @@ export function Game() {
                 onClick={() => setScreen('generativeClassSelect')}
               >
                 Gen Class
+              </button>
+            </div>
+            {/* A/B Test Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', borderTop: '1px solid #442222', paddingTop: 4, marginTop: 2 }}>
+              <span style={{ color: '#ffaa00', fontSize: 9, fontWeight: 'bold' }}>A/B:</span>
+              <span style={{ color: '#886666', fontSize: 8 }}>
+                {getNarrativeExperimentInfo().variant}
+              </span>
+              <button
+                style={{
+                  background: getVariant('narrative_vs_classic') === 'classic' ? '#003300' : '#1a1a1a',
+                  color: '#44ff88',
+                  border: '1px solid #44ff8844', borderRadius: 3, padding: '1px 5px',
+                  fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
+                }}
+                onClick={() => {
+                  forceVariant('narrative_vs_classic', 'classic');
+                  alert('Forced to Classic variant. Refresh to see change.');
+                }}
+              >
+                Classic
+              </button>
+              <button
+                style={{
+                  background: getVariant('narrative_vs_classic') === 'narrative' ? '#003300' : '#1a1a1a',
+                  color: '#44aaff',
+                  border: '1px solid #44aaff44', borderRadius: 3, padding: '1px 5px',
+                  fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
+                }}
+                onClick={() => {
+                  forceVariant('narrative_vs_classic', 'narrative');
+                  alert('Forced to Narrative variant. Refresh to see change.');
+                }}
+              >
+                Narrative
               </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>

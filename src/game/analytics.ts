@@ -1,9 +1,10 @@
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
+import { getVariantContext } from './abTesting';
 
 /**
  * Game analytics — funnel tracking + custom events with platform context.
  * All events include platform (ios/android/web), client (app/mobile_web/desktop_web),
- * and game_mode for D1 retention tracking by mode.
+ * game_mode for D1 retention tracking by mode, and A/B test variant assignments.
  */
 
 // ── Game Mode Tracking ──
@@ -90,9 +91,11 @@ function withAnalyticsTimeout<T>(promise: Promise<T>): Promise<T | void> {
 function trackEvent(name: string, params?: Record<string, unknown>) {
   try {
     const ctx = getPlatformContext();
+    const abCtx = getVariantContext();
     withAnalyticsTimeout(
       RundotGameAPI.analytics.recordCustomEvent(name, { 
-        ...ctx, 
+        ...ctx,
+        ...abCtx,
         game_mode: _gameMode,
         ...params 
       })
@@ -105,12 +108,14 @@ function trackEvent(name: string, params?: Record<string, unknown>) {
 function trackFunnel(step: number, name: string) {
   try {
     const ctx = getPlatformContext();
+    const abCtx = getVariantContext();
     withAnalyticsTimeout(
       RundotGameAPI.analytics.trackFunnelStep(step, name, 'game_funnel', 1)
     );
     withAnalyticsTimeout(
       RundotGameAPI.analytics.recordCustomEvent(`funnel_${name}`, { 
-        ...ctx, 
+        ...ctx,
+        ...abCtx,
         game_mode: _gameMode,
         funnel_step: step 
       })
