@@ -17,12 +17,16 @@ import { compressImageUrl } from './imageCompression';
 // Available LLM models from Series SDK (as of 2026)
 export type LLMModel = 'gpt-5' | 'gpt-5.4-mini' | 'claude-haiku-4-5' | 'claude-sonnet-4-6' | 'claude-opus-4-1' | 'deepseek/deepseek-chat';
 
-// Image generation models
+// Image generation models - use SDK's ImageGenModel type
+// gemini-3-pro-image-preview = Nano Banana Pro (higher quality, 1K)
+// gemini-3.1-flash-image-preview = Nano Banana 2 (faster)
 export type ImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
 
-// Default model for content generation (use fast/cheap model for game content)
-const DEFAULT_LLM_MODEL: LLMModel = 'gpt-5.4-mini';
-const DEFAULT_IMAGE_MODEL: ImageModel = 'gemini-3.1-flash-image-preview';
+// Default model for content generation
+// - Haiku for text (fast, cheap, good quality)
+// - gemini-3-pro-image-preview for images (Nano Banana Pro backend, higher quality)
+const DEFAULT_LLM_MODEL: LLMModel = 'claude-haiku-4-5';
+const DEFAULT_IMAGE_MODEL: ImageModel = 'gemini-3-pro-image-preview';
 
 // Generation options
 export interface GenerationOptions {
@@ -140,8 +144,8 @@ async function generateText(
 // Image compression settings - must stay under 100KB (102400 bytes) for content pool
 const COMPRESS_IMAGES = true;
 const COMPRESSION_QUALITY = 0.70; // 70% JPEG quality (reduced to fit 100KB limit)
-const MAX_PORTRAIT_DIMENSION = 384; // Max dimension for portraits (reduced from 512)
-const MAX_SCENE_DIMENSION = 512; // Max dimension for scene art (reduced from 1024)
+const MAX_PORTRAIT_DIMENSION = 512; // Max dimension for portraits (1K with Nano Banana Pro)
+const MAX_SCENE_DIMENSION = 1024; // Max dimension for scene art (1K resolution)
 
 // Generate image using Series AI (with optional compression)
 async function generateImage(
