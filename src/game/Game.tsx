@@ -3861,6 +3861,28 @@ export function Game() {
               >
                 {(window as any).__GP_ACTIVE__ ? 'Profiler ON' : 'Profiler OFF'}
               </button>
+              <button
+                style={{
+                  background: questEchoRef.current.unlockedEchoNodes.includes('mas_class_3') ? '#003300' : '#220044',
+                  color: questEchoRef.current.unlockedEchoNodes.includes('mas_class_3') ? '#44ff44' : '#aa44dd',
+                  border: '1px solid #aa44dd44', borderRadius: 4, padding: '2px 6px',
+                  fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
+                }}
+                onClick={() => {
+                  const qe = structuredClone(questEchoRef.current);
+                  if (!qe.unlockedEchoNodes.includes('mas_class_3')) {
+                    qe.unlockedEchoNodes.push('mas_class_3');
+                  }
+                  if (!qe.unlockedEchoNodes.includes('mas_class_4')) {
+                    qe.unlockedEchoNodes.push('mas_class_4');
+                  }
+                  questEchoRef.current = qe;
+                  setQuestEchoData(qe);
+                  safeSetItem('questEchoData', JSON.stringify(qe));
+                }}
+              >
+                Unlock Necro/Rev
+              </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <span style={{ color: '#ff8866', fontSize: 9 }}>Play as:</span>
