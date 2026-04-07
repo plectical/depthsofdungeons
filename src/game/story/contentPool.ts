@@ -8,58 +8,211 @@ let _poolFull = false;
 let _lastSaveAttempt = 0;
 const SAVE_COOLDOWN_MS = 5000; // 5 seconds between save attempts
 
-// Local static pool manifest (baked assets)
-interface LocalPoolManifest {
-  exportedAt: string;
-  entries: Record<string, LocalPoolEntry[]>;
-}
+// Content types we manage
+const CONTENT_TYPES = [
+  'portrait_character',
+  'portrait_enemy', 
+  'portrait_mercenary',
+  'room_event_art',
+  'skillcheck_art',
+];
 
-interface LocalPoolEntry {
+// ============================================
+// LOCAL CACHE (IndexedDB) - Auto-saves pool content
+// ============================================
+
+interface CachedEntry {
   id: string;
+  contentType: string;
   tags: Record<string, string>;
-  imageUrl?: string;
-  data?: unknown;
+  data: unknown;
+  cachedAt: number;
 }
 
-let _localManifest: LocalPoolManifest | null = null;
-let _localManifestLoaded = false;
+const DB_NAME = 'ContentPoolCache';
+const DB_VERSION = 1;
+const STORE_NAME = 'entries';
 
-// Load local manifest on startup
-async function loadLocalManifest(): Promise<LocalPoolManifest | null> {
-  if (_localManifestLoaded) return _localManifest;
-  _localManifestLoaded = true;
+let _db: IDBDatabase | null = null;
+let _dbInitPromise: Promise<IDBDatabase | null> | null = null;
+let _localCacheLoaded = false;
+let _localCache: CachedEntry[] = [];
+
+async function initDB(): Promise<IDBDatabase | null> {
+  if (_db) return _db;
+  if (_dbInitPromise) return _dbInitPromise;
   
-  try {
-    const response = await fetch(`${import.meta.env.BASE_URL}cdn-assets/pool-manifest.json`);
-    if (response.ok) {
-      _localManifest = await response.json();
-      console.log('[ContentPool] Loaded local manifest with', 
-        Object.values(_localManifest?.entries || {}).flat().length, 'entries');
+  _dbInitPromise = new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      
+      request.onerror = () => {
+        console.warn('[ContentPool] IndexedDB not available, using memory cache');
+        resolve(null);
+      };
+      
+      request.onsuccess = () => {
+        _db = request.result;
+        console.log('[ContentPool] IndexedDB cache initialized');
+        resolve(_db);
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          store.createIndex('contentType', 'contentType', { unique: false });
+        }
+      };
+    } catch {
+      console.warn('[ContentPool] IndexedDB error, using memory cache');
+      resolve(null);
     }
-  } catch {
-    console.log('[ContentPool] No local manifest found - using UGC pool only');
-  }
-  return _localManifest;
+  });
+  
+  return _dbInitPromise;
 }
 
-// Check local static pool first
-function findInLocalPool<T>(contentType: string, tags: Record<string, string>): T | null {
-  if (!_localManifest?.entries[contentType]) return null;
+async function loadLocalCache(): Promise<void> {
+  if (_localCacheLoaded) return;
+  _localCacheLoaded = true;
   
-  const entries = _localManifest.entries[contentType];
-  // Find entries that match all tags
-  const matches = entries.filter(entry => {
-    return Object.entries(tags).every(([k, v]) => entry.tags[k] === v);
+  const db = await initDB();
+  if (!db) return;
+  
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.getAll();
+      
+      request.onsuccess = () => {
+        _localCache = request.result || [];
+        console.log(`[ContentPool] Loaded ${_localCache.length} entries from local cache`);
+        resolve();
+      };
+      
+      request.onerror = () => {
+        console.warn('[ContentPool] Failed to load local cache');
+        resolve();
+      };
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function saveToLocalCache(entry: CachedEntry): Promise<void> {
+  // Always save to memory cache
+  const existingIdx = _localCache.findIndex(e => e.id === entry.id);
+  if (existingIdx >= 0) {
+    _localCache[existingIdx] = entry;
+  } else {
+    _localCache.push(entry);
+  }
+  
+  // Try to persist to IndexedDB
+  const db = await initDB();
+  if (!db) return;
+  
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.put(entry);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+function findInLocalCache<T>(contentType: string, tags: Record<string, string>): T | null {
+  const typeEntries = _localCache.filter(e => e.contentType === contentType);
+  if (typeEntries.length === 0) return null;
+  
+  // Find entries that match tags (flexible matching)
+  const matches = typeEntries.filter(entry => {
+    return Object.entries(tags).every(([k, v]) => {
+      const entryTag = entry.tags[k];
+      return entryTag === v || !entryTag; // Match if same or tag not present
+    });
   });
   
   if (matches.length === 0) return null;
   
-  // Random selection from matches
   const selected = matches[Math.floor(Math.random() * matches.length)];
   if (!selected) return null;
   
-  console.log('[ContentPool] Found in local pool:', selected.id);
-  return (selected.data || { imageUrl: selected.imageUrl }) as T;
+  console.log('[ContentPool] Found in local cache:', selected.id);
+  return selected.data as T;
+}
+
+// ============================================
+// AUTO-EXPORT: When pool is full, download everything to local cache
+// ============================================
+
+let _autoExportInProgress = false;
+let _autoExportComplete = false;
+
+async function autoExportPoolToCache(): Promise<void> {
+  if (_autoExportInProgress || _autoExportComplete) return;
+  _autoExportInProgress = true;
+  
+  console.log('[ContentPool] AUTO-EXPORT: Pool is full, downloading all entries to local cache...');
+  
+  try {
+    let totalCached = 0;
+    
+    for (const contentType of CONTENT_TYPES) {
+      try {
+        const response = await (RundotGameAPI as any).ugc.browse({
+          contentType,
+          sortBy: 'mostUsed',
+          limit: 100,
+        });
+        
+        if (response?.entries?.length) {
+          for (const entry of response.entries) {
+            const cachedEntry: CachedEntry = {
+              id: entry.id,
+              contentType,
+              tags: parseTags(entry.tags || []),
+              data: entry.data,
+              cachedAt: Date.now(),
+            };
+            await saveToLocalCache(cachedEntry);
+            totalCached++;
+          }
+        }
+        
+        // Small delay between content types to avoid rate limiting
+        await new Promise(r => setTimeout(r, 500));
+      } catch (err) {
+        console.warn(`[ContentPool] Failed to export ${contentType}:`, err);
+      }
+    }
+    
+    _autoExportComplete = true;
+    console.log(`[ContentPool] AUTO-EXPORT COMPLETE: ${totalCached} entries cached locally`);
+    console.log('[ContentPool] Future requests will use local cache - no more API errors!');
+  } catch (err) {
+    console.error('[ContentPool] Auto-export failed:', err);
+  } finally {
+    _autoExportInProgress = false;
+  }
+}
+
+function parseTags(tagArray: string[]): Record<string, string> {
+  const tags: Record<string, string> = {};
+  for (const tag of tagArray) {
+    const [key, value] = tag.split(':');
+    if (key && value) {
+      tags[key] = value;
+    }
+  }
+  return tags;
 }
 
 export interface PooledPortrait {
@@ -190,8 +343,10 @@ export async function saveToPool<T extends PooledContent>(
     
     // Check for pool full error
     if (errorMessage.includes('Maximum entries') || errorMessage.includes('100')) {
-      console.warn('[ContentPool] Pool is full (100 entries max) - switching to read-only mode');
+      console.warn('[ContentPool] Pool is full (100 entries max) - auto-exporting to local cache...');
       _poolFull = true;
+      // Trigger auto-export in background
+      autoExportPoolToCache().catch(() => {});
     } else if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
       console.warn('[ContentPool] Rate limited - will retry later');
     } else {
@@ -220,12 +375,14 @@ export async function fetchOrGenerate<T extends PooledContent>(
 ): Promise<T | null> {
   console.log(`[ContentPool] fetchOrGenerate called for ${contentType}, poolEnabled:`, isPoolEnabled(), 'poolFull:', _poolFull);
   
-  // Check local static pool first (baked assets)
-  await loadLocalManifest();
-  const localResult = findInLocalPool<T>(contentType, tags);
-  if (localResult) {
-    console.log(`[ContentPool] Using local baked asset for ${contentType}`);
-    return localResult;
+  // Always load local cache first
+  await loadLocalCache();
+  
+  // Check local cache first (auto-exported content)
+  const cachedResult = findInLocalCache<T>(contentType, tags);
+  if (cachedResult) {
+    console.log(`[ContentPool] Using locally cached content for ${contentType}`);
+    return cachedResult;
   }
   
   if (!isPoolEnabled()) {
@@ -240,12 +397,23 @@ export async function fetchOrGenerate<T extends PooledContent>(
     }
   }
 
-  // If pool is full, try to fetch from pool first before generating
+  // If pool is full, trigger auto-export in background and use local cache
   if (_poolFull) {
+    // Start auto-export in background (downloads all pool content to local cache)
+    autoExportPoolToCache().catch(() => {});
+    
     console.log(`[ContentPool] Pool is full - trying pool first for ${contentType}`);
     const pooled = await fetchFromPool<T>(contentType, tags);
     if (pooled) {
       console.log(`[ContentPool] Found in pool for ${contentType}:`, pooled.entryId);
+      // Cache this entry locally for future use
+      saveToLocalCache({
+        id: pooled.entryId,
+        contentType,
+        tags,
+        data: pooled.data,
+        cachedAt: Date.now(),
+      });
       recordPoolUse(pooled.entryId).catch(() => {});
       return pooled.data;
     }
@@ -322,15 +490,19 @@ export async function fetchOrGenerateImageUrl(
   return result?.imageUrl || null;
 }
 
-export function getPoolStats(): { enabled: boolean; freshPercent: number; poolFull: boolean; localEntries: number } {
-  const localCount = _localManifest 
-    ? Object.values(_localManifest.entries).flat().length 
-    : 0;
+export function getPoolStats(): { 
+  enabled: boolean; 
+  freshPercent: number; 
+  poolFull: boolean; 
+  localCacheCount: number;
+  autoExportComplete: boolean;
+} {
   return {
     enabled: isPoolEnabled(),
     freshPercent: FRESH_GENERATION_PERCENT,
     poolFull: _poolFull,
-    localEntries: localCount,
+    localCacheCount: _localCache.length,
+    autoExportComplete: _autoExportComplete,
   };
 }
 
