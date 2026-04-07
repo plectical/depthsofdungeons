@@ -75,13 +75,25 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
     necromancer: '#aa44dd', revenant: '#ff4444',
   };
 
-  const normalSrc = portraits[playerClass] ?? null;
+  // For generated classes, get portrait from the generated class data
+  const genClass = playerClass === 'generated' ? (() => {
+    try {
+      const json = localStorage.getItem('dod_backup_activeGeneratedClass');
+      return json ? JSON.parse(json) : null;
+    } catch { return null; }
+  })() : null;
+
+  const normalSrc = playerClass === 'generated' 
+    ? (genClass?.portraitUrl ?? null)
+    : (portraits[playerClass] ?? null);
   const damagedSrc = portraits[`${playerClass}-damaged`] ?? null;
   const hasDamaged = !!damagedSrc;
-  const showPortrait = !!normalSrc;
+  const showPortrait = !!normalSrc || (playerClass === 'generated' && genClass);
 
   let portraitSrc = normalSrc;
-  let portraitBorder = classBorders[playerClass] ?? '#ff6644';
+  let portraitBorder = playerClass === 'generated' 
+    ? (genClass?.color ?? '#44ff88')
+    : (classBorders[playerClass] ?? '#ff6644');
   if (hasDamaged && hpPct <= 0.5) {
     portraitSrc = damagedSrc;
     portraitBorder = '#ff3333';
@@ -94,6 +106,26 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
         {showPortrait && portraitSrc && (
           <div style={portraitContainerStyle}>
             <img src={portraitSrc} alt="" style={{ ...hudPortraitStyle, borderColor: portraitBorder, boxShadow: `0 0 8px ${portraitBorder}44, inset 0 0 4px #00000088` }} />
+            {isPremium && <span style={premiumBadgeOverlayStyle}>&#x2B50;</span>}
+          </div>
+        )}
+        {/* Generated class character portrait (no image URL) */}
+        {showPortrait && !portraitSrc && playerClass === 'generated' && genClass && (
+          <div style={portraitContainerStyle}>
+            <div style={{ 
+              ...hudPortraitStyle, 
+              borderColor: portraitBorder, 
+              boxShadow: `0 0 8px ${portraitBorder}44, inset 0 0 4px #00000088`,
+              background: `radial-gradient(circle, ${genClass.color}33 0%, #0a0a0f 70%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 24,
+              color: genClass.color,
+              textShadow: `0 0 10px ${genClass.color}`,
+            }}>
+              {genClass.char}
+            </div>
             {isPremium && <span style={premiumBadgeOverlayStyle}>&#x2B50;</span>}
           </div>
         )}

@@ -56,10 +56,20 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
   return (
     <div style={overlayStyle}>
       <div style={panelStyle}>
-        <div style={headerStyle}>
-          <span style={{ color: def.color, fontSize: 20, fontWeight: 'bold', marginRight: 8, textShadow: `0 0 8px ${def.color}44` }}>
+        {/* NPC Portrait */}
+        <div style={portraitContainerStyle}>
+          <div style={{ 
+            ...portraitStyle, 
+            color: def.color, 
+            textShadow: `0 0 20px ${def.color}, 0 0 40px ${def.color}66`,
+            borderColor: def.color + '66',
+            boxShadow: `0 0 15px ${def.color}44, inset 0 0 20px rgba(0,0,0,0.8)`
+          }}>
             {def.char}
-          </span>
+          </div>
+        </div>
+
+        <div style={headerStyle}>
           <span style={{ ...titleStyle, color: def.color }}>{def.name}</span>
         </div>
 
@@ -161,4 +171,23 @@ const choiceBtnStyle: CSSProperties = {
   letterSpacing: 1,
   minWidth: 100,
   touchAction: 'none',
+};
+
+const portraitContainerStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  padding: '16px 0 8px',
+  background: 'linear-gradient(180deg, #0a0a15 0%, #000 100%)',
+};
+
+const portraitStyle: CSSProperties = {
+  width: 80,
+  height: 80,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 48,
+  background: 'radial-gradient(circle, #1a1a2a 0%, #0a0a15 70%, #000 100%)',
+  border: '2px solid',
+  borderRadius: 4,
 };

@@ -1635,6 +1635,18 @@ function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
       }
     }
 
+    // Generated Class — on_damage_taken resource gain
+    if (defender.isPlayer && state.playerClass === 'generated' && dmg > 0) {
+      const gen = getActiveGeneratedClass();
+      if (gen && gen.resource.regenMethod === 'on_damage_taken') {
+        const genExt = state as GameState & { _genResource?: number };
+        const prev = genExt._genResource ?? gen.resource.startingAmount;
+        const gained = gen.resource.regenAmount;
+        genExt._genResource = Math.min(gen.resource.max, prev + gained);
+        addMessage(state, `+${gained} ${gen.resource.name}!`, gen.resource.color);
+      }
+    }
+
     // Warrior — Counter Strike: 25% chance to hit back
     if (defender.isPlayer && hasChosenAbility(state, 'war_counter_strike') && Math.random() < 0.25 && defender.stats.hp > 0) {
       const counterDmg = Math.max(1, Math.floor(getEffectiveStats(defender).attack * 0.5));
@@ -1739,6 +1751,18 @@ function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
     if (defendEffect && defendEffect.type === 'thorns') {
       attacker.stats.hp -= defendEffect.damage;
       addMessage(state, `Thorns deal ${defendEffect.damage} damage back!`, '#44aa44');
+    }
+
+    // Generated Class — on_hit resource gain
+    if (state.playerClass === 'generated') {
+      const gen = getActiveGeneratedClass();
+      if (gen && gen.resource.regenMethod === 'on_hit') {
+        const genExt = state as GameState & { _genResource?: number };
+        const prev = genExt._genResource ?? gen.resource.startingAmount;
+        const gained = gen.resource.regenAmount;
+        genExt._genResource = Math.min(gen.resource.max, prev + gained);
+        addMessage(state, `+${gained} ${gen.resource.name}!`, gen.resource.color);
+      }
     }
   }
 
@@ -2661,6 +2685,21 @@ export function movePlayer(state: GameState, dx: number, dy: number): boolean {
 
   state.player.pos.x = nx;
   state.player.pos.y = ny;
+
+  // Generated Class — on_move resource gain
+  if (state.playerClass === 'generated') {
+    const gen = getActiveGeneratedClass();
+    if (gen && gen.resource.regenMethod === 'on_move') {
+      const genExt = state as GameState & { _genResource?: number };
+      const prev = genExt._genResource ?? gen.resource.startingAmount;
+      const gained = gen.resource.regenAmount;
+      genExt._genResource = Math.min(gen.resource.max, prev + gained);
+      // Only show message if significant gain
+      if (gained >= 5) {
+        addMessage(state, `+${gained} ${gen.resource.name}!`, gen.resource.color);
+      }
+    }
+  }
 
   // ── Terrain step effects ──
   applyTerrainStepEffects(state, state.player);

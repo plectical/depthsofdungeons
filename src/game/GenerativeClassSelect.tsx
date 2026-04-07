@@ -280,6 +280,35 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
           >
             🎲 ROLL RANDOM CLASS
           </button>
+          
+          {/* Import Class */}
+          <button
+            style={{ 
+              ...secondaryButtonStyle, 
+              borderColor: '#44aaff', 
+              color: '#44aaff',
+              fontSize: '10px',
+              padding: '10px 20px',
+              marginTop: '10px',
+            }}
+            onClick={() => {
+              const code = prompt('Paste the class share code:');
+              if (!code) return;
+              try {
+                const decoded = JSON.parse(atob(code)) as GeneratedClass;
+                if (decoded.name && decoded.archetype && decoded.ability) {
+                  setGeneratedClass(decoded);
+                  setMode('preview');
+                } else {
+                  alert('Invalid class code.');
+                }
+              } catch {
+                alert('Invalid class code. Make sure you copied the full code.');
+              }
+            }}
+          >
+            📥 IMPORT CLASS
+          </button>
 
           {/* Archetype Selection */}
           <div style={sectionStyle}>
@@ -512,6 +541,30 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
               onClick={handleBackToMenu}
             >
               ← BACK
+            </button>
+          </div>
+          
+          {/* Share Button */}
+          <div style={{ marginTop: '15px', textAlign: 'center' }}>
+            <button 
+              style={{ 
+                ...secondaryButtonStyle, 
+                borderColor: '#44aaff', 
+                color: '#44aaff',
+                fontSize: '10px',
+                padding: '8px 16px',
+              }} 
+              onClick={() => {
+                try {
+                  const shareCode = btoa(JSON.stringify(generatedClass));
+                  navigator.clipboard.writeText(shareCode);
+                  alert('Class code copied to clipboard! Share it with friends.');
+                } catch {
+                  alert('Failed to copy share code.');
+                }
+              }}
+            >
+              📤 SHARE CLASS
             </button>
           </div>
         </div>

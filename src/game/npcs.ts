@@ -2,6 +2,20 @@ import type { NPCDef, MapNPC, DungeonFloor, BloodlineData, DialogueNode } from '
 import { uid, randInt } from './utils';
 import { isWalkableTile, getTile } from './dungeon';
 
+// Pool of varied wisdom for the Hermit
+const HERMIT_WISDOM = [
+  { intro: 'I have wandered these depths for ages.', response: 'Patience outlasts fury. Guard yourself well.', stat: 'defense' as const },
+  { intro: 'The walls whisper secrets to those who listen.', response: 'Strike swift, before doubt takes hold.', stat: 'attack' as const },
+  { intro: 'In darkness, I found my purpose.', response: 'Speed is the truest shield against death.', stat: 'speed' as const },
+  { intro: 'Time moves differently in the depths.', response: 'The body endures what the mind commands.', stat: 'defense' as const },
+  { intro: 'Many have passed through here. Few returned.', response: 'A sharp blade speaks louder than words.', stat: 'attack' as const },
+  { intro: 'The dungeon tests all who enter.', response: 'Move like water — flow around obstacles.', stat: 'speed' as const },
+  { intro: 'I remember the surface... barely.', response: 'Strength fades, but wisdom remains.', stat: 'defense' as const },
+  { intro: 'Even monsters fear what lurks below.', response: 'Strike first, or be struck down.', stat: 'attack' as const },
+  { intro: 'The path forward is never straight.', response: 'The quick survive; the slow become bones.', stat: 'speed' as const },
+  { intro: 'I have seen heroes and fools alike.', response: 'Know your limits, then exceed them.', stat: 'attack' as const },
+];
+
 export const NPC_DEFS: NPCDef[] = [
   {
     id: 'hermit',
@@ -10,27 +24,31 @@ export const NPC_DEFS: NPCDef[] = [
     color: '#88aaff',
     minFloor: 2,
     spawnChance: 0.3,
-    dialogue: {
-      text: 'I have wandered these depths for ages. Will you hear my wisdom, or press on?',
-      choices: [
-        {
-          label: '[ Listen ]',
-          responseText: 'Remember: patience outlasts fury. Take this knowledge.',
-          effects: [
-            { type: 'npcChoice', eventId: 'hermit', choiceId: 'listen' },
-            { type: 'statBuff', stat: 'defense', amount: 1 },
-            { type: 'message', text: 'The Hermit shares ancient wisdom. +1 Def this run.', color: '#88aaff' },
-          ],
-        },
-        {
-          label: '[ Ignore ]',
-          responseText: 'Hmph. Youth is always in a hurry.',
-          effects: [
-            { type: 'npcChoice', eventId: 'hermit', choiceId: 'ignore' },
-            { type: 'message', text: 'You brush past the Hermit.', color: '#8888aa' },
-          ],
-        },
-      ],
+    dialogue: (): DialogueNode => {
+      const wisdom = HERMIT_WISDOM[Math.floor(Math.random() * HERMIT_WISDOM.length)]!;
+      const statName = wisdom.stat === 'defense' ? 'Def' : wisdom.stat === 'attack' ? 'Atk' : 'Spd';
+      return {
+        text: `${wisdom.intro} Will you hear my wisdom, or press on?`,
+        choices: [
+          {
+            label: '[ Listen ]',
+            responseText: wisdom.response,
+            effects: [
+              { type: 'npcChoice', eventId: 'hermit', choiceId: 'listen' },
+              { type: 'statBuff', stat: wisdom.stat, amount: 1 },
+              { type: 'message', text: `The Hermit shares ancient wisdom. +1 ${statName} this run.`, color: '#88aaff' },
+            ],
+          },
+          {
+            label: '[ Ignore ]',
+            responseText: 'Hmph. Youth is always in a hurry.',
+            effects: [
+              { type: 'npcChoice', eventId: 'hermit', choiceId: 'ignore' },
+              { type: 'message', text: 'You brush past the Hermit.', color: '#8888aa' },
+            ],
+          },
+        ],
+      };
     },
   },
   {
