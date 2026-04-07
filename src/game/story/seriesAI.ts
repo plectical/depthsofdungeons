@@ -1388,17 +1388,32 @@ STYLE REQUIREMENTS:
   });
 }
 
+// Simple hash function for portrait prompt matching
+function hashPrompt(prompt: string): string {
+  let hash = 0;
+  for (let i = 0; i < prompt.length; i++) {
+    const char = prompt.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36).slice(0, 8);
+}
+
 // Generate a pixel art portrait from an enemy portrait prompt (uses shared content pool)
 export async function generateEnemyPortraitFromPrompt(
   portraitPrompt: string,
   enemyRace: string,
   characterName: string
 ): Promise<string | null> {
+  // Include hash of portraitPrompt so different descriptions get different portraits
+  const promptHash = hashPrompt(portraitPrompt);
+  
   return fetchOrGenerateImageUrl(
     'portrait_enemy',
     { 
       race: enemyRace || 'creature',
-      name: characterName || 'enemy'
+      name: characterName || 'enemy',
+      prompt_hash: promptHash
     },
     () => _generateEnemyPortraitDirect(portraitPrompt, enemyRace, characterName),
     {
@@ -1679,11 +1694,15 @@ STYLE REQUIREMENTS:
 
 // Generate portrait for a mercenary (uses shared content pool)
 export async function generateMercenaryPortrait(merc: MercenaryDef): Promise<string | null> {
+  // Include hash of description so different mercenaries get different portraits
+  const descHash = hashPrompt(merc.description || merc.name || 'unknown');
+  
   return fetchOrGenerateImageUrl(
     'portrait_mercenary',
     { 
       name: merc.name || 'unknown',
-      title: merc.title || 'mercenary'
+      title: merc.title || 'mercenary',
+      desc_hash: descHash
     },
     () => _generateMercenaryPortraitDirect(merc),
     {
@@ -1818,12 +1837,16 @@ STYLE REQUIREMENTS:
 
 // Generate a character portrait with style references (uses shared content pool)
 export async function generateCharacterPortrait(character: StoryCharacter): Promise<string | null> {
+  // Include hash of appearance description so different characters get different portraits
+  const appearanceHash = hashPrompt(character.appearanceDescription || character.name || 'unknown');
+  
   return fetchOrGenerateImageUrl(
     'portrait_character',
     { 
       faction: (character as any).faction || 'unknown',
       race: character.race || 'humanoid',
-      role: character.role || 'neutral'
+      role: character.role || 'neutral',
+      appearance_hash: appearanceHash
     },
     () => _generateCharacterPortraitDirect(character),
     { 
