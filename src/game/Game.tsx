@@ -1914,11 +1914,18 @@ export function Game() {
   }, [state, pendingEnemyId, enemyEncounterData, saveBloodline]);
 
   // Check if we should show enemy encounter dialogue before combat
+  // ONLY runs in the narrative_test debug zone
   const checkEnemyEncounter = useCallback(async (enemyId: string, enemyName: string, enemy: import('./types').Entity): Promise<boolean> => {
     console.log('[EnemyEncounter] Checking encounter for:', enemyName, 'id:', enemyId);
     
     if (!state) {
       console.log('[EnemyEncounter] No state, skipping');
+      return false;
+    }
+    
+    // Only show AI enemy encounters in the narrative_test debug zone
+    if (state.zone !== 'narrative_test') {
+      console.log('[EnemyEncounter] Not in narrative_test zone, skipping AI encounters');
       return false;
     }
     
@@ -5116,15 +5123,18 @@ export function Game() {
           <button style={actionBtnStyle} onClick={() => setShowInventory(true)}>
             {'[ Bag ]'}
           </button>
-          <button 
-            style={{
-              ...actionBtnStyle,
-              color: (bloodline.storyJournal?.length ?? 0) > 0 ? '#aa88ff' : '#33ff66',
-            }}
-            onClick={() => setShowStoryJournal(true)}
-          >
-            {(bloodline.storyJournal?.length ?? 0) > 0 ? `[ Stories ${bloodline.storyJournal?.length} ]` : '[ Stories ]'}
-          </button>
+          {/* Stories button - only show in narrative_test zone or if there are existing stories */}
+          {(state.zone === 'narrative_test' || (bloodline.storyJournal?.length ?? 0) > 0) && (
+            <button 
+              style={{
+                ...actionBtnStyle,
+                color: (bloodline.storyJournal?.length ?? 0) > 0 ? '#aa88ff' : '#33ff66',
+              }}
+              onClick={() => setShowStoryJournal(true)}
+            >
+              {(bloodline.storyJournal?.length ?? 0) > 0 ? `[ Stories ${bloodline.storyJournal?.length} ]` : '[ Stories ]'}
+            </button>
+          )}
           {isAtShop(state) && state.shop && state.shop.stock.length > 0 && (
             <button style={shopBtnStyle} onClick={() => setShowShop(true)}>
               {'[ Shop ]'}
