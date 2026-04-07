@@ -155,6 +155,7 @@ export {
   generateEnemyEncounter,
   generateEnemyPortraitFromPrompt,
   generateRoomEventArt,
+  generateSkillCheckArt,
   preloadImage,
   isAIAvailable,
   getAvailableModels,

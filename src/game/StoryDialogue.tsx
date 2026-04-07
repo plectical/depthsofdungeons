@@ -18,6 +18,7 @@ import {
   formatSkillName,
 } from './story/characterSkills';
 import { createBoonFromDialogue } from './story';
+import { generateSkillCheckArt } from './story/seriesAI';
 import {
   UI_COLORS,
   overlayStyle as baseOverlayStyle,
@@ -77,6 +78,7 @@ export function StoryDialogue({
     skill: SkillName;
     target: number;
   } | null>(null);
+  const [skillCheckArtUrl, setSkillCheckArtUrl] = useState<string | null>(null);
   const [lastChoice, setLastChoice] = useState<StoryDialogueChoice | null>(null);
   const [boonGranted, setBoonGranted] = useState(false);
   const [peacefulEnd, setPeacefulEnd] = useState(false);
@@ -142,6 +144,29 @@ export function StoryDialogue({
       }
     }
   }, [currentNodeId, currentNode, lastChoice, boonGranted, character]);
+
+  // Generate art when skill check starts
+  useEffect(() => {
+    if (!pendingSkillCheck) {
+      setSkillCheckArtUrl(null);
+      return;
+    }
+    
+    const { choice, skill } = pendingSkillCheck;
+    const description = choice.label || `${skill} check`;
+    
+    // Generate art in background
+    generateSkillCheckArt(description, skill)
+      .then(url => {
+        if (url) {
+          console.log('[SkillCheck] Generated art:', url);
+          setSkillCheckArtUrl(url);
+        }
+      })
+      .catch(err => {
+        console.warn('[SkillCheck] Art generation failed:', err);
+      });
+  }, [pendingSkillCheck]);
 
   const handleChoice = useCallback((choice: StoryDialogueChoice) => {
     setChoicesMade(prev => [...prev, choice.id]);
@@ -259,6 +284,7 @@ export function StoryDialogue({
         gearBonus={gearBonus}
         target={target}
         description={pendingSkillCheck.choice.label}
+        imageUrl={skillCheckArtUrl}
         onComplete={handleSkillCheckComplete}
       />
     );

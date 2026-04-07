@@ -44,6 +44,7 @@ interface SkillCheckModalProps {
   onComplete: (result: SkillCheckResult) => void;
   onCancel?: () => void;
   description?: string;
+  imageUrl?: string | null;
 }
 
 const DICE_FACES = ['[1]', '[2]', '[3]', '[4]', '[5]', '[6]'];
@@ -73,6 +74,7 @@ export function SkillCheckModal({
   onComplete,
   onCancel,
   description,
+  imageUrl,
 }: SkillCheckModalProps) {
   const [phase, setPhase] = useState<'ready' | 'rolling' | 'result'>('ready');
   const [die1Display, setDie1Display] = useState(0);
@@ -137,6 +139,29 @@ export function SkillCheckModal({
           {/* Header */}
           <div style={frameHeaderStyle}>SKILL CHECK</div>
           <div style={frameSubheaderStyle}>{formatSkillName(skill)}</div>
+
+          {/* AI Generated Art */}
+          {imageUrl && (
+            <div style={{
+              width: '100%',
+              marginBottom: 8,
+              borderRadius: 4,
+              overflow: 'hidden',
+              border: `1px solid ${UI_COLORS.primary}44`,
+              boxShadow: `0 0 8px ${UI_COLORS.primaryGlow}33`,
+            }}>
+              <img
+                src={imageUrl}
+                alt={description || 'Skill check scene'}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  imageRendering: 'pixelated',
+                }}
+              />
+            </div>
+          )}
 
           {/* Description */}
           {description && <div style={frameDescStyle}>{description}</div>}

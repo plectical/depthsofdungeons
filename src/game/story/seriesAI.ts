@@ -2047,6 +2047,63 @@ export async function generateFloorBatch(request: FloorBatchRequest): Promise<Fl
   return result;
 }
 
+// Generate art for a skill check based on description
+export async function generateSkillCheckArt(
+  description: string,
+  skill: string
+): Promise<string | null> {
+  // Include hash of description so different checks get different art
+  const descHash = hashPrompt(description);
+  
+  return fetchOrGenerateImageUrl(
+    'skillcheck_art',
+    { 
+      skill: skill || 'awareness',
+      desc_hash: descHash
+    },
+    async () => {
+      const prompt = `PIXEL ART scene in retro dungeon crawler style.
+
+Scene: ${description}
+
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS in the image. Pure visual art only.
+
+STYLE REQUIREMENTS:
+1. STRICT COLOR PALETTE - ONLY USE:
+   - GREEN (#00ff00, #44ff44, #22aa22, #115511) - main color for most elements
+   - ORANGE/AMBER (#ffcc44, #ff8800, #cc6600) - for accents, highlights, danger
+   - BLACK (#000000, #111111) - background
+
+2. PIXEL ART STYLE:
+   - Visible chunky pixels like 8-bit or 16-bit retro games
+   - Sharp pixelated edges, NO smooth gradients
+   - NO anti-aliasing, NO photorealistic rendering
+   - Landscape/scene format showing the action
+
+3. AESTHETIC:
+   - Dark fantasy dungeon crawler atmosphere
+   - Show the moment of the skill check action
+   - Dramatic lighting with glowing effects
+   - CRT monitor / retro computer game look
+
+4. NO OTHER COLORS:
+   - No red, no blue, no purple, no brown, no pink
+   - Everything rendered in green and orange on black`;
+
+      const styleRef = 'https://i.imgur.com/blvhjo8.png';
+      
+      return generateImage(prompt, {
+        aspectRatio: '16:9',
+        removeBackground: false,
+        referenceImages: [styleRef],
+      });
+    },
+    {
+      appearancePrompt: `${skill}: ${description}`
+    }
+  );
+}
+
 // Check if AI services are available (requires user to be logged in)
 export async function isAIAvailable(): Promise<boolean> {
   try {

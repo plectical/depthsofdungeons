@@ -3,7 +3,7 @@
 // Displays room events with large pixel art and skill checks
 // ══════════════════════════════════════════════════════════════
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import type { GameState, ActiveRoomEvent, RoomEventOutcome, SkillCheckResult } from './types';
 import { SkillCheckModal } from './SkillCheckModal';
@@ -11,6 +11,7 @@ import {
   formatSkillName,
   getGearSkillBonus,
 } from './story/characterSkills';
+import { generateSkillCheckArt } from './story/seriesAI';
 import {
   UI_COLORS,
   overlayStyle as baseOverlayStyle,
@@ -43,8 +44,30 @@ export function RoomEventModal({
   const [phase, setPhase] = useState<Phase>('intro');
   const [outcome, setOutcome] = useState<RoomEventOutcome | null>(null);
   const [skillResult, setSkillResult] = useState<SkillCheckResult | null>(null);
+  const [skillCheckArtUrl, setSkillCheckArtUrl] = useState<string | null>(null);
 
   const event = roomEvent.event;
+
+  // Generate skill check art when entering skill check phase
+  useEffect(() => {
+    if (phase !== 'skill_check') {
+      return;
+    }
+    
+    const description = event.description || event.name;
+    const skill = event.primarySkill;
+    
+    generateSkillCheckArt(description, skill)
+      .then(url => {
+        if (url) {
+          console.log('[RoomEvent] Generated skill check art:', url);
+          setSkillCheckArtUrl(url);
+        }
+      })
+      .catch(err => {
+        console.warn('[RoomEvent] Skill check art generation failed:', err);
+      });
+  }, [phase, event]);
 
   const handleBeginCheck = useCallback(() => {
     setPhase('skill_check');
@@ -114,6 +137,7 @@ export function RoomEventModal({
         gearBonus={gearBonus}
         target={event.baseDifficulty}
         description={event.name}
+        imageUrl={skillCheckArtUrl}
         onComplete={handleSkillCheckComplete}
       />
     );

@@ -62,6 +62,7 @@ import {
   generateEnemyEncounter,
   generateEnemyPortraitFromPrompt,
   generateRoomEventArt,
+  generateSkillCheckArt,
   preloadImage,
   getEnemyEncounter,
   grantBoon,
@@ -306,6 +307,7 @@ export function Game() {
   // Encounter/skill check state
   const [pendingEncounter, setPendingEncounter] = useState<InteractableElement | null>(null);
   const [showSkillCheck, setShowSkillCheck] = useState(false);
+  const [skillCheckArtUrl, setSkillCheckArtUrl] = useState<string | null>(null);
   // Enemy encounter dialogue state (attack/communicate/steal/observe choices)
   const [showEnemyEncounter, setShowEnemyEncounter] = useState(false);
   const [enemyEncounterData, setEnemyEncounterData] = useState<import('./types').EnemyEncounterData | null>(null);
@@ -388,6 +390,27 @@ export function Game() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, screen]);
+
+  // Generate skill check art when skill check modal opens
+  useEffect(() => {
+    if (!showSkillCheck || !pendingEncounter) {
+      return;
+    }
+    
+    const description = pendingEncounter.description || 'skill check';
+    const skill = pendingEncounter.primarySkill || 'awareness';
+    
+    generateSkillCheckArt(description, skill)
+      .then(url => {
+        if (url) {
+          console.log('[SkillCheck] Generated art:', url);
+          setSkillCheckArtUrl(url);
+        }
+      })
+      .catch(err => {
+        console.warn('[SkillCheck] Art generation failed:', err);
+      });
+  }, [showSkillCheck, pendingEncounter]);
 
   // Load best floor + bloodline on mount, and connect to necropolis
   useEffect(() => {
@@ -1535,6 +1558,7 @@ export function Game() {
       if (encounter) {
         setPendingEncounter(encounter);
         setShowSkillCheck(true);
+        setSkillCheckArtUrl(null); // Reset art, will generate in effect
         // First skill check - show tutorial
         if (!autoPlay) tryShowElderTip(ELDER_SKILL_CHECK);
       }
@@ -5372,10 +5396,12 @@ export function Game() {
           gearBonus={0}
           target={pendingEncounter.target}
           description={pendingEncounter.description}
+          imageUrl={skillCheckArtUrl}
           onComplete={handleSkillCheckComplete}
           onCancel={() => {
             setShowSkillCheck(false);
             setPendingEncounter(null);
+            setSkillCheckArtUrl(null);
           }}
         />
       )}
