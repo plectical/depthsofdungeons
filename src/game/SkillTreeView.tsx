@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { GameState, SkillTreeNode } from './types';
 import { getSkillTree, canUnlockNode } from './skillTree';
-import { unlockSkillNode } from './engine';
+import { unlockSkillNode, getGeneratedClassInfo } from './engine';
 import { cloneState } from './utils';
 
 interface SkillTreeViewProps {
@@ -16,6 +16,75 @@ export function SkillTreeView({ state, onChange, onClose }: SkillTreeViewProps) 
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const tree = getSkillTree(state.playerClass);
+  
+  // For generated classes, show their unique abilities instead
+  if (!tree && state.playerClass === 'generated') {
+    const genInfo = getGeneratedClassInfo(state);
+    const genClass = (() => {
+      try {
+        const json = localStorage.getItem('dod_backup_activeGeneratedClass');
+        return json ? JSON.parse(json) : null;
+      } catch { return null; }
+    })();
+    
+    if (genClass) {
+      return (
+        <div style={overlayStyle}>
+          <div style={{ ...panelStyle, maxWidth: 360 }}>
+            <div style={headerStyle}>
+              <span style={{ ...titleStyle, color: genClass.color }}>{genClass.name} ABILITIES</span>
+              <button style={closeBtnStyle} onClick={onClose}>[X]</button>
+            </div>
+            
+            {/* Class Info */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #2a2a3a' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 32, color: genClass.color, textShadow: `0 0 10px ${genClass.color}` }}>{genClass.char}</span>
+                <div>
+                  <div style={{ color: genClass.color, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>{genClass.name}</div>
+                  <div style={{ color: '#888', fontFamily: 'monospace', fontSize: 9 }}>{genClass.title}</div>
+                </div>
+              </div>
+              <div style={{ color: '#aaa', fontFamily: 'monospace', fontSize: 9, lineHeight: 1.4 }}>
+                {genClass.description}
+              </div>
+            </div>
+            
+            {/* Resource */}
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #2a2a3a', background: '#0a0a10' }}>
+              <div style={{ color: genClass.resource.color, fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+                {genClass.resource.icon} {genClass.resource.name}
+              </div>
+              <div style={{ color: '#888', fontFamily: 'monospace', fontSize: 9, lineHeight: 1.4 }}>
+                {genClass.resource.description}
+              </div>
+              <div style={{ color: '#666', fontFamily: 'monospace', fontSize: 8, marginTop: 4 }}>
+                Max: {genClass.resource.max} | Regen: {genClass.resource.regenMethod.replace('_', ' ')}
+              </div>
+            </div>
+            
+            {/* Primary Ability */}
+            <div style={{ padding: '10px 16px', background: `${genClass.color}11` }}>
+              <div style={{ color: genClass.color, fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+                {genClass.ability.icon} {genClass.ability.name}
+                <span style={{ color: '#888', fontWeight: 'normal', marginLeft: 8 }}>Cost: {genClass.ability.resourceCost}</span>
+              </div>
+              <div style={{ color: '#aaa', fontFamily: 'monospace', fontSize: 9, lineHeight: 1.4 }}>
+                {genClass.ability.description}
+              </div>
+              {genInfo && (
+                <div style={{ marginTop: 8, color: genInfo.resource >= genInfo.abilityCost ? '#44ff88' : '#ff4444', fontFamily: 'monospace', fontSize: 10 }}>
+                  {genInfo.resourceIcon} {genInfo.resource}/{genInfo.maxResource}
+                  {genInfo.abilityCooldown > 0 && <span style={{ marginLeft: 8 }}>CD: {genInfo.abilityCooldown}</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+  
   if (!tree) {
     return (
       <div style={overlayStyle}>
