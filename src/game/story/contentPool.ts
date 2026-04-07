@@ -8,6 +8,60 @@ let _poolFull = false;
 let _lastSaveAttempt = 0;
 const SAVE_COOLDOWN_MS = 5000; // 5 seconds between save attempts
 
+// Local static pool manifest (baked assets)
+interface LocalPoolManifest {
+  exportedAt: string;
+  entries: Record<string, LocalPoolEntry[]>;
+}
+
+interface LocalPoolEntry {
+  id: string;
+  tags: Record<string, string>;
+  imageUrl?: string;
+  data?: unknown;
+}
+
+let _localManifest: LocalPoolManifest | null = null;
+let _localManifestLoaded = false;
+
+// Load local manifest on startup
+async function loadLocalManifest(): Promise<LocalPoolManifest | null> {
+  if (_localManifestLoaded) return _localManifest;
+  _localManifestLoaded = true;
+  
+  try {
+    const response = await fetch(`${import.meta.env.BASE_URL}cdn-assets/pool-manifest.json`);
+    if (response.ok) {
+      _localManifest = await response.json();
+      console.log('[ContentPool] Loaded local manifest with', 
+        Object.values(_localManifest?.entries || {}).flat().length, 'entries');
+    }
+  } catch {
+    console.log('[ContentPool] No local manifest found - using UGC pool only');
+  }
+  return _localManifest;
+}
+
+// Check local static pool first
+function findInLocalPool<T>(contentType: string, tags: Record<string, string>): T | null {
+  if (!_localManifest?.entries[contentType]) return null;
+  
+  const entries = _localManifest.entries[contentType];
+  // Find entries that match all tags
+  const matches = entries.filter(entry => {
+    return Object.entries(tags).every(([k, v]) => entry.tags[k] === v);
+  });
+  
+  if (matches.length === 0) return null;
+  
+  // Random selection from matches
+  const selected = matches[Math.floor(Math.random() * matches.length)];
+  if (!selected) return null;
+  
+  console.log('[ContentPool] Found in local pool:', selected.id);
+  return (selected.data || { imageUrl: selected.imageUrl }) as T;
+}
+
 export interface PooledPortrait {
   imageUrl: string;
   factionId?: string;
@@ -166,6 +220,14 @@ export async function fetchOrGenerate<T extends PooledContent>(
 ): Promise<T | null> {
   console.log(`[ContentPool] fetchOrGenerate called for ${contentType}, poolEnabled:`, isPoolEnabled(), 'poolFull:', _poolFull);
   
+  // Check local static pool first (baked assets)
+  await loadLocalManifest();
+  const localResult = findInLocalPool<T>(contentType, tags);
+  if (localResult) {
+    console.log(`[ContentPool] Using local baked asset for ${contentType}`);
+    return localResult;
+  }
+  
   if (!isPoolEnabled()) {
     console.log(`[ContentPool] Pool disabled, calling generateFn directly for ${contentType}`);
     try {
@@ -260,9 +322,107 @@ export async function fetchOrGenerateImageUrl(
   return result?.imageUrl || null;
 }
 
-export function getPoolStats(): { enabled: boolean; freshPercent: number } {
+export function getPoolStats(): { enabled: boolean; freshPercent: number; poolFull: boolean; localEntries: number } {
+  const localCount = _localManifest 
+    ? Object.values(_localManifest.entries).flat().length 
+    : 0;
   return {
     enabled: isPoolEnabled(),
     freshPercent: FRESH_GENERATION_PERCENT,
+    poolFull: _poolFull,
+    localEntries: localCount,
   };
+}
+
+// Content types to export
+const EXPORT_CONTENT_TYPES = [
+  'portrait_character',
+  'portrait_enemy', 
+  'portrait_mercenary',
+  'room_event_art',
+  'skillcheck_art',
+];
+
+// Export all UGC entries for baking into static assets
+export async function exportPoolEntries(): Promise<{
+  entries: Record<string, unknown[]>;
+  totalCount: number;
+  error?: string;
+}> {
+  if (!isPoolEnabled()) {
+    return { entries: {}, totalCount: 0, error: 'Pool not enabled' };
+  }
+
+  const allEntries: Record<string, unknown[]> = {};
+  let totalCount = 0;
+
+  for (const contentType of EXPORT_CONTENT_TYPES) {
+    try {
+      console.log(`[ContentPool] Exporting ${contentType}...`);
+      
+      const response = await (RundotGameAPI as any).ugc.browse({
+        contentType,
+        sortBy: 'mostUsed',
+        limit: 100, // Get all entries
+      });
+
+      if (response?.entries?.length) {
+        allEntries[contentType] = response.entries.map((e: { id: string; data: unknown; tags?: string[] }) => ({
+          id: e.id,
+          data: e.data,
+          tags: e.tags || [],
+        }));
+        totalCount += response.entries.length;
+        console.log(`[ContentPool] Found ${response.entries.length} entries for ${contentType}`);
+      } else {
+        allEntries[contentType] = [];
+      }
+    } catch (err) {
+      console.error(`[ContentPool] Failed to export ${contentType}:`, err);
+      allEntries[contentType] = [];
+    }
+  }
+
+  console.log(`[ContentPool] Export complete: ${totalCount} total entries`);
+  return { entries: allEntries, totalCount };
+}
+
+// Delete an entry from UGC pool (to free up space after baking)
+export async function deletePoolEntry(entryId: string): Promise<boolean> {
+  if (!isPoolEnabled()) return false;
+
+  try {
+    await (RundotGameAPI as any).ugc.delete(entryId);
+    console.log(`[ContentPool] Deleted entry: ${entryId}`);
+    return true;
+  } catch (err) {
+    console.error(`[ContentPool] Failed to delete entry ${entryId}:`, err);
+    return false;
+  }
+}
+
+// Clear all entries from UGC pool (use after baking to static assets)
+export async function clearPool(): Promise<{ deleted: number; failed: number }> {
+  const exportData = await exportPoolEntries();
+  let deleted = 0;
+  let failed = 0;
+
+  for (const entries of Object.values(exportData.entries)) {
+    for (const entry of entries as { id: string }[]) {
+      const success = await deletePoolEntry(entry.id);
+      if (success) deleted++;
+      else failed++;
+      
+      // Rate limit deletions
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+
+  // Reset pool full flag after clearing
+  if (deleted > 0) {
+    _poolFull = false;
+  }
+
+  console.log(`[ContentPool] Cleared pool: ${deleted} deleted, ${failed} failed`);
+  return { deleted, failed };
 }
