@@ -573,7 +573,7 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
   const monsters = spawnMonsters(floor, floorNumber, occupied, zone);
   const items = spawnItems(floor, floorNumber, occupied, zone);
   const shop = spawnShop(floor, floorNumber, occupied, zone, bloodline?.generation ?? 0);
-  const npcs = bloodline ? spawnNPCs(floor, floorNumber, occupied, bloodline) : [];
+  const npcs = bloodline ? spawnNPCs(floor, floorNumber, occupied, bloodline, playerClass, zone) : [];
   const mapMercenaries = spawnMercenaries(floor, floorNumber, occupied, zone);
 
   const bossesDefeatedThisRun: string[] = [];
@@ -3972,7 +3972,7 @@ function descend(state: GameState) {
   state.shop = spawnShop(floor, state.floorNumber, occupied, state.zone, state._bloodlineRef?.generation ?? 0);
   state.mapMercenaries = spawnMercenaries(floor, state.floorNumber, occupied, state.zone);
   if (state._bloodlineRef) {
-    state.npcs = spawnNPCs(floor, state.floorNumber, occupied, state._bloodlineRef);
+    state.npcs = spawnNPCs(floor, state.floorNumber, occupied, state._bloodlineRef, state.playerClass, state.zone);
   } else {
     state.npcs = [];
   }

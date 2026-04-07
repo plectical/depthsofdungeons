@@ -1,6 +1,20 @@
 import type { NPCDef, MapNPC, DungeonFloor, BloodlineData, DialogueNode } from './types';
+import type { GeneratedClass } from './generativeClass/types';
 import { uid, randInt } from './utils';
 import { isWalkableTile, getTile } from './dungeon';
+
+// Get stored generated class from localStorage
+function getStoredGeneratedClass(): GeneratedClass | null {
+  try {
+    const stored = localStorage.getItem('activeGeneratedClass');
+    if (stored) {
+      return JSON.parse(stored) as GeneratedClass;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
 
 // Pool of varied wisdom for the Hermit
 const HERMIT_WISDOM = [
@@ -121,7 +135,51 @@ export const NPC_DEFS: NPCDef[] = [
   },
 ];
 
+// Special intro NPC for generated class - created dynamically
+function createGeneratedClassIntroNPC(gen: GeneratedClass): NPCDef {
+  return {
+    id: 'generated_class_intro',
+    name: gen.name,
+    char: gen.char || gen.icon || '★',
+    color: gen.color || '#44ff88',
+    minFloor: 1,
+    spawnChance: 1.0, // Always spawn on floor 1
+    dialogue: (): DialogueNode => {
+      const abilityName = gen.ability?.name || 'my power';
+      return {
+        text: `I am ${gen.name}, ${gen.title}. ${gen.description.split('.')[0]}. My ${gen.resource.name} fuels ${abilityName}. Will you walk this path?`,
+        choices: [
+          {
+            label: '[ Embrace the power ]',
+            responseText: `The ${gen.resource.name} surges within you. You are ready.`,
+            effects: [
+              { type: 'npcChoice', eventId: 'generated_class_intro', choiceId: 'embrace' },
+              { type: 'statBuff', stat: 'attack', amount: 1 },
+              { type: 'message', text: `You embrace the path of the ${gen.name}. +1 Atk.`, color: gen.color || '#44ff88' },
+            ],
+          },
+          {
+            label: '[ Begin the journey ]',
+            responseText: 'The depths await. Show them what you are.',
+            effects: [
+              { type: 'npcChoice', eventId: 'generated_class_intro', choiceId: 'journey' },
+              { type: 'message', text: `You begin your journey as ${gen.name}.`, color: gen.color || '#44ff88' },
+            ],
+          },
+        ],
+      };
+    },
+  };
+}
+
 export function getNPCDef(defId: string): NPCDef | undefined {
+  // Check for generated class intro
+  if (defId === 'generated_class_intro') {
+    const gen = getStoredGeneratedClass();
+    if (gen) {
+      return createGeneratedClassIntroNPC(gen);
+    }
+  }
   return NPC_DEFS.find((n) => n.id === defId);
 }
 
@@ -137,29 +195,29 @@ export function spawnNPCs(
   floorNumber: number,
   occupied: Set<string>,
   bloodline: BloodlineData,
+  playerClass?: string,
+  zone?: string,
 ): MapNPC[] {
   const npcs: MapNPC[] = [];
+  const gen = getStoredGeneratedClass();
+
+  // Special case: Floor 1 of narrative_test with generated class
+  // Spawn ONLY the character intro NPC
+  if (floorNumber === 1 && zone === 'narrative_test' && playerClass === 'generated' && gen) {
+    const pos = findNPCSpawnPosition(floor, occupied);
+    if (pos) {
+      npcs.push({ id: uid(), pos, defId: 'generated_class_intro', talked: false });
+      console.log('[NPC] Spawned generated class intro NPC:', gen.name);
+    }
+    return npcs; // Only the intro NPC, nothing else
+  }
 
   for (const def of NPC_DEFS) {
     if (floorNumber < def.minFloor) continue;
     if (def.requiresGeneration && bloodline.generation < def.requiresGeneration) continue;
     if (Math.random() > def.spawnChance) continue;
 
-    // Find a walkable position
-    let pos = null;
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const room = floor.rooms[randInt(0, floor.rooms.length - 1)];
-      if (!room) continue;
-      const x = randInt(room.x, room.x + room.w - 1);
-      const y = randInt(room.y, room.y + room.h - 1);
-      const key = `${x},${y}`;
-      if (isWalkableTile(getTile(floor, x, y)) && !occupied.has(key)) {
-        occupied.add(key);
-        pos = { x, y };
-        break;
-      }
-    }
-
+    const pos = findNPCSpawnPosition(floor, occupied);
     if (pos) {
       npcs.push({ id: uid(), pos, defId: def.id, talked: false });
     }
@@ -167,4 +225,19 @@ export function spawnNPCs(
 
   // Cap at 1 NPC per floor to keep encounters special
   return npcs.slice(0, 1);
+}
+
+function findNPCSpawnPosition(floor: DungeonFloor, occupied: Set<string>): { x: number; y: number } | null {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const room = floor.rooms[randInt(0, floor.rooms.length - 1)];
+    if (!room) continue;
+    const x = randInt(room.x, room.x + room.w - 1);
+    const y = randInt(room.y, room.y + room.h - 1);
+    const key = `${x},${y}`;
+    if (isWalkableTile(getTile(floor, x, y)) && !occupied.has(key)) {
+      occupied.add(key);
+      return { x, y };
+    }
+  }
+  return null;
 }
