@@ -27,6 +27,11 @@ export interface ArchetypeDef {
   description: string;
   mechanicType: 'resource' | 'timing' | 'input' | 'positional' | 'state';
   
+  // Visual
+  icon: string;  // Emoji icon for quick display
+  color: string; // Theme color
+  thumbnailUrl?: string; // AI-generated thumbnail (loaded lazily)
+  
   // UI requirements
   requiresSpecialUI: boolean;
   uiComponent?: 'rhythm_bar' | 'typing_input' | 'companion_panel' | 'territory_overlay' | 'combo_tracker' | 'form_switcher';

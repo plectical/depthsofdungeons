@@ -317,13 +317,32 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
               {archetypes.map((archetype) => (
                 <button
                   key={archetype.id}
-                  style={hoveredArchetype === archetype.id ? archetypeButtonHoverStyle : archetypeButtonStyle}
+                  style={{
+                    ...(hoveredArchetype === archetype.id ? archetypeButtonHoverStyle : archetypeButtonStyle),
+                    borderColor: hoveredArchetype === archetype.id ? archetype.color : '#333',
+                    boxShadow: hoveredArchetype === archetype.id ? `0 0 15px ${archetype.color}40` : 'none',
+                  }}
                   onClick={() => handleGenerateArchetype(archetype.id)}
                   onMouseEnter={() => setHoveredArchetype(archetype.id)}
                   onMouseLeave={() => setHoveredArchetype(null)}
                 >
-                  <div style={{ fontSize: '11px', color: '#fff', marginBottom: '5px' }}>
-                    {archetype.name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ 
+                      fontSize: '24px',
+                      width: '36px',
+                      height: '36px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: `${archetype.color}20`,
+                      borderRadius: '6px',
+                      border: `1px solid ${archetype.color}40`,
+                    }}>
+                      {archetype.icon}
+                    </div>
+                    <div style={{ fontSize: '11px', color: archetype.color, fontWeight: 'bold' }}>
+                      {archetype.name}
+                    </div>
                   </div>
                   <div style={{ fontSize: '8px', color: '#888', lineHeight: '1.4' }}>
                     {archetype.description.substring(0, 60)}...

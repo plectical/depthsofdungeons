@@ -11,6 +11,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Territory',
     description: 'Modify the battlefield. Create walls, traps, and hazard zones to control enemy movement and deal damage.',
     mechanicType: 'positional',
+    icon: '🏰',
+    color: '#8b5a2b',
     requiresSpecialUI: true,
     uiComponent: 'territory_overlay',
     resourceTemplate: {
@@ -33,6 +35,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Rhythm',
     description: 'Maintain tempo to build power. Miss a beat and lose your stacks. Perfect timing rewards devastating abilities.',
     mechanicType: 'timing',
+    icon: '🎵',
+    color: '#ff66aa',
     requiresSpecialUI: true,
     uiComponent: 'rhythm_bar',
     resourceTemplate: {
@@ -55,6 +59,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Typing',
     description: 'Cast spells by typing words. Speed and accuracy determine power. Master the arcane language of magic.',
     mechanicType: 'input',
+    icon: '⌨️',
+    color: '#44aaff',
     requiresSpecialUI: true,
     uiComponent: 'typing_input',
     resourceTemplate: {
@@ -77,6 +83,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Sacrifice',
     description: 'Consume your resources for power. Eat gear, spend HP, devour enemies. The more you give, the stronger you become.',
     mechanicType: 'resource',
+    icon: '🩸',
+    color: '#cc2244',
     requiresSpecialUI: false,
     resourceTemplate: {
       nameOptions: ['Hunger', 'Consumption', 'Void', 'Appetite', 'Essence', 'Absorption'],
@@ -98,6 +106,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Companion',
     description: 'Never fight alone. Summon minions, control beasts, raise the dead. Your army fights while you command.',
     mechanicType: 'state',
+    icon: '🐺',
+    color: '#88cc44',
     requiresSpecialUI: true,
     uiComponent: 'companion_panel',
     resourceTemplate: {
@@ -120,6 +130,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Trickster',
     description: 'Why fight when you can manipulate? Turn enemies against each other. Charm, confuse, and deceive your way to victory.',
     mechanicType: 'state',
+    icon: '🎭',
+    color: '#aa44ff',
     requiresSpecialUI: false,
     resourceTemplate: {
       nameOptions: ['Influence', 'Charm', 'Deception', 'Guile', 'Manipulation', 'Cunning'],
@@ -141,6 +153,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Momentum',
     description: 'Keep moving or die. Every step builds power. Standing still is weakness. Dance through the dungeon like a storm.',
     mechanicType: 'positional',
+    icon: '💨',
+    color: '#44ddff',
     requiresSpecialUI: false,
     resourceTemplate: {
       nameOptions: ['Momentum', 'Velocity', 'Wind', 'Flow', 'Rush', 'Speed'],
@@ -162,6 +176,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Combo',
     description: 'Chain specific actions for multiplying power. Build your combo, vary your attacks, unleash devastating finishers.',
     mechanicType: 'state',
+    icon: '⚡',
+    color: '#ffcc00',
     requiresSpecialUI: true,
     uiComponent: 'combo_tracker',
     resourceTemplate: {
@@ -184,6 +200,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Transform',
     description: 'Shift between forms, each with unique abilities. Master multiple playstyles in one class.',
     mechanicType: 'state',
+    icon: '🦋',
+    color: '#ff8844',
     requiresSpecialUI: true,
     uiComponent: 'form_switcher',
     resourceTemplate: {
@@ -206,6 +224,8 @@ export const ARCHETYPES: Record<ArchetypeId, ArchetypeDef> = {
     name: 'Reflection',
     description: 'Turn pain into power. The more damage you take, the harder you hit back. A martyr who weaponizes suffering.',
     mechanicType: 'resource',
+    icon: '🪞',
+    color: '#8888ff',
     requiresSpecialUI: false,
     resourceTemplate: {
       nameOptions: ['Vengeance', 'Pain', 'Wrath', 'Retribution', 'Thorns', 'Karma'],
