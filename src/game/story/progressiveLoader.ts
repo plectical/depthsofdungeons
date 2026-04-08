@@ -41,9 +41,9 @@ const GENERATION_WAVES: GenerationWave[] = [
   {
     key: 'floors1to3',
     priority: 'immediate',
-    generateCharacter: true,
-    encounterCount: 1, // Reduced from 2 for faster startup
-    itemCount: 1, // Reduced from 3 for faster startup
+    generateCharacter: true, // Character intro NPC on floor 1
+    encounterCount: 0, // No AI encounters on floor 1 - use fallback
+    itemCount: 0, // No AI items on floor 1 - use fallback
   },
   {
     key: 'floors4to6',
@@ -234,29 +234,37 @@ async function generateWave(
           });
           
           // ══════════════════════════════════════════════════════════
-          // PARALLEL GENERATION: Portrait + Quest run simultaneously
+          // BACKGROUND GENERATION: Portrait + Quest run AFTER game starts
+          // These are fire-and-forget - game doesn't wait for them
           // ══════════════════════════════════════════════════════════
-          onProgress?.(85, `Generating portrait and quest...`);
-          const characterRef = result.character; // Capture for parallel tasks
+          onProgress?.(95, `Starting game...`);
+          const characterRef = result.character; // Capture for background tasks
+          const waveKey = wave.key;
           
-          const parallelTasks = await Promise.allSettled([
-            // Task 1: Generate portrait
-            (async () => {
-              console.log('[Story] [PARALLEL] Starting portrait generation...');
+          // Fire and forget - these complete in background while player plays
+          console.log('[Story] ★ GAME CAN START NOW - portrait/quest generating in background');
+          
+          // Background task: Generate portrait
+          (async () => {
+            try {
+              console.log('[Story] [BACKGROUND] Starting portrait generation...');
               const portraitUrl = await generateCharacterPortrait(characterRef);
               if (portraitUrl) {
                 characterRef.portraitUrl = portraitUrl;
-                generationState.cache = updateBatchContent(generationState.cache, wave.key, {
+                generationState.cache = updateBatchContent(generationState.cache, waveKey, {
                   characters: [characterRef],
                 });
-                console.log('[Story] [PARALLEL] ✓ Portrait complete');
+                console.log('[Story] [BACKGROUND] ✓ Portrait complete');
               }
-              return portraitUrl;
-            })(),
-            
-            // Task 2: Generate quest
-            (async () => {
-              console.log('[Story] [PARALLEL] Starting quest generation...');
+            } catch (e) {
+              console.warn('[Story] [BACKGROUND] Portrait failed:', e);
+            }
+          })();
+          
+          // Background task: Generate quest
+          (async () => {
+            try {
+              console.log('[Story] [BACKGROUND] Starting quest generation...');
               const charQuest = await generateCharacterQuest({
                 id: characterRef.id,
                 name: characterRef.name,
@@ -266,21 +274,15 @@ async function generateWave(
                 portraitUrl: characterRef.portraitUrl,
               });
               if (charQuest) {
-                generationState.cache = updateBatchContent(generationState.cache, wave.key, {
+                generationState.cache = updateBatchContent(generationState.cache, waveKey, {
                   characterQuests: [charQuest],
                 });
-                console.log('[Story] [PARALLEL] ✓ Quest complete:', charQuest.name);
+                console.log('[Story] [BACKGROUND] ✓ Quest complete:', charQuest.name);
               }
-              return charQuest;
-            })(),
-          ]);
-          
-          // Log results
-          const [portraitResult, questResult] = parallelTasks;
-          console.log('[Story] Parallel generation complete:', {
-            portrait: portraitResult.status === 'fulfilled' ? '✓' : '✗',
-            quest: questResult.status === 'fulfilled' ? '✓' : '✗',
-          });
+            } catch (e) {
+              console.warn('[Story] [BACKGROUND] Quest failed:', e);
+            }
+          })();
         } else if (wave.key !== 'floors1to3') {
           // For later waves, merge AI characters with existing
           const currentBatch = generationState.cache[wave.key];
