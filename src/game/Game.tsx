@@ -1008,9 +1008,12 @@ export function Game() {
     trackClassSelected(cls);
   }, []);
 
-  const beginGame = useCallback(async (zone: ZoneId) => {
+  const beginGame = useCallback(async (zone: ZoneId, overrideClass?: PlayerClass) => {
+    // Use override class if provided (for generated classes where state hasn't updated yet)
+    const playerClass = overrideClass ?? selectedClass;
+    
     // Track game mode for D1 retention analytics
-    trackGameModeStart(zone, selectedClass);
+    trackGameModeStart(zone, playerClass);
     
     // Only run AI content generation in the narrative_test debug zone
     const isNarrativeZone = zone === 'narrative_test';
@@ -1053,7 +1056,7 @@ export function Game() {
 
       // Start content generation and wait for it before creating the game
       const generationPromise = prepareRunContent(
-        selectedClass,
+        playerClass,
         bloodlineRef.current,
         (progress, message) => {
           setGenerationProgress(progress);
@@ -1070,7 +1073,8 @@ export function Game() {
     // Now create the game (content is ready so story triggers will work)
     const echoBonuses = computeEchoBonuses(questEchoRef.current);
     setEchoUnlockedNodes(questEchoRef.current.unlockedEchoNodes);
-    const gs = safeEngineCall('newGame', () => newGame(selectedClass, bloodlineRef.current, zone, echoBonuses));
+    console.log('[Game] Creating game with class:', playerClass, 'zone:', zone);
+    const gs = safeEngineCall('newGame', () => newGame(playerClass, bloodlineRef.current, zone, echoBonuses));
     if (!gs) {
       if (isNarrativeZone) setShowGenerationLoading(false);
       return; // engine error creating game — stay on screen
@@ -1084,8 +1088,8 @@ export function Game() {
     setState(gs);
     setScreen('game');
     setShowInventory(false);
-    trackZoneSelected(zone, selectedClass);
-    updateSessionContext('game', selectedClass, zone, 1);
+    trackZoneSelected(zone, playerClass);
+    updateSessionContext('game', playerClass, zone, 1);
     updateSessionMetaContext({ skillPointsSpent: 0, skillPointsUnspent: gs.skillPoints, generation: bloodlineRef.current.generation });
     updateErrorContext({ zone, floor: 1, generation: bloodlineRef.current.generation, playerClass: selectedClass });
     trackSecondRun(bloodlineRef.current.generation);
@@ -4513,7 +4517,8 @@ export function Game() {
             safeSetItem('savedGeneratedClasses', JSON.stringify(updated));
           }
           // Generated classes go directly to narrative_test zone
-          beginGame('narrative_test');
+          // Pass 'generated' explicitly since React state update is async
+          beginGame('narrative_test', 'generated');
         }}
         onBack={() => setScreen('classSelect')}
       />
