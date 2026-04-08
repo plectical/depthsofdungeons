@@ -1952,70 +1952,86 @@ export async function generateFloorBatch(request: FloorBatchRequest): Promise<Fl
     errors: [],
   };
 
-  const existingCharacterNames: string[] = [];
+  console.log('[AI] ═══ PARALLEL BATCH GENERATION START ═══');
+  const startTime = Date.now();
 
-  // Generate character if requested
-  if (request.generateCharacter) {
-    console.log('[AI] ★ Character generation REQUESTED for floors', request.floorRange);
-    try {
-      result.character = await generateCharacter({
-        playerClass: request.playerClass,
-        floorRange: request.floorRange,
-        existingCharacterNames,
-        bloodlineGeneration: request.bloodline.generation,
-      });
-      if (result.character) {
-        existingCharacterNames.push(result.character.name);
-        console.log('[AI] ✓✓ Character READY:', result.character.name, '- portrait will be generated after story beat');
-      } else {
-        console.error('[AI] ✗✗ Character generation returned NULL - Elder Mira fallback will be used!');
-        result.errors.push('Character generation returned null');
-      }
-    } catch (e) {
-      console.error('[AI] ✗✗ Character generation THREW ERROR:', e);
-      result.errors.push(`Character generation failed: ${e}`);
-    }
-  } else {
-    console.log('[AI] Character generation NOT requested for this wave');
-  }
-
-  // Generate encounters
-  const existingEncounterTypes: string[] = [];
+  // ══════════════════════════════════════════════════════════
+  // PARALLEL GENERATION: Character + Encounters + Items at once
+  // ══════════════════════════════════════════════════════════
+  
+  const tasks: Promise<void>[] = [];
   const skills: SkillName[] = ['stealth', 'diplomacy', 'athletics', 'awareness', 'lore', 'survival'];
-
-  for (let i = 0; i < request.encounterCount; i++) {
-    try {
-      const encounter = await generateEncounter({
-        floorRange: request.floorRange,
-        preferredSkill: skills[i % skills.length],
-        existingEncounterTypes,
-      });
-      if (encounter) {
-        result.encounters.push(encounter);
-        existingEncounterTypes.push(encounter.type);
-      }
-    } catch (e) {
-      result.errors.push(`Encounter ${i + 1} generation failed: ${e}`);
-    }
-  }
-
-  // Generate items
   const itemTypes: Array<'weapon' | 'armor' | 'ring' | 'amulet'> = ['weapon', 'armor', 'ring', 'amulet'];
 
-  for (let i = 0; i < request.itemCount; i++) {
-    try {
-      const item = await generateItem({
-        floorRange: request.floorRange,
-        preferredType: itemTypes[i % itemTypes.length],
-        preferredSkillBonus: skills[i % skills.length],
-      });
-      if (item) {
-        result.items.push(item);
+  // Task 1: Generate character (if requested)
+  if (request.generateCharacter) {
+    tasks.push((async () => {
+      console.log('[AI] [PARALLEL] Starting character generation...');
+      try {
+        result.character = await generateCharacter({
+          playerClass: request.playerClass,
+          floorRange: request.floorRange,
+          existingCharacterNames: [],
+          bloodlineGeneration: request.bloodline.generation,
+        });
+        if (result.character) {
+          console.log('[AI] [PARALLEL] ✓ Character READY:', result.character.name);
+        } else {
+          result.errors.push('Character generation returned null');
+        }
+      } catch (e) {
+        console.error('[AI] [PARALLEL] ✗ Character failed:', e);
+        result.errors.push(`Character generation failed: ${e}`);
       }
-    } catch (e) {
-      result.errors.push(`Item ${i + 1} generation failed: ${e}`);
-    }
+    })());
   }
+
+  // Task 2+: Generate encounters in parallel
+  for (let i = 0; i < request.encounterCount; i++) {
+    tasks.push((async () => {
+      console.log('[AI] [PARALLEL] Starting encounter', i + 1);
+      try {
+        const encounter = await generateEncounter({
+          floorRange: request.floorRange,
+          preferredSkill: skills[i % skills.length],
+          existingEncounterTypes: [],
+        });
+        if (encounter) {
+          result.encounters.push(encounter);
+          console.log('[AI] [PARALLEL] ✓ Encounter ready:', encounter.type);
+        }
+      } catch (e) {
+        result.errors.push(`Encounter ${i + 1} generation failed: ${e}`);
+      }
+    })());
+  }
+
+  // Task 3+: Generate items in parallel
+  for (let i = 0; i < request.itemCount; i++) {
+    tasks.push((async () => {
+      console.log('[AI] [PARALLEL] Starting item', i + 1);
+      try {
+        const item = await generateItem({
+          floorRange: request.floorRange,
+          preferredType: itemTypes[i % itemTypes.length],
+          preferredSkillBonus: skills[i % skills.length],
+        });
+        if (item) {
+          result.items.push(item);
+          console.log('[AI] [PARALLEL] ✓ Item ready:', item.name);
+        }
+      } catch (e) {
+        result.errors.push(`Item ${i + 1} generation failed: ${e}`);
+      }
+    })());
+  }
+
+  // Wait for ALL parallel tasks
+  await Promise.all(tasks);
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[AI] ═══ PARALLEL BATCH COMPLETE: ${elapsed}ms ═══`);
+  console.log(`[AI] Results: character=${result.character?.name || 'none'}, encounters=${result.encounters.length}, items=${result.items.length}`);
 
   return result;
 }

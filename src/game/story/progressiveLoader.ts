@@ -42,8 +42,8 @@ const GENERATION_WAVES: GenerationWave[] = [
     key: 'floors1to3',
     priority: 'immediate',
     generateCharacter: true,
-    encounterCount: 2,
-    itemCount: 3,
+    encounterCount: 1, // Reduced from 2 for faster startup
+    itemCount: 1, // Reduced from 3 for faster startup
   },
   {
     key: 'floors4to6',
@@ -233,45 +233,54 @@ async function generateWave(
             storyBeats: updatedBatch?.storyBeats?.map(b => ({ id: b.id, charId: b.characterId })),
           });
           
-          // NOW generate portrait (non-blocking for game start)
-          onProgress?.(85, `Generating portrait for ${result.character.name}...`);
-          try {
-            console.log('[Story] Generating portrait for AI character...');
-            const portraitUrl = await generateCharacterPortrait(result.character);
-            if (portraitUrl) {
-              result.character.portraitUrl = portraitUrl;
-              // Update cache with portrait
-              generationState.cache = updateBatchContent(generationState.cache, wave.key, {
-                characters: [result.character],
-              });
-              console.log('[Story] ✓ Portrait added to character');
-            }
-          } catch (portraitErr) {
-            console.warn('[Story] Portrait generation failed (continuing without):', portraitErr);
-          }
+          // ══════════════════════════════════════════════════════════
+          // PARALLEL GENERATION: Portrait + Quest run simultaneously
+          // ══════════════════════════════════════════════════════════
+          onProgress?.(85, `Generating portrait and quest...`);
+          const characterRef = result.character; // Capture for parallel tasks
           
-          // Generate a quest from this character
-          onProgress?.(90, `${result.character.name} has a request...`);
-          try {
-            console.log('[Story] Generating quest for character:', result.character.name);
-            const charQuest = await generateCharacterQuest({
-              id: result.character.id,
-              name: result.character.name,
-              title: result.character.title,
-              role: result.character.role,
-              motivation: result.character.motivation,
-              portraitUrl: result.character.portraitUrl,
-            });
+          const parallelTasks = await Promise.allSettled([
+            // Task 1: Generate portrait
+            (async () => {
+              console.log('[Story] [PARALLEL] Starting portrait generation...');
+              const portraitUrl = await generateCharacterPortrait(characterRef);
+              if (portraitUrl) {
+                characterRef.portraitUrl = portraitUrl;
+                generationState.cache = updateBatchContent(generationState.cache, wave.key, {
+                  characters: [characterRef],
+                });
+                console.log('[Story] [PARALLEL] ✓ Portrait complete');
+              }
+              return portraitUrl;
+            })(),
             
-            if (charQuest) {
-              console.log('[Story] ✓ Generated quest:', charQuest.name);
-              generationState.cache = updateBatchContent(generationState.cache, wave.key, {
-                characterQuests: [charQuest],
+            // Task 2: Generate quest
+            (async () => {
+              console.log('[Story] [PARALLEL] Starting quest generation...');
+              const charQuest = await generateCharacterQuest({
+                id: characterRef.id,
+                name: characterRef.name,
+                title: characterRef.title,
+                role: characterRef.role,
+                motivation: characterRef.motivation,
+                portraitUrl: characterRef.portraitUrl,
               });
-            }
-          } catch (questErr) {
-            console.warn('[Story] Quest generation failed (continuing without):', questErr);
-          }
+              if (charQuest) {
+                generationState.cache = updateBatchContent(generationState.cache, wave.key, {
+                  characterQuests: [charQuest],
+                });
+                console.log('[Story] [PARALLEL] ✓ Quest complete:', charQuest.name);
+              }
+              return charQuest;
+            })(),
+          ]);
+          
+          // Log results
+          const [portraitResult, questResult] = parallelTasks;
+          console.log('[Story] Parallel generation complete:', {
+            portrait: portraitResult.status === 'fulfilled' ? '✓' : '✗',
+            quest: questResult.status === 'fulfilled' ? '✓' : '✗',
+          });
         } else if (wave.key !== 'floors1to3') {
           // For later waves, merge AI characters with existing
           const currentBatch = generationState.cache[wave.key];
@@ -336,50 +345,37 @@ async function generateWave(
         }
       }
       
-      // Generate unique mercenaries with portraits
-      onProgress?.(88, `Generating mercenaries...`);
-      const existingMercNames: string[] = [];
-      const generatedMercs: import('../types').MercenaryDef[] = [];
-      
-      // Generate 2 unique mercenaries for this floor range
-      for (let m = 0; m < 2; m++) {
-        try {
-          console.log('[Story] Generating mercenary', m + 1);
-          const merc = await generateMercenary({
-            floorNumber: floorRange[0],
-            existingMercNames,
-            playerClass,
-          });
-          
-          if (merc) {
-            existingMercNames.push(merc.name);
-            
-            // Generate portrait for the mercenary
-            onProgress?.(90 + m * 2, `Generating portrait for ${merc.name}...`);
-            try {
-              const portrait = await generateMercenaryPortrait(merc);
-              if (portrait) {
-                merc.portraitUrl = portrait;
-                console.log('[Story] ✓ Mercenary portrait COMPLETE for:', merc.name);
-              }
-            } catch (mercPortraitErr) {
-              console.warn('[Story] Mercenary portrait failed for:', merc.name, mercPortraitErr);
-            }
-            
-            generatedMercs.push(merc);
-            console.log('[Story] ✓ Generated mercenary:', merc.name, '-', merc.title);
-          }
-        } catch (mercErr) {
-          console.warn('[Story] Mercenary generation failed:', mercErr);
-        }
-      }
-      
-      // Update cache with generated mercenaries
-      if (generatedMercs.length > 0) {
-        generationState.cache = updateBatchContent(generationState.cache, wave.key, {
-          mercenaries: generatedMercs,
+      // Generate 1 mercenary (reduced from 2 for faster startup)
+      // Portrait generation happens in background after game starts
+      onProgress?.(92, `Generating mercenary...`);
+      try {
+        console.log('[Story] Generating mercenary...');
+        const merc = await generateMercenary({
+          floorNumber: floorRange[0],
+          existingMercNames: [],
+          playerClass,
         });
-        console.log('[Story] ✓ Cache updated with', generatedMercs.length, 'mercenaries');
+        
+        if (merc) {
+          // Add to cache immediately (portrait will be added in background)
+          generationState.cache = updateBatchContent(generationState.cache, wave.key, {
+            mercenaries: [merc],
+          });
+          console.log('[Story] ✓ Mercenary cached:', merc.name);
+          
+          // Generate portrait in background (non-blocking)
+          generateMercenaryPortrait(merc).then(portrait => {
+            if (portrait) {
+              merc.portraitUrl = portrait;
+              generationState.cache = updateBatchContent(generationState.cache, wave.key, {
+                mercenaries: [merc],
+              });
+              console.log('[Story] ✓ Mercenary portrait added:', merc.name);
+            }
+          }).catch(() => {});
+        }
+      } catch (mercErr) {
+        console.warn('[Story] Mercenary generation failed:', mercErr);
       }
       
       onProgress?.(95, `Content ready!`);
