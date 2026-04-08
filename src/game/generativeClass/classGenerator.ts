@@ -20,8 +20,9 @@ import type {
 import { getArchetype, getRandomArchetype } from './archetypes';
 import { compressImageUrl } from '../story/imageCompression';
 
-const LLM_MODEL = 'gpt-5.4-mini';
-const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+// Use same models as seriesAI.ts for consistency
+const LLM_MODEL = 'claude-haiku-4-5'; // Fast text generation
+const IMAGE_MODEL = 'gemini-3-pro-image-preview'; // Nano Banana Pro for higher quality portraits
 const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/blvhjo8.png';
 
 let generationState: ClassGenerationState = {

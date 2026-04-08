@@ -169,7 +169,41 @@ This document outlines the QA plan for testing the new generative narrative syst
    - Added fallback story beats for Elder Mira (Floor 2) and Gnash (Floor 4)
    - Includes dialogue trees with skill checks
 
-### Tests Passed:
+---
+
+## Test Execution Results (2026-04-08)
+
+### New Features Added:
+
+1. **A/B Testing System**
+   - Users randomly assigned to `classic` or `narrative` variant (50/50)
+   - Persisted in localStorage, tagged in all analytics events
+   - Debug controls to force variants
+
+2. **Generated Class Intro NPC**
+   - On Floor 1 of narrative mode with generated class
+   - Shows character name, symbol, lore, ability
+   - Only one intro NPC (no duplicates)
+
+3. **Auto-Export Content Pool**
+   - When pool reaches 100 entries, auto-exports to IndexedDB
+   - Local cache used first, no more 429/limit errors
+   - Fully automatic, no manual intervention
+
+4. **Parallel Generation**
+   - Character + encounters + items generate simultaneously
+   - Portrait + quest generate in background (non-blocking)
+   - Reduced upfront generation (0 encounters/items on floor 1)
+
+5. **Game Mode Analytics**
+   - `game_mode` field on all events: classic, narrative, generated_class, narrative_generated
+   - `game_mode_start` event for D1 retention tracking
+
+6. **AI Model Configuration**
+   - Text: Claude Haiku (fast)
+   - Images: Nano Banana Pro (1K resolution)
+
+### Tests Passed (2026-04-08):
 
 | Test | Result | Notes |
 |------|--------|-------|
@@ -181,25 +215,66 @@ This document outlines the QA plan for testing the new generative narrative syst
 | Auto-play functions | PASS | After cloneState fix |
 | Combat mechanics work | PASS | Tested on Floors 1-3 |
 | Floor descent works | PASS | Tested Floor 1→2→3 |
+| Generated class resource regen | PASS | on_kill, on_hit, on_move, on_damage_taken |
+| Generated class intro NPC | PASS | Shows on Floor 1 narrative |
+| A/B test variant assignment | PASS | Persisted in localStorage |
+| Content pool auto-export | PASS | Triggers on pool full |
+| Parallel generation | PASS | Portrait/quest in background |
 
 ### Tests Pending:
 
 | Test | Status | Notes |
 |------|--------|-------|
-| Story dialogue triggers | PENDING | Need deployment for full test |
-| Skill check modal | PENDING | Requires story beat trigger |
-| Relationship tracking | PENDING | Requires dialogue completion |
-| Ally recruitment | PENDING | Requires allied relationship |
-| Generation loading screen | PENDING | May not show with fast fallback |
+| D1 retention by A/B variant | PENDING | Requires time to collect data |
+| Generated class abilities | PARTIAL | Needs more testing |
+| Full narrative run | PENDING | End-to-end with AI content |
+
+---
+
+## 7. New Test Cases (2026-04-08)
+
+### 7.1 A/B Testing
+| Test ID | Steps | Expected Result |
+|---------|-------|-----------------|
+| AB-01 | Fresh user loads game | Assigned to classic or narrative variant |
+| AB-02 | Check localStorage for `ab_test_variants` | Contains `narrative_vs_classic` assignment |
+| AB-03 | All analytics events | Include `ab_narrative_vs_classic` field |
+| AB-04 | Debug menu: force variant | Variant changes after refresh |
+
+### 7.2 Generated Class
+| Test ID | Steps | Expected Result |
+|---------|-------|-----------------|
+| GC-01 | Debug menu: Gen Class | Opens generative class select screen |
+| GC-02 | Roll new class | AI generates class with unique abilities |
+| GC-03 | Select and play | Game starts with generated class |
+| GC-04 | Floor 1 intro NPC | Shows generated character as NPC |
+| GC-05 | Use generated ability | Resource consumed, effect applied |
+| GC-06 | Share class | Copies base64 code to clipboard |
+| GC-07 | Import class | Loads shared class successfully |
+
+### 7.3 Content Pool
+| Test ID | Steps | Expected Result |
+|---------|-------|-----------------|
+| CP-01 | Generate portrait | Portrait URL returned or cached |
+| CP-02 | Pool full (100 entries) | Auto-export triggers to IndexedDB |
+| CP-03 | After auto-export | Content served from local cache |
+| CP-04 | getPoolStats() | Shows localCacheCount, poolFull status |
+
+### 7.4 Performance
+| Test ID | Description | Target |
+|---------|-------------|--------|
+| PF-05 | Game start time (narrative mode) | < 5 seconds to playable |
+| PF-06 | Floor 1 uses fallback content | Instant (no AI delay) |
+| PF-07 | Portrait generates in background | No blocking after game starts |
 
 ---
 
 ## Known Limitations
 
 1. AI generation requires Series SDK backend to be available
-2. Image generation for portraits not yet integrated into UI
-3. Story arcs span multiple floors but persistence needs verification
-4. Recruited allies UI not yet integrated into mercenary selection
+2. Content pool capped at 100 entries (platform limit)
+3. Browser automation blocked by RUN.game App Integrity check
+4. Generated class abilities may need balance tuning
 
 ---
 
@@ -209,3 +284,4 @@ This document outlines the QA plan for testing the new generative narrative syst
 - **Device**: Desktop and mobile viewport
 - **Network**: Online (for AI) and offline (for fallback testing)
 - **Build**: Development build with source maps
+- **URL**: https://omw.run/u/TnwiXCIVrrnLXVcED65D/development
