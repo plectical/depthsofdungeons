@@ -42,4 +42,7 @@ export {
   resetGeneration,
   exportClassAsJSON,
   importClassFromJSON,
+  generateArchetypeThumbnail,
+  getCachedArchetypeThumbnail,
+  cacheArchetypeThumbnail,
 } from './classGenerator';

@@ -3,13 +3,16 @@
  * Allows players to roll a new AI-generated class or browse saved/community classes
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { GeneratedClass, ArchetypeId } from './generativeClass';
 import { 
   generateClass, 
   resetGeneration,
   getAllArchetypes,
   ARCHETYPES,
+  generateArchetypeThumbnail,
+  getCachedArchetypeThumbnail,
+  cacheArchetypeThumbnail,
 } from './generativeClass';
 
 interface Props {
@@ -184,8 +187,63 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
   const [progressText, setProgressText] = useState('');
   const [hoveredArchetype, setHoveredArchetype] = useState<ArchetypeId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [archetypeThumbnails, setArchetypeThumbnails] = useState<Record<string, string>>({});
+  const [generatingThumbnails, setGeneratingThumbnails] = useState<Set<string>>(new Set());
 
   const archetypes = getAllArchetypes();
+  
+  // Load cached thumbnails and generate missing ones
+  useEffect(() => {
+    const loadThumbnails = async () => {
+      const cached: Record<string, string> = {};
+      const missing: ArchetypeId[] = [];
+      
+      // Check cache for each archetype
+      for (const arch of archetypes) {
+        const cachedUrl = getCachedArchetypeThumbnail(arch.id);
+        if (cachedUrl) {
+          cached[arch.id] = cachedUrl;
+        } else {
+          missing.push(arch.id);
+        }
+      }
+      
+      setArchetypeThumbnails(cached);
+      
+      // Generate missing thumbnails in background (2 at a time)
+      if (missing.length > 0) {
+        console.log(`[GenClass] Generating ${missing.length} missing archetype thumbnails...`);
+        
+        const generateBatch = async (ids: ArchetypeId[]) => {
+          for (const id of ids) {
+            setGeneratingThumbnails(prev => new Set([...prev, id]));
+            try {
+              const url = await generateArchetypeThumbnail(id);
+              if (url) {
+                cacheArchetypeThumbnail(id, url);
+                setArchetypeThumbnails(prev => ({ ...prev, [id]: url }));
+              }
+            } catch (e) {
+              console.warn(`[GenClass] Failed to generate thumbnail for ${id}:`, e);
+            }
+            setGeneratingThumbnails(prev => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+          }
+        };
+        
+        // Generate 2 at a time
+        const batchSize = 2;
+        for (let i = 0; i < missing.length; i += batchSize) {
+          await generateBatch(missing.slice(i, i + batchSize));
+        }
+      }
+    };
+    
+    loadThumbnails();
+  }, [archetypes]);
 
   const handleGenerateRandom = useCallback(async () => {
     setMode('generating');
@@ -314,41 +372,67 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
           <div style={sectionStyle}>
             <h2 style={sectionTitleStyle}>OR CHOOSE AN ARCHETYPE</h2>
             <div style={archetypeGridStyle}>
-              {archetypes.map((archetype) => (
-                <button
-                  key={archetype.id}
-                  style={{
-                    ...(hoveredArchetype === archetype.id ? archetypeButtonHoverStyle : archetypeButtonStyle),
-                    borderColor: hoveredArchetype === archetype.id ? archetype.color : '#333',
-                    boxShadow: hoveredArchetype === archetype.id ? `0 0 15px ${archetype.color}40` : 'none',
-                  }}
-                  onClick={() => handleGenerateArchetype(archetype.id)}
-                  onMouseEnter={() => setHoveredArchetype(archetype.id)}
-                  onMouseLeave={() => setHoveredArchetype(null)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <div style={{ 
-                      fontSize: '24px',
-                      width: '36px',
-                      height: '36px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: `${archetype.color}20`,
-                      borderRadius: '6px',
-                      border: `1px solid ${archetype.color}40`,
-                    }}>
-                      {archetype.icon}
+              {archetypes.map((archetype) => {
+                const thumbnailUrl = archetypeThumbnails[archetype.id];
+                const isGenerating = generatingThumbnails.has(archetype.id);
+                
+                return (
+                  <button
+                    key={archetype.id}
+                    style={{
+                      ...(hoveredArchetype === archetype.id ? archetypeButtonHoverStyle : archetypeButtonStyle),
+                      borderColor: hoveredArchetype === archetype.id ? archetype.color : '#333',
+                      boxShadow: hoveredArchetype === archetype.id ? `0 0 15px ${archetype.color}40` : 'none',
+                    }}
+                    onClick={() => handleGenerateArchetype(archetype.id)}
+                    onMouseEnter={() => setHoveredArchetype(archetype.id)}
+                    onMouseLeave={() => setHoveredArchetype(null)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <div style={{ 
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '6px',
+                        border: `2px solid ${archetype.color}`,
+                        overflow: 'hidden',
+                        background: '#0a0a0f',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {thumbnailUrl ? (
+                          <img 
+                            src={thumbnailUrl} 
+                            alt={archetype.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : isGenerating ? (
+                          <div style={{ 
+                            fontSize: '16px',
+                            animation: 'pulse 1s infinite',
+                          }}>
+                            ⏳
+                          </div>
+                        ) : (
+                          <div style={{ 
+                            fontSize: '24px',
+                            color: archetype.color,
+                          }}>
+                            {archetype.icon}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: archetype.color, fontWeight: 'bold' }}>
+                        {archetype.name}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '11px', color: archetype.color, fontWeight: 'bold' }}>
-                      {archetype.name}
+                    <div style={{ fontSize: '8px', color: '#888', lineHeight: '1.4' }}>
+                      {archetype.description.substring(0, 60)}...
                     </div>
-                  </div>
-                  <div style={{ fontSize: '8px', color: '#888', lineHeight: '1.4' }}>
-                    {archetype.description.substring(0, 60)}...
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

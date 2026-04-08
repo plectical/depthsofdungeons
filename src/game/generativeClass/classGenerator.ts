@@ -111,6 +111,82 @@ Style requirements:
   }
 }
 
+// Archetype thumbnail descriptions for image generation
+const ARCHETYPE_THUMBNAIL_PROMPTS: Record<ArchetypeId, string> = {
+  territory: 'A powerful earth mage creating stone walls and traps, glowing runes on the ground, rocky armor, controlling the battlefield',
+  rhythm: 'A musical bard with glowing instruments, sound waves emanating, dancing pose, ethereal musical notes floating',
+  typing: 'A mystical scribe with floating magical letters, glowing quill, arcane runes swirling around, book of spells',
+  sacrifice: 'A dark blood mage with crimson energy, consuming power, void essence, hungry dark aura, sacrificial blade',
+  companion: 'A beast master surrounded by spectral wolves and summoned creatures, pack leader, commanding pose',
+  trickster: 'A masked illusionist with mirror images, deceptive shadows, theatrical cape, multiple reflections',
+  momentum: 'A swift warrior in motion blur, wind trails, lightning speed, acrobatic pose, energy trail',
+  combo: 'A martial artist with glowing fists, chain lightning between strikes, fighting stance, combo counter aura',
+  transform: 'A shapeshifter mid-transformation, dual nature, half-beast form, morphing energy, primal power',
+  reflection: 'A thorned knight with mirror shield, damage reflecting aura, pain converted to power, vengeful stance',
+};
+
+// Generate a thumbnail for a specific archetype
+export async function generateArchetypeThumbnail(archetypeId: ArchetypeId): Promise<string | null> {
+  try {
+    if (RundotGameAPI.accessGate.isAnonymous()) return null;
+    
+    const archetype = getArchetype(archetypeId);
+    const description = ARCHETYPE_THUMBNAIL_PROMPTS[archetypeId];
+    
+    const prompt = `PIXEL ART portrait representing the "${archetype.name}" class archetype.
+${description}
+
+CRITICAL STYLE REQUIREMENTS:
+1. STRICT COLOR PALETTE - ONLY USE:
+   - GREEN (#00ff00, #44ff44, #22aa22, #115511) - main color
+   - ORANGE/AMBER (#ffcc44, #ff8800, #cc6600) - accents, eyes
+   - BLACK (#000000, #111111) - background
+2. Retro pixel art, chunky visible pixels like 16-bit games
+3. Dark fantasy dungeon aesthetic
+4. Portrait format showing character concept
+5. NO TEXT, NO WORDS, NO LETTERS
+6. Black background with glowing pixels`;
+
+    console.log(`[ClassGen] Generating thumbnail for ${archetypeId}...`);
+    
+    const result = await RundotGameAPI.imageGen.generate({
+      prompt,
+      model: IMAGE_MODEL,
+      aspectRatio: '1:1',
+      removeBackground: false,
+      referenceImages: [PORTRAIT_STYLE_REFERENCE],
+    });
+    
+    if (result.imageUrl) {
+      const compressed = await compressImageUrl(result.imageUrl, 0.85, 256);
+      console.log(`[ClassGen] Thumbnail generated for ${archetypeId}`);
+      return compressed;
+    }
+    return null;
+  } catch (e) {
+    console.error(`[ClassGen] Thumbnail generation failed for ${archetypeId}:`, e);
+    return null;
+  }
+}
+
+// Get cached archetype thumbnail from localStorage
+export function getCachedArchetypeThumbnail(archetypeId: ArchetypeId): string | null {
+  try {
+    return localStorage.getItem(`archetype_thumb_${archetypeId}`);
+  } catch {
+    return null;
+  }
+}
+
+// Cache archetype thumbnail to localStorage
+export function cacheArchetypeThumbnail(archetypeId: ArchetypeId, url: string): void {
+  try {
+    localStorage.setItem(`archetype_thumb_${archetypeId}`, url);
+  } catch {
+    // Storage full or unavailable
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 // MAIN GENERATION FUNCTION
 // ══════════════════════════════════════════════════════════════
