@@ -50,7 +50,13 @@ import { getNewLoreIds, ALL_LORE } from './lore';
 import { GenerationLoadingScreen } from './GenerationLoadingScreen';
 import { StoryDialogue, type DialogueResult } from './StoryDialogue';
 import { GenerativeClassSelect } from './GenerativeClassSelect';
-import type { GeneratedClass } from './generativeClass';
+import type { GeneratedClass, ArchetypeId } from './generativeClass';
+import { 
+  getAllArchetypes, 
+  generateArchetypeThumbnail, 
+  getCachedArchetypeThumbnail, 
+  cacheArchetypeThumbnail 
+} from './generativeClass';
 import { SkillCheckModal } from './SkillCheckModal';
 import {
   prepareRunContent,
@@ -391,6 +397,58 @@ export function Game() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, screen]);
+  
+  // Pre-generate archetype thumbnails in background once user is logged in
+  // This ensures thumbnails are ready when they visit the generative class screen
+  const archetypeThumbnailsStarted = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || archetypeThumbnailsStarted.current) return;
+    if (RundotGameAPI.accessGate.isAnonymous()) return;
+    
+    archetypeThumbnailsStarted.current = true;
+    
+    // Run in background - don't block anything
+    (async () => {
+      const archetypes = getAllArchetypes();
+      const missing: ArchetypeId[] = [];
+      
+      // Check which thumbnails are missing from cache
+      for (const arch of archetypes) {
+        if (!getCachedArchetypeThumbnail(arch.id)) {
+          missing.push(arch.id);
+        }
+      }
+      
+      if (missing.length === 0) {
+        console.log('[Game] All archetype thumbnails already cached');
+        return;
+      }
+      
+      console.log(`[Game] Pre-generating ${missing.length} archetype thumbnails in background...`);
+      
+      // Generate in batches of 2 to avoid rate limits
+      for (let i = 0; i < missing.length; i += 2) {
+        const batch = missing.slice(i, i + 2);
+        await Promise.all(batch.map(async (id) => {
+          try {
+            const url = await generateArchetypeThumbnail(id);
+            if (url) {
+              cacheArchetypeThumbnail(id, url);
+              console.log(`[Game] Cached archetype thumbnail: ${id}`);
+            }
+          } catch (e) {
+            console.warn(`[Game] Failed to generate thumbnail for ${id}:`, e);
+          }
+        }));
+        // Small delay between batches
+        if (i + 2 < missing.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      
+      console.log('[Game] Archetype thumbnail pre-generation complete');
+    })();
+  }, [isLoaded]);
 
   // Generate skill check art when skill check modal opens
   useEffect(() => {
