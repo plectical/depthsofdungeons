@@ -1985,8 +1985,10 @@ export function Game() {
     
     // Check if we have a cached encounter for this enemy
     const cache = getContentCache();
-    let encounter = getEnemyEncounter(cache, enemyId);
-    console.log('[EnemyEncounter] Cached encounter:', encounter ? 'found' : 'not found');
+    // Pass both ID and base name so we can match pre-generated encounters by type
+    const baseName = enemy.baseName || enemyName.replace(/^(Frenzied|Enraged|Venomous|Frost|Shadow|Burning|Ancient|Elite)\s+/i, '');
+    let encounter = getEnemyEncounter(cache, enemyId, baseName);
+    console.log('[EnemyEncounter] Cached encounter:', encounter ? 'found' : 'not found', 'baseName:', baseName);
     
     if (!encounter) {
       // Generate encounter dialogue on-the-fly

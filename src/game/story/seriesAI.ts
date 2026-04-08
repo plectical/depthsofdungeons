@@ -1323,6 +1323,109 @@ export async function generateEnemyEncounter(enemy: {
   };
 }
 
+// Pre-generate enemy encounters for a list of enemy types
+// Returns EnemyEncounterData objects ready to be cached
+export async function preGenerateEnemyEncounters(
+  enemyTypes: Array<{ name: string; element?: string }>,
+  maxCount: number = 8
+): Promise<Array<{
+  enemyId: string;
+  enemyName: string;
+  characterName: string;
+  characterTitle: string;
+  portraitPrompt?: string;
+  portraitUrl?: string;
+  dialogue: import('../types').StoryDialogueTree;
+  rewards: Record<string, import('../types').EnemyEncounterReward>;
+  quest?: import('../types').EnemyQuest;
+}>> {
+  const results: Array<{
+    enemyId: string;
+    enemyName: string;
+    characterName: string;
+    characterTitle: string;
+    portraitPrompt?: string;
+    portraitUrl?: string;
+    dialogue: import('../types').StoryDialogueTree;
+    rewards: Record<string, import('../types').EnemyEncounterReward>;
+    quest?: import('../types').EnemyQuest;
+  }> = [];
+  
+  // Shuffle and limit enemy types
+  const shuffled = [...enemyTypes].sort(() => Math.random() - 0.5).slice(0, maxCount);
+  
+  console.log(`[EnemyEncounter] Pre-generating ${shuffled.length} enemy encounters...`);
+  
+  // Generate encounters in parallel (but limit concurrency to avoid rate limits)
+  const batchSize = 3;
+  for (let i = 0; i < shuffled.length; i += batchSize) {
+    const batch = shuffled.slice(i, i + batchSize);
+    const promises = batch.map(async (enemy) => {
+      try {
+        const race = enemy.name.toLowerCase().includes('goblin') ? 'goblin' :
+          enemy.name.toLowerCase().includes('skeleton') || enemy.name.toLowerCase().includes('zombie') ? 'undead' :
+          enemy.name.toLowerCase().includes('demon') || enemy.name.toLowerCase().includes('imp') ? 'demon' :
+          enemy.name.toLowerCase().includes('rat') || enemy.name.toLowerCase().includes('bat') || enemy.name.toLowerCase().includes('spider') ? 'beast' :
+          'creature';
+        
+        const generated = await generateEnemyEncounter({
+          name: enemy.name,
+          race,
+          description: `A ${enemy.name} lurking in the dungeon`,
+          isBoss: false,
+          element: enemy.element,
+        });
+        
+        if (generated) {
+          // Generate portrait in parallel
+          let portraitUrl: string | undefined;
+          if (generated.portraitPrompt) {
+            try {
+              portraitUrl = await generateEnemyPortraitFromPrompt(
+                generated.portraitPrompt,
+                race,
+                generated.characterName || enemy.name
+              ) ?? undefined;
+            } catch (e) {
+              console.warn(`[EnemyEncounter] Portrait generation failed for ${enemy.name}:`, e);
+            }
+          }
+          
+          return {
+            enemyId: `pre_${enemy.name.toLowerCase().replace(/\s+/g, '_')}`,
+            enemyName: enemy.name, // Base enemy type name for matching
+            characterName: generated.characterName,
+            characterTitle: generated.characterTitle,
+            portraitPrompt: generated.portraitPrompt,
+            portraitUrl,
+            dialogue: generated.dialogue,
+            rewards: generated.rewards as Record<string, import('../types').EnemyEncounterReward>,
+            quest: generated.quest ? {
+              name: generated.quest.name,
+              description: generated.quest.description,
+              objective: (generated.quest.objective as 'kill_enemies' | 'find_item' | 'reach_floor' | 'survive_floors') || 'kill_enemies',
+              targetType: generated.quest.targetType,
+              targetCount: generated.quest.targetCount,
+              goldReward: generated.quest.goldReward,
+              echoReward: generated.quest.echoReward,
+            } : undefined,
+          };
+        }
+        return null;
+      } catch (e) {
+        console.warn(`[EnemyEncounter] Failed to pre-generate for ${enemy.name}:`, e);
+        return null;
+      }
+    });
+    
+    const batchResults = await Promise.all(promises);
+    results.push(...batchResults.filter((r): r is NonNullable<typeof r> => r !== null));
+  }
+  
+  console.log(`[EnemyEncounter] Pre-generated ${results.length} enemy encounters`);
+  return results;
+}
+
 // Style reference for enemy portraits - green/orange/black pixel art
 const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/blvhjo8.png';
 

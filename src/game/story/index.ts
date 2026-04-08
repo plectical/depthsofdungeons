@@ -155,6 +155,7 @@ export {
   generateFloorBatch,
   generateEnemyEncounter,
   generateEnemyPortraitFromPrompt,
+  preGenerateEnemyEncounters,
   generateRoomEventArt,
   generateSkillCheckArt,
   preloadImage,

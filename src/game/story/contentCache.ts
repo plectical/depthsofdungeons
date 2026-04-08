@@ -222,12 +222,15 @@ export function getQuestForCharacter(
   return null;
 }
 
-// Get enemy encounter data by enemy ID
+// Get enemy encounter data by enemy ID or enemy name (base type like "Goblin")
 export function getEnemyEncounter(
   cache: RunContentCache,
-  enemyId: string
+  enemyId: string,
+  enemyName?: string
 ): EnemyEncounterData | null {
   const keys: CacheKey[] = ['floors1to3', 'floors4to6', 'floors7to10', 'floors11plus'];
+  
+  // First try exact ID match
   for (const key of keys) {
     const batch = cache[key];
     if (batch?.enemyEncounters) {
@@ -235,6 +238,28 @@ export function getEnemyEncounter(
       if (encounter) return encounter;
     }
   }
+  
+  // If no ID match and we have a name, try matching by enemy base name
+  // This allows pre-generated encounters (keyed by name) to be used
+  if (enemyName) {
+    const baseName = enemyName.replace(/^(Frenzied|Enraged|Venomous|Frost|Shadow|Burning|Ancient|Elite)\s+/i, '');
+    for (const key of keys) {
+      const batch = cache[key];
+      if (batch?.enemyEncounters) {
+        // Find an unused encounter for this enemy type
+        const encounter = batch.enemyEncounters.find(e => 
+          e.enemyName === baseName && !e.usedForInstance
+        );
+        if (encounter) {
+          // Mark as used and assign the specific instance ID
+          encounter.usedForInstance = enemyId;
+          encounter.enemyId = enemyId;
+          return encounter;
+        }
+      }
+    }
+  }
+  
   return null;
 }
 

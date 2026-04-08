@@ -21,8 +21,10 @@ import {
   generateMercenary,
   generateMercenaryPortrait,
   generateCharacterQuest,
+  preGenerateEnemyEncounters,
   type FloorBatchResult,
 } from './seriesAI';
+import { MONSTER_DEFS } from '../constants';
 import { getFallbackBatch } from './fallbackContent';
 
 // Generation priority levels
@@ -380,6 +382,34 @@ async function generateWave(
       } catch (mercErr) {
         console.warn('[Story] Mercenary generation failed:', mercErr);
       }
+      
+      // Pre-generate enemy encounters in background for this floor range
+      // This ensures encounters load instantly when player reaches enemies
+      const waveKeyForEncounters = wave.key;
+      (async () => {
+        try {
+          console.log('[Story] [BACKGROUND] Pre-generating enemy encounters for', waveKeyForEncounters);
+          
+          // Get enemies eligible for this floor range
+          const eligibleEnemies = MONSTER_DEFS.filter(m => 
+            m.minFloor >= floorRange[0] - 2 && m.minFloor <= floorRange[1] && !m.isBoss
+          ).map(m => ({ name: m.name, element: m.element }));
+          
+          // Pre-generate encounters (max 6 per wave to balance quality vs speed)
+          const encounters = await preGenerateEnemyEncounters(eligibleEnemies, 6);
+          
+          if (encounters.length > 0) {
+            const currentBatch = generationState.cache[waveKeyForEncounters];
+            const existingEncounters = currentBatch?.enemyEncounters ?? [];
+            generationState.cache = updateBatchContent(generationState.cache, waveKeyForEncounters, {
+              enemyEncounters: [...existingEncounters, ...encounters],
+            });
+            console.log('[Story] [BACKGROUND] ✓ Pre-generated', encounters.length, 'enemy encounters for', waveKeyForEncounters);
+          }
+        } catch (e) {
+          console.warn('[Story] [BACKGROUND] Enemy encounter pre-generation failed:', e);
+        }
+      })();
       
       onProgress?.(95, `Content ready!`);
     } catch (e) {

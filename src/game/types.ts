@@ -649,6 +649,7 @@ export interface EnemyEncounterData {
   dialogue: StoryDialogueTree;
   rewards: Record<string, EnemyEncounterReward>;
   quest?: EnemyQuest;
+  usedForInstance?: string; // Tracks which enemy instance used this pre-generated encounter
 }
 
 export interface EnemyQuest {
