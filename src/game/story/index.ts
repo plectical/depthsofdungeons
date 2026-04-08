@@ -148,6 +148,7 @@ export {
   generateEncounter,
   generateItem,
   generateCharacterPortrait,
+  generateNPCPortrait,
   generateItemArt,
   generateEncounterArt,
   generateEncounterSceneArt,

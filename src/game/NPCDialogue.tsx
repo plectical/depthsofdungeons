@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import type { GameState, BloodlineData, DialogueChoice } from './types';
 import { getNPCDef, getNPCDialogue } from './npcs';
 import { applyDialogueEffects } from './engine';
 import { safeEngineCall } from './errorReporting';
 import { cloneState } from './utils';
+import { generateNPCPortrait } from './story/seriesAI';
 
 interface NPCDialogueProps {
   state: GameState;
@@ -16,12 +17,35 @@ interface NPCDialogueProps {
 
 export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onClose }: NPCDialogueProps) {
   const [response, setResponse] = useState<string | null>(null);
+  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
 
   const npc = state.npcs.find((n) => n.id === state.pendingNPC);
-  if (!npc) return null;
+  const def = npc ? getNPCDef(npc.defId) : null;
 
-  const def = getNPCDef(npc.defId);
-  if (!def) return null;
+  // Generate portrait on mount if NPC has appearance description
+  useEffect(() => {
+    if (!def?.appearanceDescription) return;
+    
+    // Check cache first
+    const cacheKey = `npc_portrait_${def.id}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      setPortraitUrl(cached);
+      return;
+    }
+    
+    // Generate portrait in background
+    generateNPCPortrait(def.id, def.name, def.appearanceDescription)
+      .then((url) => {
+        if (url) {
+          setPortraitUrl(url);
+          localStorage.setItem(cacheKey, url);
+        }
+      })
+      .catch(() => {});
+  }, [def?.id, def?.name, def?.appearanceDescription]);
+
+  if (!npc || !def) return null;
 
   const dialogue = getNPCDialogue(def, bloodline);
 
@@ -58,15 +82,30 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
       <div style={panelStyle}>
         {/* NPC Portrait */}
         <div style={portraitContainerStyle}>
-          <div style={{ 
-            ...portraitStyle, 
-            color: def.color, 
-            textShadow: `0 0 20px ${def.color}, 0 0 40px ${def.color}66`,
-            borderColor: def.color + '66',
-            boxShadow: `0 0 15px ${def.color}44, inset 0 0 20px rgba(0,0,0,0.8)`
-          }}>
-            {def.char}
-          </div>
+          {portraitUrl ? (
+            <img 
+              src={portraitUrl} 
+              alt={def.name}
+              style={{
+                width: 120,
+                height: 120,
+                objectFit: 'cover',
+                borderRadius: 8,
+                border: `3px solid ${def.color}66`,
+                boxShadow: `0 0 15px ${def.color}44`,
+              }}
+            />
+          ) : (
+            <div style={{ 
+              ...portraitStyle, 
+              color: def.color, 
+              textShadow: `0 0 20px ${def.color}, 0 0 40px ${def.color}66`,
+              borderColor: def.color + '66',
+              boxShadow: `0 0 15px ${def.color}44, inset 0 0 20px rgba(0,0,0,0.8)`
+            }}>
+              {def.char}
+            </div>
+          )}
         </div>
 
         <div style={headerStyle}>

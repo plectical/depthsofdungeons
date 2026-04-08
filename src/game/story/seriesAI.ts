@@ -1830,6 +1830,45 @@ export async function generateCharacterPortrait(character: StoryCharacter): Prom
   );
 }
 
+// Generate NPC portrait (for static NPCs like Hermit, Merchant)
+export async function generateNPCPortrait(
+  npcId: string,
+  name: string,
+  appearanceDescription: string
+): Promise<string | null> {
+  const appearanceHash = hashPrompt(appearanceDescription);
+  
+  return fetchOrGenerateImageUrl(
+    'portrait_character',
+    { 
+      npc_id: npcId,
+      appearance_hash: appearanceHash
+    },
+    async () => {
+      const prompt = `PIXEL ART portrait of a dark fantasy dungeon NPC: ${name}.
+${appearanceDescription}
+
+Style requirements:
+- Retro pixel art style, 32x32 or 64x64 aesthetic scaled up
+- Dark fantasy roguelike dungeon crawler aesthetic
+- Limited color palette: dark greens, oranges, blacks, grays
+- Character facing forward, shoulders up portrait
+- Dramatic dungeon torch lighting
+- NO TEXT, NO WORDS, NO LETTERS in the image
+- Sharp pixelated edges, atmospheric mood`;
+
+      return generateImage(prompt, {
+        aspectRatio: '1:1',
+        removeBackground: false,
+      });
+    },
+    { 
+      name,
+      appearancePrompt: appearanceDescription
+    }
+  );
+}
+
 // Generate item art
 export async function generateItemArt(item: GeneratedItem): Promise<string | null> {
   const prompt = `Fantasy item icon: ${item.name}.

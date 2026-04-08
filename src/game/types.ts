@@ -543,6 +543,8 @@ export interface NPCDef {
   spawnChance: number;
   requiresGeneration?: number;
   dialogue: DialogueNode | ((bloodline: BloodlineData) => DialogueNode);
+  portraitUrl?: string; // AI-generated or static portrait
+  appearanceDescription?: string; // For AI portrait generation
 }
 
 export interface MapNPC {
