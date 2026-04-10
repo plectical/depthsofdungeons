@@ -1,4 +1,5 @@
-import type { SkillTreeDef, SkillTreeNode, SkillNodeEffect, PlayerClass } from './types';
+import type { SkillTreeDef, SkillTreeNode, SkillTreePath, SkillNodeEffect, PlayerClass } from './types';
+import type { GeneratedClass } from './generativeClass';
 
 // ── Helper to build nodes concisely ──
 function node(
@@ -1023,7 +1024,58 @@ const SKILL_TREES: Partial<Record<PlayerClass, SkillTreeDef>> = {
 };
 
 export function getSkillTree(classId: PlayerClass): SkillTreeDef | null {
+  if (classId === 'generated') return getGeneratedSkillTree();
   return SKILL_TREES[classId] ?? null;
+}
+
+function getGeneratedSkillTree(): SkillTreeDef | null {
+  try {
+    const json = localStorage.getItem('dod_backup_activeGeneratedClass');
+    if (!json) return null;
+    const gen: GeneratedClass = JSON.parse(json);
+    if (!gen?.skillTree?.paths?.length) return null;
+
+    const paths: SkillTreePath[] = gen.skillTree.paths.map((gp, pathIndex) => ({
+      name: gp.name,
+      color: gp.color,
+      icon: gp.nodes[0]?.icon ?? '◆',
+      description: gp.description,
+      nodes: gp.nodes.map((gn): SkillTreeNode => ({
+        id: gn.id,
+        name: gn.name,
+        description: gn.description,
+        icon: gn.icon,
+        color: gn.color,
+        tier: Math.min(4, Math.max(1, gn.tier)) as 1 | 2 | 3 | 4,
+        pathIndex,
+        cost: gn.echoCost || 1,
+        requires: gn.requires,
+        effect: convertGeneratedEffect(gn.effect),
+      })),
+    }));
+
+    return { classId: 'generated', paths };
+  } catch {
+    return null;
+  }
+}
+
+function convertGeneratedEffect(
+  e: { type: string; stat?: string; value?: number; abilityId?: string; description?: string }
+): SkillNodeEffect {
+  if (e.type === 'stat' && e.stat && e.value != null) {
+    return { type: 'stat', stat: e.stat as keyof import('./types').Stats, value: e.value };
+  }
+  if (e.type === 'ability' && e.abilityId) {
+    return { type: 'ability', abilityId: e.abilityId };
+  }
+  if (e.type === 'resource' && e.stat && e.value != null) {
+    return { type: 'stat', stat: e.stat as keyof import('./types').Stats, value: e.value };
+  }
+  if (e.type === 'stat' && e.value != null) {
+    return { type: 'stat', stat: 'maxHp', value: e.value };
+  }
+  return { type: 'stat', stat: 'maxHp', value: 1 };
 }
 
 export function getSkillNode(classId: PlayerClass, nodeId: string): SkillTreeNode | null {

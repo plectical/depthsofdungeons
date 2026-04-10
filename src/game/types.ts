@@ -287,7 +287,7 @@ export interface HungerState {
 }
 
 // ── Player classes ──
-export type PlayerClass = 'warrior' | 'rogue' | 'mage' | 'ranger' | 'necromancer' | 'revenant' | 'paladin' | 'hellborn' | 'generated';
+export type PlayerClass = 'warrior' | 'rogue' | 'mage' | 'ranger' | 'necromancer' | 'revenant' | 'paladin' | 'hellborn' | 'impregnar' | 'generated';
 
 export interface PassiveAbility {
   name: string;
@@ -367,6 +367,18 @@ export interface RunStats {
   namedPotionsUsed: Record<string, number>;
   /** Class abilities used this run */
   abilitiesUsed: number;
+  /** Rarity tiers equipped this run (for quests) */
+  rarityEquipped: Record<string, boolean>;
+  /** Named items equipped this run (for quests) */
+  namedItemsEquipped: string[];
+  /** Shop purchases this run */
+  shopPurchases: number;
+  /** Auto-play turns this run */
+  autoTurns: number;
+  /** Weapon type kills this run */
+  weaponTypeKills: Record<string, number>;
+  /** Zones completed this run */
+  zonesCompleted: string[];
 }
 
 export interface AncestorRecord {
@@ -566,6 +578,7 @@ export interface MapMercenary {
 export interface GameState {
   player: Entity;
   playerClass: PlayerClass;
+  playerRace?: string;
   zone: ZoneId;
   monsters: Entity[];
   items: MapItem[];

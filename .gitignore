@@ -8,3 +8,4 @@ dist-ssr/
 .idea/
 coverage/
 .rundot-docs
+reports/

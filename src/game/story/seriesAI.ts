@@ -47,13 +47,8 @@ export interface ImageGenOptions {
 // cannot fetch from the game's CDN URLs (returns 404 from server-side).
 // Portrait generation will rely on detailed prompts instead.
 
-// Style reference for all character portraits - green/orange/black pixel art
-const CHARACTER_PORTRAIT_STYLE = 'https://i.imgur.com/blvhjo8.png';
-
-function getPortraitStyleReferences(): string[] {
-  console.log('[AI] getPortraitStyleReferences returning:', [CHARACTER_PORTRAIT_STYLE]);
-  return [CHARACTER_PORTRAIT_STYLE];
-}
+// Reference images disabled — the image gen API's backend cannot fetch external
+// URLs server-side (returns 404). Pixel art style is enforced via text prompts.
 
 // Environment art references (exported for future encounter art generation)
 export function getEnvironmentStyleReferences(): string[] {
@@ -78,67 +73,116 @@ STYLE:
 
 OUTPUT: Always respond with valid JSON matching the requested schema. No markdown, no explanation, just JSON.`;
 
-// Parse JSON safely from LLM response
 function parseJSON<T>(content: string): T | null {
+  let cleaned = content.trim();
+  if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
+  else if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
+  if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3);
+  cleaned = cleaned.trim();
+
   try {
-    // Strip markdown code blocks if present
-    let cleaned = content.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.slice(7);
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.slice(3);
+    return JSON.parse(cleaned);
+  } catch {
+    // Attempt to repair truncated JSON from token limit
+    const repaired = repairTruncatedJSON(cleaned);
+    if (repaired) {
+      try {
+        console.warn('[AI] Recovered truncated JSON (' + cleaned.length + ' -> ' + repaired.length + ' chars)');
+        return JSON.parse(repaired);
+      } catch (e2) {
+        console.error('Failed to parse repaired JSON:', e2);
+      }
     }
-    if (cleaned.endsWith('```')) {
-      cleaned = cleaned.slice(0, -3);
-    }
-    return JSON.parse(cleaned.trim());
-  } catch (e) {
-    console.error('Failed to parse LLM JSON response:', e, content);
+    console.error('Failed to parse LLM JSON response, length:', cleaned.length);
     return null;
   }
 }
 
-// Generate text using Series AI
+function repairTruncatedJSON(json: string): string | null {
+  // Truncated mid-string — close the string, then close all open braces/brackets
+  let s = json;
+
+  // If we're inside an unclosed string, find the last unescaped quote
+  const inString = (s.split('"').length - 1) % 2 === 1;
+  if (inString) {
+    s += '"';
+  }
+
+  // Remove any trailing comma or colon after closing the string
+  s = s.replace(/[,:\s]+$/, '');
+
+  // Count open vs close braces/brackets and close them
+  let braces = 0, brackets = 0;
+  let inStr = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '"' && (i === 0 || s[i - 1] !== '\\')) { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === '{') braces++;
+    else if (c === '}') braces--;
+    else if (c === '[') brackets++;
+    else if (c === ']') brackets--;
+  }
+
+  for (let i = 0; i < brackets; i++) s += ']';
+  for (let i = 0; i < braces; i++) s += '}';
+
+  return braces > 0 || brackets > 0 || inString ? s : null;
+}
+
+function isAuthError(e: unknown): boolean {
+  if (!e) return false;
+  const msg = String(e instanceof Error ? e.message : e).toLowerCase();
+  return msg.includes('401') || msg.includes('unauthorized') || msg.includes('token') || msg.includes('expired') || msg.includes('auth');
+}
+
 async function generateText(
   prompt: string,
-  options: GenerationOptions = {}
+  options: GenerationOptions = {},
+  retries = 2
 ): Promise<string | null> {
-  try {
-    // Pre-check authentication
-    if (RundotGameAPI.accessGate.isAnonymous()) {
-      console.warn('[AI] Cannot generate text - user not logged in');
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (RundotGameAPI.accessGate.isAnonymous()) {
+        console.warn('[AI] Cannot generate text - user not logged in');
+        return null;
+      }
+
+      const modelToUse = options.model ?? DEFAULT_LLM_MODEL;
+      console.log('[AI] Requesting LLM completion with model:', modelToUse);
+
+      const result = await RundotGameAPI.ai.requestChatCompletionAsync({
+        model: modelToUse,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: prompt },
+        ],
+        maxTokens: options.maxTokens ?? 2000,
+        temperature: options.temperature ?? 0.8,
+      });
+
+      const content = (result as { message?: string }).message ??
+                      result.choices?.[0]?.message?.content ??
+                      null;
+      console.log('[AI] LLM response received:', content ? `length=${content.length}` : 'null');
+      return content;
+    } catch (e: unknown) {
+      const errorName = (e as { name?: string })?.name;
+      if (errorName === 'AccessDeniedError') {
+        console.warn('[AI] Text generation blocked - login required');
+        return null;
+      }
+      if (isAuthError(e) && attempt < retries) {
+        const delay = 1500 * (attempt + 1);
+        console.warn(`[AI] Auth error on attempt ${attempt + 1}, retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      console.error('[AI] Series AI text generation failed:', e);
       return null;
     }
-    
-    const modelToUse = options.model ?? DEFAULT_LLM_MODEL;
-    console.log('[AI] Requesting LLM completion with model:', modelToUse);
-    
-    const result = await RundotGameAPI.ai.requestChatCompletionAsync({
-      model: modelToUse,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
-      maxTokens: options.maxTokens ?? 2000,
-      temperature: options.temperature ?? 0.8,
-    });
-
-    // The SDK returns { message: string } according to docs
-    const content = (result as { message?: string }).message ?? 
-                    result.choices?.[0]?.message?.content ?? 
-                    null;
-    console.log('[AI] LLM response received:', content ? `length=${content.length}` : 'null');
-    console.log('[AI] Full result structure:', JSON.stringify(result).substring(0, 200));
-    return content;
-  } catch (e: unknown) {
-    const errorName = (e as { name?: string })?.name;
-    if (errorName === 'AccessDeniedError') {
-      console.warn('[AI] Text generation blocked - login required');
-    } else {
-      console.error('[AI] Series AI text generation failed:', e);
-    }
-    return null;
   }
+  return null;
 }
 
 // Image compression settings - must stay under 100KB (102400 bytes) for content pool
@@ -147,69 +191,62 @@ const COMPRESSION_QUALITY = 0.70; // 70% JPEG quality (reduced to fit 100KB limi
 const MAX_PORTRAIT_DIMENSION = 512; // Max dimension for portraits (1K with Nano Banana Pro)
 const MAX_SCENE_DIMENSION = 1024; // Max dimension for scene art (1K resolution)
 
-// Generate image using Series AI (with optional compression)
 async function generateImage(
   prompt: string,
-  options: ImageGenOptions = {}
+  options: ImageGenOptions = {},
+  retries = 1
 ): Promise<string | null> {
-  try {
-    // Pre-check authentication
-    const isAnon = RundotGameAPI.accessGate.isAnonymous();
-    console.log('[AI] generateImage called, isAnonymous:', isAnon);
-    
-    if (isAnon) {
-      console.warn('[AI] Cannot generate image - user not logged in');
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (RundotGameAPI.accessGate.isAnonymous()) {
+        console.warn('[AI] Cannot generate image - user not logged in');
+        return null;
+      }
+
+      console.log('[AI] Requesting image generation with model:', options.model ?? DEFAULT_IMAGE_MODEL);
+
+      const result = await RundotGameAPI.imageGen.generate({
+        prompt,
+        model: options.model ?? DEFAULT_IMAGE_MODEL,
+        aspectRatio: options.aspectRatio ?? '1:1',
+        removeBackground: options.removeBackground ?? false,
+        referenceImages: options.referenceImages,
+      });
+
+      let imageUrl = result.imageUrl;
+
+      if (COMPRESS_IMAGES && imageUrl) {
+        try {
+          const maxDim = options.aspectRatio === '16:9' || options.aspectRatio === '9:16'
+            ? MAX_SCENE_DIMENSION
+            : MAX_PORTRAIT_DIMENSION;
+
+          const compressed = await compressImageUrl(imageUrl, COMPRESSION_QUALITY, maxDim);
+          if (compressed && compressed !== imageUrl) {
+            imageUrl = compressed;
+          }
+        } catch (compressErr) {
+          console.warn('[AI] Compression failed, using original:', compressErr);
+        }
+      }
+
+      return imageUrl;
+    } catch (e: unknown) {
+      const errorName = (e as { name?: string })?.name;
+      if (errorName === 'AccessDeniedError') {
+        console.warn('[AI] Image generation blocked - login required');
+        return null;
+      }
+      if (isAuthError(e) && attempt < retries) {
+        console.warn(`[AI] Image auth error, retrying in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      console.error('[AI] Series AI image generation failed:', e);
       return null;
     }
-    
-    console.log('[AI] Requesting image generation with model:', options.model ?? DEFAULT_IMAGE_MODEL);
-    console.log('[AI] Image prompt:', prompt.substring(0, 100) + '...');
-    if (options.referenceImages?.length) {
-      console.log('[AI] Using reference images:', options.referenceImages);
-    }
-    
-    console.log('[AI] Calling RundotGameAPI.imageGen.generate...');
-    const result = await RundotGameAPI.imageGen.generate({
-      prompt,
-      model: options.model ?? DEFAULT_IMAGE_MODEL,
-      aspectRatio: options.aspectRatio ?? '1:1',
-      removeBackground: options.removeBackground ?? false,
-      referenceImages: options.referenceImages,
-    });
-
-    let imageUrl = result.imageUrl;
-    console.log('[AI] Image generated successfully:', imageUrl?.substring(0, 50) + '...');
-    
-    // Compress image if enabled
-    if (COMPRESS_IMAGES && imageUrl) {
-      try {
-        const maxDim = options.aspectRatio === '16:9' || options.aspectRatio === '9:16' 
-          ? MAX_SCENE_DIMENSION 
-          : MAX_PORTRAIT_DIMENSION;
-        
-        console.log('[AI] Compressing image to', maxDim, 'px max @', COMPRESSION_QUALITY * 100, '% quality...');
-        const compressed = await compressImageUrl(imageUrl, COMPRESSION_QUALITY, maxDim);
-        
-        if (compressed && compressed !== imageUrl) {
-          console.log(`[AI] Compression complete: ${(compressed.length / 1024).toFixed(1)}KB data URL`);
-          imageUrl = compressed;
-        }
-      } catch (compressErr) {
-        console.warn('[AI] Compression failed, using original:', compressErr);
-      }
-    }
-    
-    return imageUrl;
-  } catch (e: unknown) {
-    const errorName = (e as { name?: string })?.name;
-    const errorMessage = (e as { message?: string })?.message;
-    if (errorName === 'AccessDeniedError') {
-      console.warn('[AI] Image generation blocked - login required');
-    } else {
-      console.error('[AI] Series AI image generation failed:', errorName, errorMessage, e);
-    }
-    return null;
   }
+  return null;
 }
 
 // Get available LLM models
@@ -330,18 +367,29 @@ export async function generateStoryBeat(character: {
   motivation: string;
   secret: string;
   introDialogue: string;
-}): Promise<import('../types').NarrativeBeat | null> {
+}, playerContext?: import('./storyManager').GeneratedClassContext): Promise<import('../types').NarrativeBeat | null> {
+  const playerBlock = playerContext
+    ? `\nPLAYER CONTEXT (the adventurer this NPC is meeting):
+- Name: ${playerContext.playerName}
+- Title: ${playerContext.playerTitle}
+- Backstory: ${playerContext.playerBackstory}
+- Seeking: ${playerContext.bossName}${playerContext.bossTitle ? ` (${playerContext.bossTitle})` : ''} — the ultimate foe awaiting deep below
+- Known threats: ${playerContext.enemyNames.join(', ') || 'unknown'}
+
+The NPC should react to who the player IS. Reference the player's quest, backstory, or nemesis naturally in dialogue. The NPC may have heard rumors about the player or their target.\n`
+    : '';
+
   const prompt = `Generate a MULTI-STEP dialogue scene for this character in a dark fantasy dungeon.
 
 CHARACTER:
 - Name: ${character.name}
 - Title: ${character.title || 'Unknown'}
 - Race: ${character.race}
-- Role: ${character.role} 
+- Role: ${character.role}
 - Traits: ${character.traits.join(', ')}
 - Motivation: ${character.motivation}
 - Secret: ${character.secret}
-
+${playerBlock}
 Create a RICH, BRANCHING dialogue with multiple steps. The player should make meaningful choices that lead to different outcomes and rewards.
 
 Generate JSON with this schema:
@@ -1260,9 +1308,10 @@ IMPORTANT: Make this encounter MEMORABLE. The player should FEEL something.
 - If archetype is 'broken', make the player confront existential despair.
 - Include at least ONE moment that reveals the horror of being trapped forever.
 - Include a QUEST node that unlocks through compassionate/clever dialogue paths.
-- The quest should relate to their backstory (avenge them, find lost items, carry a message).`;
+- The quest should relate to their backstory (avenge them, find lost items, carry a message).
+- KEEP dialogue text SHORT (1-3 sentences per node). Do NOT write long paragraphs.`;
 
-  const content = await generateText(prompt, { temperature: 0.9 });
+  const content = await generateText(prompt, { temperature: 0.9, maxTokens: 5000 });
   if (!content) return null;
 
   const parsed = parseJSON<{
@@ -1426,9 +1475,6 @@ export async function preGenerateEnemyEncounters(
   return results;
 }
 
-// Style reference for enemy portraits - green/orange/black pixel art
-const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/blvhjo8.png';
-
 // Internal enemy portrait generation (without pool)
 async function _generateEnemyPortraitDirect(
   portraitPrompt: string,
@@ -1452,11 +1498,13 @@ STYLE REQUIREMENTS:
    - Visible chunky pixels like 8-bit or 16-bit retro games
    - Sharp pixelated edges, NO smooth gradients
    - NO anti-aliasing, NO photorealistic rendering
+   - Blocky pixel art aesthetic like classic 16-bit RPGs
+   - Bold outlines, low resolution chunky pixels visible
    - Portrait format, head and shoulders
 
 3. AESTHETIC:
    - Dark fantasy dungeon crawler aesthetic
-   - CRT monitor / retro computer game look
+   - CRT monitor glow effect, retro computer game look
    - Match the style of classic roguelike games
    - Black background with glowing green/orange pixels
 
@@ -1473,7 +1521,6 @@ STYLE REQUIREMENTS:
   return generateImage(pixelArtPrompt, {
     aspectRatio: '1:1',
     removeBackground: false,
-    referenceImages: [PORTRAIT_STYLE_REFERENCE],
   });
 }
 
@@ -1556,9 +1603,7 @@ STYLE REQUIREMENTS:
     const result = await generateImage(pixelArtPrompt, {
       aspectRatio: '1:1',
       removeBackground: false,
-      referenceImages: [PORTRAIT_STYLE_REFERENCE],
     });
-    console.log('[AI] Room event image generation result:', result ? 'success' : 'null');
     return result;
   } catch (err) {
     console.error('[AI] Room event image generation error:', err);
@@ -1736,10 +1781,7 @@ Make stats balanced - high attack means low defense, high HP means low speed, et
   };
 }
 
-// Internal mercenary portrait generation (without pool)
 async function _generateMercenaryPortraitDirect(merc: MercenaryDef): Promise<string | null> {
-  const styleRefs = getPortraitStyleReferences();
-  
   const prompt = `PIXEL ART mercenary portrait for a retro dungeon crawler game.
 STRICT COLOR PALETTE: Only use GREEN (#00ff00, #44ff44, #228822), ORANGE (#ff8800, #ffaa44, #cc6600), and BLACK (#000000, #111111, #222222).
 NO other colors allowed - this is critical.
@@ -1757,14 +1799,12 @@ STYLE REQUIREMENTS:
 - Bold outlines, no anti-aliasing
 - Low resolution chunky pixels visible
 - Armored warrior ready for battle
+- NO smooth gradients, NO photorealistic rendering
 - NO text, labels, or writing of any kind`;
 
-  console.log('[AI] Using', styleRefs.length, 'reference images for mercenary portrait');
-  
   return generateImage(prompt, {
     aspectRatio: '1:1',
     removeBackground: false,
-    referenceImages: styleRefs,
   });
 }
 
@@ -1880,10 +1920,7 @@ Note: statBonus and skillBonus should only include non-zero values. Keep bonuses
   };
 }
 
-// Internal character portrait generation (without pool)
 async function _generateCharacterPortraitDirect(character: StoryCharacter): Promise<string | null> {
-  const styleRefs = getPortraitStyleReferences();
-  
   const prompt = `PIXEL ART character portrait for a retro dungeon crawler game.
 STRICT COLOR PALETTE: Only use GREEN (#00ff00, #44ff44, #228822), ORANGE (#ff8800, #ffaa44, #cc6600), and BLACK (#000000, #111111, #222222).
 NO other colors allowed - this is critical.
@@ -1900,14 +1937,12 @@ STYLE REQUIREMENTS:
 - Dark dungeon atmosphere
 - Bold outlines, no anti-aliasing
 - Low resolution chunky pixels visible
+- NO smooth gradients, NO photorealistic rendering
 - NO text, labels, or writing of any kind`;
 
-  console.log('[AI] Using', styleRefs.length, 'reference images for portrait style');
-  
   return generateImage(prompt, {
     aspectRatio: '1:1',
     removeBackground: false,
-    referenceImages: styleRefs,
   });
 }
 
@@ -2221,12 +2256,9 @@ STYLE REQUIREMENTS:
    - No red, no blue, no purple, no brown, no pink
    - Everything rendered in green and orange on black`;
 
-      const styleRef = 'https://i.imgur.com/blvhjo8.png';
-      
       return generateImage(prompt, {
         aspectRatio: '16:9',
         removeBackground: false,
-        referenceImages: [styleRef],
       });
     },
     {

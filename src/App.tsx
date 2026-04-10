@@ -1,4 +1,5 @@
 import { Game } from './game/Game';
+import { AdBanner } from './game/AdBanner';
 import './style.css';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
       {/* Main App */}
       <div className="app-container">
         <Game />
+        <AdBanner />
       </div>
     </>
   );

@@ -98,6 +98,7 @@ export {
   handleDialogueComplete,
   getStoryProgress,
   prepareRunContent,
+  type GeneratedClassContext,
   isContentReady,
   onFloorEnter,
   onCombatStart,

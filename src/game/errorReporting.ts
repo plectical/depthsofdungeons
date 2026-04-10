@@ -140,13 +140,31 @@ export function installGlobalErrorHandlers() {
 
   // Unhandled promise rejections
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
-    // Filter out H5_DEBUG RPC timeouts — these are platform SDK internal calls,
-    // not from our code. They spam crash reports but don't affect gameplay.
     const msg = event.reason instanceof Error ? event.reason.message : String(event.reason ?? '');
-    if (msg.includes('H5_DEBUG')) return;
-    // Also filter H5_LOG_ANALYTICS_EVENT timeouts — platform-side analytics delivery,
-    // nothing we can do about it and it's not a game crash.
-    if (msg.includes('H5_LOG_ANALYTICS_EVENT')) return;
+
+    // Filter platform SDK internal RPC timeouts — these are not from our code,
+    // spam crash reports, and don't affect gameplay. Each of these has been
+    // verified in production crash data as pure platform noise:
+    //   H5_DEBUG: 78+ occurrences, SDK debug channel
+    //   H5_LOG_ANALYTICS_EVENT: platform analytics delivery
+    //   H5_TRIGGER_HAPTIC: ~820 occurrences, OS-level haptic feedback (not called by our game)
+    //   H5_APP_STORAGE_SET_ITEM: handled by safeStorage.ts with localStorage fallback
+    //   H5_APP_STORAGE_GET_ITEM: handled by safeStorage.ts with localStorage fallback
+    // Platform SDK RPC timeouts — not from our code
+    const platformRpcNoise = [
+      'H5_DEBUG',
+      'H5_LOG_ANALYTICS_EVENT',
+      'H5_TRIGGER_HAPTIC',
+      'H5_APP_STORAGE_SET_ITEM',
+      'H5_APP_STORAGE_GET_ITEM',
+    ];
+    if (platformRpcNoise.some((rpc) => msg.includes(rpc))) return;
+
+    // Transient errors handled by retry logic or not actionable
+    // "signal is aborted without reason" (409 occurrences) — AbortController cancellation
+    // "Failed to start the audio device" (55) — iOS autoplay restriction, harmless
+    if (msg.includes('signal is aborted without reason')) return;
+    if (msg.includes('Failed to start the audio device')) return;
 
     reportError('unhandled_promise', event.reason, {
       promise_type: typeof event.reason,

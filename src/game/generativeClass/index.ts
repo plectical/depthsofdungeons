@@ -38,6 +38,8 @@ export {
 // Generator
 export {
   generateClass,
+  generateClassPreview,
+  completeClassGeneration,
   getGenerationState,
   resetGeneration,
   exportClassAsJSON,

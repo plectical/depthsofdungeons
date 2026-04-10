@@ -23,7 +23,6 @@ import { compressImageUrl } from '../story/imageCompression';
 // Use same models as seriesAI.ts for consistency
 const LLM_MODEL = 'claude-haiku-4-5'; // Fast text generation
 const IMAGE_MODEL = 'gemini-3-pro-image-preview'; // Nano Banana Pro for higher quality portraits
-const PORTRAIT_STYLE_REFERENCE = 'https://i.imgur.com/blvhjo8.png';
 
 let generationState: ClassGenerationState = {
   isGenerating: false,
@@ -49,66 +48,117 @@ function parseJSON<T>(text: string): T | null {
     }
     return null;
   } catch {
+    // Attempt truncated JSON recovery
+    const jsonMatch = text.match(/\{[\s\S]*/);
+    if (jsonMatch) {
+      let s = jsonMatch[0];
+      const inString = (s.split('"').length - 1) % 2 === 1;
+      if (inString) s += '"';
+      s = s.replace(/[,:\s]+$/, '');
+      let braces = 0, brackets = 0, inStr = false;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (c === '"' && (i === 0 || s[i - 1] !== '\\')) { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (c === '{') braces++;
+        else if (c === '}') braces--;
+        else if (c === '[') brackets++;
+        else if (c === ']') brackets--;
+      }
+      for (let i = 0; i < brackets; i++) s += ']';
+      for (let i = 0; i < braces; i++) s += '}';
+      try { return JSON.parse(s) as T; } catch { /* give up */ }
+    }
     return null;
   }
 }
 
-async function generateText(prompt: string): Promise<string | null> {
-  try {
-    if (RundotGameAPI.accessGate.isAnonymous()) {
-      console.warn('[ClassGen] User not logged in');
+function isAuthError(e: unknown): boolean {
+  if (!e) return false;
+  const msg = String(e instanceof Error ? e.message : e).toLowerCase();
+  return msg.includes('401') || msg.includes('unauthorized') || msg.includes('token') || msg.includes('expired') || msg.includes('auth');
+}
+
+async function generateText(prompt: string, retries = 2): Promise<string | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (RundotGameAPI.accessGate.isAnonymous()) {
+        console.warn('[ClassGen] User not logged in');
+        return null;
+      }
+
+      const result = await RundotGameAPI.ai.requestChatCompletionAsync({
+        model: LLM_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a creative game designer generating roguelike class content. Always respond with valid JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        maxTokens: 2000,
+        temperature: 0.9,
+      });
+
+      return (result as { message?: string }).message ?? result.choices?.[0]?.message?.content ?? null;
+    } catch (e) {
+      if (isAuthError(e) && attempt < retries) {
+        const delay = 1500 * (attempt + 1);
+        console.warn(`[ClassGen] Auth error on attempt ${attempt + 1}, retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      console.error('[ClassGen] Text generation failed:', e);
+      if (isAuthError(e)) throw new Error('Session expired – please reload the game');
       return null;
     }
-    
-    const result = await RundotGameAPI.ai.requestChatCompletionAsync({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: 'You are a creative game designer generating roguelike class content. Always respond with valid JSON.' },
-        { role: 'user', content: prompt },
-      ],
-      maxTokens: 2000,
-      temperature: 0.9,
-    });
-    
-    return (result as { message?: string }).message ?? result.choices?.[0]?.message?.content ?? null;
-  } catch (e) {
-    console.error('[ClassGen] Text generation failed:', e);
-    return null;
   }
+  return null;
 }
 
-async function generatePortrait(className: string, description: string): Promise<string | null> {
-  try {
-    if (RundotGameAPI.accessGate.isAnonymous()) return null;
-    
-    const prompt = `PIXEL ART portrait of a dark fantasy dungeon character: ${className}.
+async function generatePortrait(className: string, description: string, retries = 1): Promise<string | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (RundotGameAPI.accessGate.isAnonymous()) return null;
+
+      const prompt = `PIXEL ART character portrait for a retro dungeon crawler game.
+STRICT COLOR PALETTE: Only use GREEN (#00ff00, #44ff44, #228822), ORANGE (#ff8800, #ffaa44, #cc6600), and BLACK (#000000, #111111, #222222).
+NO other colors allowed - this is critical.
+
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS, NO NAMES in the image. Pure visual art only.
+
+Character: ${className}
 ${description}
 
-Style requirements:
-- Retro pixel art style, 32x32 or 64x64 aesthetic
-- Dark fantasy roguelike dungeon crawler aesthetic
-- Limited color palette: dark greens, oranges, blacks, grays
+STYLE REQUIREMENTS:
+- Blocky pixel art aesthetic like classic 16-bit RPGs
+- CRT monitor glow effect
+- Dark dungeon atmosphere with torch lighting
+- Bold outlines, no anti-aliasing
+- Low resolution chunky pixels visible
 - Character facing forward, shoulders up portrait
-- Dramatic dungeon lighting
-- NO TEXT, NO WORDS, NO LETTERS in the image
-- Sharp pixelated edges, atmospheric`;
+- NO smooth gradients, NO photorealistic rendering
+- NO text, labels, or writing of any kind`;
 
-    const result = await RundotGameAPI.imageGen.generate({
-      prompt,
-      model: IMAGE_MODEL,
-      aspectRatio: '1:1',
-      removeBackground: false,
-      referenceImages: [PORTRAIT_STYLE_REFERENCE],
-    });
-    
-    if (result.imageUrl) {
-      return compressImageUrl(result.imageUrl, 0.9, 512);
+      const result = await RundotGameAPI.imageGen.generate({
+        prompt,
+        model: IMAGE_MODEL,
+        aspectRatio: '1:1',
+        removeBackground: false,
+      });
+
+      if (result.imageUrl) {
+        return compressImageUrl(result.imageUrl, 0.9, 512);
+      }
+      return null;
+    } catch (e) {
+      if (isAuthError(e) && attempt < retries) {
+        console.warn(`[ClassGen] Portrait auth error, retrying in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      console.error('[ClassGen] Portrait generation failed:', e);
+      return null;
     }
-    return null;
-  } catch (e) {
-    console.error('[ClassGen] Portrait generation failed:', e);
-    return null;
   }
+  return null;
 }
 
 // Archetype thumbnail descriptions for image generation
@@ -127,46 +177,58 @@ const ARCHETYPE_THUMBNAIL_PROMPTS: Record<ArchetypeId, string> = {
 
 // Generate a thumbnail for a specific archetype
 export async function generateArchetypeThumbnail(archetypeId: ArchetypeId): Promise<string | null> {
-  try {
-    if (RundotGameAPI.accessGate.isAnonymous()) return null;
-    
-    const archetype = getArchetype(archetypeId);
-    const description = ARCHETYPE_THUMBNAIL_PROMPTS[archetypeId];
-    
-    const prompt = `PIXEL ART portrait representing the "${archetype.name}" class archetype.
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      if (RundotGameAPI.accessGate.isAnonymous()) return null;
+
+      const archetype = getArchetype(archetypeId);
+      const description = ARCHETYPE_THUMBNAIL_PROMPTS[archetypeId];
+
+      const prompt = `PIXEL ART character portrait for a retro dungeon crawler game.
+STRICT COLOR PALETTE: Only use GREEN (#00ff00, #44ff44, #228822), ORANGE (#ff8800, #ffaa44, #cc6600), and BLACK (#000000, #111111, #222222).
+NO other colors allowed - this is critical.
+
+CRITICAL: NO TEXT, NO WORDS, NO LETTERS, NO NAMES in the image. Pure visual art only.
+
+Character: The "${archetype.name}" class archetype
 ${description}
 
-CRITICAL STYLE REQUIREMENTS:
-1. STRICT COLOR PALETTE - ONLY USE:
-   - GREEN (#00ff00, #44ff44, #22aa22, #115511) - main color
-   - ORANGE/AMBER (#ffcc44, #ff8800, #cc6600) - accents, eyes
-   - BLACK (#000000, #111111) - background
-2. Retro pixel art, chunky visible pixels like 16-bit games
-3. Dark fantasy dungeon aesthetic
-4. Portrait format showing character concept
-5. NO TEXT, NO WORDS, NO LETTERS
-6. Black background with glowing pixels`;
+STYLE REQUIREMENTS:
+- Blocky pixel art aesthetic like classic 16-bit RPGs
+- CRT monitor glow effect
+- Dark dungeon atmosphere with torch lighting
+- Bold outlines, no anti-aliasing
+- Low resolution chunky pixels visible
+- Portrait format, head and shoulders
+- NO smooth gradients, NO photorealistic rendering
+- NO text, labels, or writing of any kind`;
 
-    console.log(`[ClassGen] Generating thumbnail for ${archetypeId}...`);
-    
-    const result = await RundotGameAPI.imageGen.generate({
-      prompt,
-      model: IMAGE_MODEL,
-      aspectRatio: '1:1',
-      removeBackground: false,
-      referenceImages: [PORTRAIT_STYLE_REFERENCE],
-    });
-    
-    if (result.imageUrl) {
-      const compressed = await compressImageUrl(result.imageUrl, 0.85, 256);
-      console.log(`[ClassGen] Thumbnail generated for ${archetypeId}`);
-      return compressed;
+      console.log(`[ClassGen] Generating thumbnail for ${archetypeId}...`);
+
+      const result = await RundotGameAPI.imageGen.generate({
+        prompt,
+        model: IMAGE_MODEL,
+        aspectRatio: '1:1',
+        removeBackground: false,
+      });
+
+      if (result.imageUrl) {
+        const compressed = await compressImageUrl(result.imageUrl, 0.85, 256);
+        console.log(`[ClassGen] Thumbnail generated for ${archetypeId}`);
+        return compressed;
+      }
+      return null;
+    } catch (e) {
+      if (isAuthError(e) && attempt === 0) {
+        console.warn(`[ClassGen] Thumbnail auth error for ${archetypeId}, retrying in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      console.error(`[ClassGen] Thumbnail generation failed for ${archetypeId}:`, e);
+      return null;
     }
-    return null;
-  } catch (e) {
-    console.error(`[ClassGen] Thumbnail generation failed for ${archetypeId}:`, e);
-    return null;
   }
+  return null;
 }
 
 // Get cached archetype thumbnail from localStorage
@@ -191,7 +253,11 @@ export function cacheArchetypeThumbnail(archetypeId: ArchetypeId, url: string): 
 // MAIN GENERATION FUNCTION
 // ══════════════════════════════════════════════════════════════
 
-export async function generateClass(
+/**
+ * Fast preview: identity + resource/ability + portrait only (~3-4s).
+ * Returns a playable class with fallback defaults for deferred content.
+ */
+export async function generateClassPreview(
   archetypeId?: ArchetypeId,
   onProgress?: (progress: number, stage: string) => void
 ): Promise<GeneratedClass | null> {
@@ -199,60 +265,25 @@ export async function generateClass(
     console.warn('[ClassGen] Generation already in progress');
     return null;
   }
-  
+
   updateState({ isGenerating: true, progress: 0, stage: 'archetype', error: null });
-  
+
   try {
-    // Step 1: Select archetype
     const archetype = archetypeId ? getArchetype(archetypeId) : getRandomArchetype();
-    onProgress?.(5, `Rolling ${archetype.name} archetype...`);
-    updateState({ progress: 5, stage: 'identity' });
-    
-    // Step 2: Generate class identity
-    onProgress?.(10, 'Creating class identity...');
+    onProgress?.(10, `Rolling ${archetype.name} archetype...`);
+    updateState({ progress: 10, stage: 'identity' });
+
     const identity = await generateClassIdentity(archetype.id);
     if (!identity) throw new Error('Failed to generate class identity');
-    updateState({ progress: 20, stage: 'abilities' });
-    
-    // Step 3: Generate resource and ability
-    onProgress?.(25, `Designing ${identity.name}'s abilities...`);
-    const { resource, ability } = await generateResourceAndAbility(archetype.id, identity);
-    updateState({ progress: 35 });
-    
-    // Step 4: Generate passives
-    onProgress?.(40, 'Creating passive abilities...');
-    const passives = await generatePassives(archetype.id, identity, ability);
-    updateState({ progress: 45, stage: 'gear' });
-    
-    // Step 5: Generate starting gear
-    onProgress?.(50, 'Forging class gear...');
-    const startingGear = await generateGear(archetype.id, identity, ability);
-    updateState({ progress: 55 });
-    
-    // Step 6: Generate skill tree
-    onProgress?.(60, 'Building skill tree...');
-    const skillTree = await generateSkillTree(archetype.id, identity, ability);
-    updateState({ progress: 70, stage: 'enemies' });
-    
-    // Step 7: Generate enemies
-    onProgress?.(75, 'Creating challengers...');
-    const enemies = await generateEnemies(archetype.id, identity);
-    updateState({ progress: 80 });
-    
-    // Step 8: Generate boss
-    onProgress?.(85, 'Summoning the nemesis...');
-    const boss = await generateBoss(archetype.id, identity, ability);
-    updateState({ progress: 90 });
-    
-    // Step 9: Generate quests
-    const quests = generateQuests(archetype.id, identity, ability);
-    updateState({ progress: 95, stage: 'portrait' });
-    
-    // Step 10: Generate portrait
-    onProgress?.(95, `Painting ${identity.name}...`);
-    const portraitUrl = await generatePortrait(identity.name, identity.appearanceDescription);
-    
-    // Assemble final class
+    updateState({ progress: 40, stage: 'abilities' });
+
+    onProgress?.(40, `Designing ${identity.name}'s abilities...`);
+    const [resourceAbility, portraitUrl] = await Promise.all([
+      generateResourceAndAbility(archetype.id, identity),
+      generatePortrait(identity.name, identity.appearanceDescription),
+    ]);
+    const { resource, ability } = resourceAbility;
+
     const generatedClass: GeneratedClass = {
       id: `gen_${archetype.id}_${Date.now()}`,
       name: identity.name,
@@ -270,40 +301,135 @@ export async function generateClass(
       levelBonusDef: identity.levelBonusDef,
       resource,
       ability,
-      passives,
-      startingGear,
-      skillTree,
-      enemies,
-      boss,
-      quests,
+      passives: FALLBACK_PASSIVES,
+      startingGear: makeFallbackGear(identity.color),
+      skillTree: { paths: [] },
+      enemies: [],
+      boss: FALLBACK_BOSS,
+      quests: generateQuests(archetype.id, identity, ability),
       plays: 0,
       rating: 0,
       isPublic: false,
       createdAt: new Date().toISOString(),
       isGenerated: true,
       generatedAt: new Date().toISOString(),
+      _needsCompletion: true,
     };
-    
-    updateState({ 
-      isGenerating: false, 
-      progress: 100, 
+
+    updateState({
+      isGenerating: false,
+      progress: 100,
       stage: 'complete',
-      currentClass: generatedClass 
+      currentClass: generatedClass,
     });
-    
-    onProgress?.(100, 'Class ready!');
+    onProgress?.(100, 'Preview ready!');
     return generatedClass;
-    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[ClassGen] Generation failed:', error);
-    updateState({ 
-      isGenerating: false, 
-      error: errorMessage,
-      stage: 'idle' 
-    });
+    console.error('[ClassGen] Preview generation failed:', error);
+    updateState({ isGenerating: false, error: errorMessage, stage: 'idle' });
+    if (error instanceof Error && isAuthError(error)) throw error;
     return null;
   }
+}
+
+/**
+ * Fill in deferred content: passives, gear, enemies, boss, skill tree — all in parallel (~2-3s).
+ * Mutates the class in place and returns it.
+ */
+export async function completeClassGeneration(
+  genClass: GeneratedClass,
+  onProgress?: (progress: number, stage: string) => void
+): Promise<GeneratedClass> {
+  if (!genClass._needsCompletion) {
+    return genClass;
+  }
+
+  const archetypeId = genClass.archetype;
+  const identity: ClassIdentity = {
+    name: genClass.name,
+    title: genClass.title,
+    char: genClass.char,
+    color: genClass.color,
+    icon: genClass.icon,
+    description: genClass.description,
+    backstory: genClass.backstory,
+    appearanceDescription: genClass.backstory,
+    baseStats: genClass.baseStats,
+    levelBonusHp: genClass.levelBonusHp,
+    levelBonusAtk: genClass.levelBonusAtk,
+    levelBonusDef: genClass.levelBonusDef,
+  };
+  const ability = genClass.ability;
+
+  onProgress?.(10, 'Preparing your adventure...');
+  let completed = 0;
+  const trackProgress = () => {
+    completed++;
+    const pct = Math.round((completed / 5) * 100);
+    onProgress?.(pct, ['Passives ready', 'Gear forged', 'Skill tree grown', 'Challengers summoned', 'Nemesis awakened'][completed - 1] ?? 'Building...');
+  };
+
+  const [passives, startingGear, skillTree, enemies, boss] = await Promise.all([
+    generatePassives(archetypeId, identity, ability).then(r => { trackProgress(); return r; }),
+    generateGear(archetypeId, identity, ability).then(r => { trackProgress(); return r; }),
+    generateSkillTree(archetypeId, identity, ability).then(r => { trackProgress(); return r; }),
+    generateEnemies(archetypeId, identity).then(r => { trackProgress(); return r; }),
+    generateBoss(archetypeId, identity, ability).then(r => { trackProgress(); return r; }),
+  ]);
+
+  genClass.passives = passives;
+  genClass.startingGear = startingGear;
+  genClass.skillTree = skillTree;
+  genClass.enemies = enemies;
+  genClass.boss = boss;
+  genClass.quests = generateQuests(archetypeId, identity, ability);
+  genClass._needsCompletion = false;
+
+  return genClass;
+}
+
+const FALLBACK_PASSIVES: GeneratedPassive[] = [
+  { id: 'passive_1', name: 'Resilience', description: '+10% HP', icon: '❤️', unlockLevel: 1, effect: { type: 'stat_bonus', stat: 'hp', value: 3 } },
+  { id: 'passive_2', name: 'Strength', description: '+2 Attack', icon: '⚔️', unlockLevel: 4, effect: { type: 'stat_bonus', stat: 'attack', value: 2 } },
+  { id: 'passive_3', name: 'Expertise', description: 'Ability costs -1', icon: '✨', unlockLevel: 7, effect: { type: 'resource_bonus', value: -1 } },
+];
+
+function makeFallbackGear(color: string): GeneratedGearDef[] {
+  return [
+    { id: 'starter_weapon', name: 'Starter Blade', description: 'A basic weapon', slot: 'weapon', icon: '⚔️', color, statBonus: { attack: 2 }, rarity: 'common' },
+    { id: 'starter_accessory', name: 'Starter Charm', description: 'A basic accessory', slot: 'accessory', icon: '📿', color, statBonus: { hp: 5 }, rarity: 'common' },
+  ];
+}
+
+const FALLBACK_BOSS: GeneratedBossDef = {
+  id: 'boss_default',
+  name: 'The Guardian',
+  title: 'The Dungeon\'s Heart',
+  description: 'A powerful enemy',
+  char: 'B',
+  color: '#ff4444',
+  stats: { hp: 100, maxHp: 100, attack: 10, defense: 3, speed: 7 },
+  phases: [
+    { hpThreshold: 1.0, name: 'Guardian', abilities: ['strike'], description: 'Normal combat' },
+    { hpThreshold: 0.5, name: 'Enraged', abilities: ['frenzy'], description: 'Attacks faster' },
+  ],
+  challengeDescription: 'A test of strength',
+  xpValue: 100,
+};
+
+/**
+ * Legacy all-in-one generation. Still works but slower (~7-8s).
+ * Prefer generateClassPreview + completeClassGeneration for faster UX.
+ */
+export async function generateClass(
+  archetypeId?: ArchetypeId,
+  onProgress?: (progress: number, stage: string) => void
+): Promise<GeneratedClass | null> {
+  const preview = await generateClassPreview(archetypeId, onProgress);
+  if (!preview) return null;
+  await completeClassGeneration(preview, onProgress);
+  return preview;
 }
 
 // ══════════════════════════════════════════════════════════════

@@ -22,16 +22,29 @@ export function useMusic(assetPath: string) {
       }
     });
 
-    RundotGameAPI.cdn.fetchAsset(assetPath, { timeout: 60000 }).then((blob) => {
-      if (cancelled) return;
-      const url = URL.createObjectURL(blob);
-      blobUrlRef.current = url;
-      const audio = new Audio(url);
-      audio.loop = true;
-      audio.volume = 0.4;
-      audioRef.current = audio;
-      setReady(true);
-    }).catch(() => {});
+    (async () => {
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const blob = await RundotGameAPI.cdn.fetchAsset(assetPath, { timeout: 30000 });
+          if (cancelled) return;
+          const url = URL.createObjectURL(blob);
+          blobUrlRef.current = url;
+          const audio = new Audio(url);
+          audio.loop = true;
+          audio.volume = 0.4;
+          audioRef.current = audio;
+          setReady(true);
+          return;
+        } catch (err) {
+          lastErr = err;
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          }
+        }
+      }
+      console.warn('[useMusic] CDN fetch failed after 3 attempts:', lastErr);
+    })();
 
     return () => {
       cancelled = true;

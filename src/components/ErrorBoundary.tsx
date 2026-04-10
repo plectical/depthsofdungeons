@@ -38,9 +38,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private async attemptEmergencySave(): Promise<void> {
     try {
-      // The auto-save system saves periodically, but do one more attempt now
-      // in case the crash happened between saves
       RundotGameAPI.log('Emergency save attempted after crash');
+      // Trigger the last-resort localStorage backup for any pending state.
+      // The periodic auto-save (30s) + action-triggered saves mean the
+      // localStorage mirror in safeStorage should have recent data,
+      // but try to flush anything pending.
+      const keys = ['autosave', 'bloodline', 'bestFloor', 'questEchoData'];
+      for (const key of keys) {
+        const backup = localStorage.getItem(`dod_backup_${key}`);
+        if (backup) {
+          RundotGameAPI.appStorage.setItem(key, backup).catch(() => {});
+        }
+      }
     } catch {
       // Can't save — the game state may be corrupted
     }

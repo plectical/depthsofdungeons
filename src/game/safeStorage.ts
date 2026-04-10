@@ -71,7 +71,10 @@ export async function safeSetItem(key: string, value: string): Promise<void> {
         } catch { /* analytics unavailable */ }
       }
     } catch (e) {
-      reportError('storage_write', e, { key });
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes('permission') && !msg.includes('Permission')) {
+        reportError('storage_write', e, { key });
+      }
     } finally {
       _pendingWrites.delete(key);
     }
@@ -112,8 +115,10 @@ export async function safeGetItem(key: string): Promise<string | null> {
     }
     return backup;
   } catch (e) {
-    reportError('storage_read', e, { key });
-    // Last resort: try localStorage
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes('permission') && !msg.includes('Permission')) {
+      reportError('storage_read', e, { key });
+    }
     return lsGet(key);
   }
 }

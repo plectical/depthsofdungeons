@@ -7,8 +7,8 @@ import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 import { getVariant, trackExposure, forceVariant, getNarrativeExperimentInfo } from './abTesting';
 import type { GameState, PlayerClass, BloodlineData, AncestorRecord, TraitDef, ZoneId, TutorialStepId } from './types';
 import { TutorialBar, TUTORIAL_STEPS } from './TutorialBar';
-import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, addMessage, useGeneratedAbility, getGeneratedClassInfo } from './engine';
-import { CLASS_DEFS, getHellbornClass } from './constants';
+import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, impregnate, getImpregnarInfo, addMessage, useGeneratedAbility, getGeneratedClassInfo } from './engine';
+import { CLASS_DEFS, getHellbornClass, HELLBORN_CLASS } from './constants';
 import { createDefaultBloodline, mergeRunIntoBloodline, checkForNewTraits, generateAncestorName, computeBloodlineBonuses } from './traits';
 import { GameView } from './GameView';
 import { HUD } from './HUD';
@@ -50,13 +50,7 @@ import { getNewLoreIds, ALL_LORE } from './lore';
 import { GenerationLoadingScreen } from './GenerationLoadingScreen';
 import { StoryDialogue, type DialogueResult } from './StoryDialogue';
 import { GenerativeClassSelect } from './GenerativeClassSelect';
-import type { GeneratedClass, ArchetypeId } from './generativeClass';
-import { 
-  getAllArchetypes, 
-  generateArchetypeThumbnail, 
-  getCachedArchetypeThumbnail, 
-  cacheArchetypeThumbnail 
-} from './generativeClass';
+import type { GeneratedClass } from './generativeClass';
 import { SkillCheckModal } from './SkillCheckModal';
 import {
   prepareRunContent,
@@ -98,6 +92,7 @@ import { startAffliction, getAfflictionForFaction } from './afflictions';
 import { getFactionForCreature, modifyFactionReputation, REPUTATION_CHANGES, canTransformIntoFaction, FACTION_DEFS } from './factions';
 import type { FactionId } from './types';
 import { ElderGuide, markElderTipSeen } from './ElderGuide';
+import { RACE_DEFS, RACE_CATEGORIES, getRandomRace, type RaceCategory } from './races';
 import { WhatsNew, BUILD_VERSION } from './WhatsNew';
 import {
   ELDER_WELCOME, ELDER_HUNGER, ELDER_SHOP, ELDER_MERCENARY,
@@ -140,7 +135,7 @@ function getFallbackEnemyPortrait(enemyName: string): string | undefined {
   return ENEMY_PORTRAIT_FALLBACKS['default'];
 }
 
-type Screen = 'title' | 'classSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect';
+type Screen = 'title' | 'classSelect' | 'raceSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect';
 
 interface StatGain {
   label: string;
@@ -162,7 +157,9 @@ interface DeathInfo {
 function buildDeathParams(gs: GameState, duration: number, generation: number, isAutoPlay: boolean) {
   const eq = gs.player.equipment;
   return {
-    playerClass: gs.playerClass, zone: gs.zone,
+    playerClass: gs.playerClass,
+    player_class: gs.playerClass,
+    zone: gs.zone,
     floor: gs.floorNumber, level: gs.player.level,
     score: gs.score, kills: gs.runStats.kills,
     causeOfDeath: extractCauseOfDeath(gs),
@@ -191,7 +188,7 @@ export function Game() {
   const premiumBannerUrl = useCdnImage('premium-banner.jpg');
   const moreMenuBgUrl = useCdnImage('more-menu-bg.jpg');
   const moreContentBgUrl = useCdnImage('more-content-bg.jpg');
-  const classSelectBgUrl = useCdnImage('class-select-bg.jpg');
+  // const classSelectBgUrl = useCdnImage('class-select-bg.jpg'); // Replaced by grid layout
   const classPortraits: Record<string, string | null> = {
     warrior: useCdnImage('warrior-portrait.jpg'),
     'warrior-damaged': useCdnImage('warrior-damaged.jpg'),
@@ -208,11 +205,12 @@ export function Game() {
     necromancer: useCdnImage('necromancer-thumb.png'),
     'necromancer-fullscreen': useCdnImage('necromancer-fullscreen.png'),
     revenant: useCdnImage('necromancer-thumb.png'),
+    impregnar: useCdnImage('impregnar-portrait.png'),
   };
   const classBorderColors: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
-    necromancer: '#aa44dd', revenant: '#ff4444',
+    necromancer: '#aa44dd', revenant: '#ff4444', impregnar: '#88ff44',
   };
   const { muted, toggleMute, onUserInteraction } = useMusic('soundtrack.mp3');
   const [screen, setScreen] = useState<Screen>('title');
@@ -266,8 +264,10 @@ export function Game() {
   const debugTapRef = useRef<number[]>([]);
   const necroTapRef = useRef<number[]>([]);
   const [selectedClass, setSelectedClass] = useState<PlayerClass>('warrior');
+  const [selectedRace, setSelectedRace] = useState<string | undefined>(undefined);
+  const [raceFilter, setRaceFilter] = useState<RaceCategory | 'all'>('all');
   const [expandedClass, setExpandedClass] = useState<string | null>(null);
-  const [unlockInfoClass, setUnlockInfoClass] = useState<string | null>(null);
+  const [_unlockInfoClass, _setUnlockInfoClass] = useState<string | null>(null);
   const [showClassDetail, setShowClassDetail] = useState<PlayerClass | null>(null);
   const [, setActiveGeneratedClass] = useState<GeneratedClass | null>(null);
   const [savedGeneratedClasses, setSavedGeneratedClasses] = useState<GeneratedClass[]>([]);
@@ -398,57 +398,7 @@ export function Game() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, screen]);
   
-  // Pre-generate archetype thumbnails in background once user is logged in
-  // This ensures thumbnails are ready when they visit the generative class screen
-  const archetypeThumbnailsStarted = useRef(false);
-  useEffect(() => {
-    if (!isLoaded || archetypeThumbnailsStarted.current) return;
-    if (RundotGameAPI.accessGate.isAnonymous()) return;
-    
-    archetypeThumbnailsStarted.current = true;
-    
-    // Run in background - don't block anything
-    (async () => {
-      const archetypes = getAllArchetypes();
-      const missing: ArchetypeId[] = [];
-      
-      // Check which thumbnails are missing from cache
-      for (const arch of archetypes) {
-        if (!getCachedArchetypeThumbnail(arch.id)) {
-          missing.push(arch.id);
-        }
-      }
-      
-      if (missing.length === 0) {
-        console.log('[Game] All archetype thumbnails already cached');
-        return;
-      }
-      
-      console.log(`[Game] Pre-generating ${missing.length} archetype thumbnails in background...`);
-      
-      // Generate in batches of 2 to avoid rate limits
-      for (let i = 0; i < missing.length; i += 2) {
-        const batch = missing.slice(i, i + 2);
-        await Promise.all(batch.map(async (id) => {
-          try {
-            const url = await generateArchetypeThumbnail(id);
-            if (url) {
-              cacheArchetypeThumbnail(id, url);
-              console.log(`[Game] Cached archetype thumbnail: ${id}`);
-            }
-          } catch (e) {
-            console.warn(`[Game] Failed to generate thumbnail for ${id}:`, e);
-          }
-        }));
-        // Small delay between batches
-        if (i + 2 < missing.length) {
-          await new Promise(r => setTimeout(r, 500));
-        }
-      }
-      
-      console.log('[Game] Archetype thumbnail pre-generation complete');
-    })();
-  }, [isLoaded]);
+  // Archetype thumbnails are generated on-demand in GenerativeClassSelect
 
   // Generate skill check art when skill check modal opens
   useEffect(() => {
@@ -477,13 +427,12 @@ export function Game() {
     const phase = (name: string) => { (window as any).__bootPhase = name; };
     phase('game_component_mounted');
 
-    // Safety net: if loadData hasn't finished in 20s, dismiss preloader anyway
-    // so the platform doesn't hit its own 15s timeout and kill us.
-    // Increased from 12s to 20s to reduce premature dismissals on slow mobile networks
-    // (8 occurrences affecting 6 users were hitting this too early).
+    // Safety net: dismiss preloader before the platform's 15s kill timeout.
+    // We fire at 12s to leave a 3s buffer. The previous 20s value was letting
+    // the platform hit its own "Load timeout after 15000ms" (51 occurrences)
+    // and report a TIMEOUT game_error before we could dismiss it ourselves.
     const safetyTimer = setTimeout(() => {
       RundotGameAPI.preloader.hideLoadScreen().catch(() => {});
-      // Report that we hit the safety timeout — this is a degraded load
       try {
         RundotGameAPI.analytics.recordCustomEvent('load_safety_timeout', {
           elapsed_ms: Math.round(performance.now() - loadStart),
@@ -493,7 +442,7 @@ export function Game() {
           device_conn: ((navigator as any).connection || {}).effectiveType || '',
         }).catch(() => {});
       } catch { /* analytics failed */ }
-    }, 20000);
+    }, 12000);
 
     async function loadData() {
       // Phase timings — lets us see exactly which step is slow
@@ -642,8 +591,24 @@ export function Game() {
         safeSetItem('lastSeenVersion', BUILD_VERSION);
       }
 
+      // RUN TV deep link: check if launched from a TV share link with a specific class
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sp: any = RundotGameAPI.context.shareParams;
+        if (sp && sp.source === 'runtv' && sp.tvClass) {
+          const tvClass = String(sp.tvClass);
+          const validClasses: string[] = ['warrior', 'rogue', 'mage', 'ranger', 'necromancer', 'revenant', 'paladin', 'hellborn', 'impregnar'];
+          if (validClasses.includes(tvClass)) {
+            console.log('[DeepLink] RUN TV launch with class:', tvClass);
+            autoStartRef.current = true;
+            setSelectedClass(tvClass as PlayerClass);
+            RundotGameAPI.analytics.recordCustomEvent('runtv_deeplink', { class: tvClass }).catch(() => {});
+          }
+        }
+      } catch { /* share params not available */ }
+
       // First-session auto-start: skip title/class/zone and drop into gameplay
-      if (isFirstSession) {
+      if (isFirstSession && !autoStartRef.current) {
         autoStartRef.current = true;
         setSelectedClass('warrior');
       }
@@ -949,13 +914,23 @@ export function Game() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('freeze', handleFreeze);
 
+    // Periodic background auto-save every 30s — limits progress loss to
+    // max 30 seconds if WebView is killed by OS (13 crash events, 7 users).
+    // The debounced save only fires on player actions; this catches idle time.
+    const autoSaveInterval = setInterval(() => {
+      if (screenRef.current === 'game' && stateRef.current && !stateRef.current.gameOver) {
+        saveGameState();
+      }
+    }, 30000);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('freeze', handleFreeze);
+      clearInterval(autoSaveInterval);
     };
-  }, [immediateSave]);
+  }, [immediateSave, saveGameState]);
 
   const isLoadedRef = useRef(false);
   useEffect(() => { isLoadedRef.current = isLoaded; }, [isLoaded]);
@@ -1062,8 +1037,14 @@ export function Game() {
       return;
     }
     setSelectedClass(cls);
-    setScreen('zoneSelect');
+    setRaceFilter('all');
+    setScreen('raceSelect');
     trackClassSelected(cls);
+  }, []);
+
+  const selectRaceAndPickZone = useCallback((raceId: string) => {
+    setSelectedRace(raceId);
+    setScreen('zoneSelect');
   }, []);
 
   const beginGame = useCallback(async (zone: ZoneId, overrideClass?: PlayerClass) => {
@@ -1112,6 +1093,25 @@ export function Game() {
       setGenerationProgress(10);
       setGenerationMessage('Preparing your story...');
 
+      // Build generated class narrative context if applicable
+      let genClassContext: import('./story').GeneratedClassContext | undefined;
+      if (playerClass === 'generated') {
+        try {
+          const raw = localStorage.getItem('dod_backup_activeGeneratedClass');
+          if (raw) {
+            const gen = JSON.parse(raw) as GeneratedClass;
+            genClassContext = {
+              playerName: gen.name,
+              playerTitle: gen.title,
+              playerBackstory: gen.backstory,
+              bossName: gen.boss?.name ?? 'an ancient evil',
+              bossTitle: gen.boss?.title ?? '',
+              enemyNames: gen.enemies?.map(e => e.name) ?? [],
+            };
+          }
+        } catch { /* no generated class data */ }
+      }
+
       // Start content generation and wait for it before creating the game
       const generationPromise = prepareRunContent(
         playerClass,
@@ -1119,7 +1119,8 @@ export function Game() {
         (progress, message) => {
           setGenerationProgress(progress);
           setGenerationMessage(message);
-        }
+        },
+        genClassContext,
       );
 
       // Wait for initial content to be ready (or timeout after 45s for AI - needs time for LLM + image gen)
@@ -1132,7 +1133,7 @@ export function Game() {
     const echoBonuses = computeEchoBonuses(questEchoRef.current);
     setEchoUnlockedNodes(questEchoRef.current.unlockedEchoNodes);
     console.log('[Game] Creating game with class:', playerClass, 'zone:', zone);
-    const gs = safeEngineCall('newGame', () => newGame(playerClass, bloodlineRef.current, zone, echoBonuses));
+    const gs = safeEngineCall('newGame', () => newGame(playerClass, bloodlineRef.current, zone, echoBonuses, selectedRace));
     if (!gs) {
       if (isNarrativeZone) setShowGenerationLoading(false);
       return; // engine error creating game — stay on screen
@@ -1192,7 +1193,7 @@ export function Game() {
         if (!val) setShowRangedTutorial(true);
       });
     }
-  }, [isPremium, selectedClass, tryShowElderTip]);
+  }, [isPremium, selectedClass, selectedRace, tryShowElderTip]);
 
   // First-session auto-start: once data is loaded and autoStartRef is set,
   // drop the player directly into gameplay based on A/B test variant.
@@ -2015,11 +2016,18 @@ export function Game() {
 
   // Check if we should show enemy encounter dialogue before combat
   // ONLY runs in the narrative_test debug zone
+  const encounterInFlightRef = useRef(false);
+
   const checkEnemyEncounter = useCallback(async (enemyId: string, enemyName: string, enemy: import('./types').Entity): Promise<boolean> => {
     console.log('[EnemyEncounter] Checking encounter for:', enemyName, 'id:', enemyId);
     
     if (!state) {
       console.log('[EnemyEncounter] No state, skipping');
+      return false;
+    }
+
+    if (encounterInFlightRef.current || showEnemyEncounter) {
+      console.log('[EnemyEncounter] Already in-flight or showing, skipping duplicate');
       return false;
     }
     
@@ -2040,6 +2048,8 @@ export function Game() {
       console.log('[EnemyEncounter] Is boss, skipping');
       return false;
     }
+
+    encounterInFlightRef.current = true;
     
     // Check if we have a cached encounter for this enemy
     const cache = getContentCache();
@@ -2049,64 +2059,33 @@ export function Game() {
     console.log('[EnemyEncounter] Cached encounter:', encounter ? 'found' : 'not found', 'baseName:', baseName);
     
     if (!encounter) {
-      // Generate encounter dialogue on-the-fly
       console.log('[EnemyEncounter] Generating encounter...');
       setIsGeneratingEnemyEncounter(true);
       setEncounterGenStage('dialogue');
+
+      const enemyRace = enemy.name.toLowerCase().includes('goblin') ? 'goblin' :
+            enemy.name.toLowerCase().includes('skeleton') || enemy.name.toLowerCase().includes('zombie') ? 'undead' :
+            enemy.name.toLowerCase().includes('demon') || enemy.name.toLowerCase().includes('imp') ? 'demon' :
+            enemy.name.toLowerCase().includes('rat') || enemy.name.toLowerCase().includes('bat') || enemy.name.toLowerCase().includes('spider') ? 'beast' :
+            'creature';
+
       try {
         const generated = await generateEnemyEncounter({
           name: enemyName,
-          race: enemy.name.toLowerCase().includes('goblin') ? 'goblin' :
-                enemy.name.toLowerCase().includes('skeleton') || enemy.name.toLowerCase().includes('zombie') ? 'undead' :
-                enemy.name.toLowerCase().includes('demon') || enemy.name.toLowerCase().includes('imp') ? 'demon' :
-                enemy.name.toLowerCase().includes('rat') || enemy.name.toLowerCase().includes('bat') || enemy.name.toLowerCase().includes('spider') ? 'beast' :
-                'human',
+          race: enemyRace === 'creature' ? 'human' : enemyRace,
           description: `A ${enemyName} in the dungeon`,
           isBoss: enemy.isBoss ?? false,
           element: enemy.element,
         });
-        
-        console.log('[EnemyEncounter] Generation result:', generated ? 'success' : 'null');
-        
+
         if (generated) {
-          // Determine enemy race for portrait generation
-          const enemyRace = enemy.name.toLowerCase().includes('goblin') ? 'goblin' :
-                enemy.name.toLowerCase().includes('skeleton') || enemy.name.toLowerCase().includes('zombie') ? 'undead' :
-                enemy.name.toLowerCase().includes('demon') || enemy.name.toLowerCase().includes('imp') ? 'demon' :
-                enemy.name.toLowerCase().includes('rat') || enemy.name.toLowerCase().includes('bat') || enemy.name.toLowerCase().includes('spider') ? 'beast' :
-                'creature';
-          
-          // Generate pixel art portrait from prompt
-          let portraitUrl: string | undefined;
-          if (generated.portraitPrompt) {
-            console.log('[EnemyEncounter] Generating pixel art portrait...');
-            setEncounterGenStage('portrait');
-            try {
-              portraitUrl = await generateEnemyPortraitFromPrompt(
-                generated.portraitPrompt,
-                enemyRace,
-                generated.characterName || enemyName
-              ) ?? undefined;
-              
-              // Preload the image so it's ready when dialogue shows
-              if (portraitUrl) {
-                console.log('[EnemyEncounter] Preloading portrait image...');
-                setEncounterGenStage('loading');
-                await preloadImage(portraitUrl);
-                console.log('[EnemyEncounter] Portrait fully loaded!');
-              }
-            } catch (portraitErr) {
-              console.warn('[EnemyEncounter] Portrait generation failed:', portraitErr);
-            }
-          }
-          
           encounter = {
             enemyId,
             enemyName,
             characterName: generated.characterName || enemyName,
             characterTitle: generated.characterTitle || '',
             portraitPrompt: generated.portraitPrompt,
-            portraitUrl,
+            portraitUrl: getFallbackEnemyPortrait(enemyName),
             dialogue: generated.dialogue,
             rewards: generated.rewards as Record<string, import('./types').EnemyEncounterReward>,
             quest: generated.quest ? {
@@ -2119,15 +2098,26 @@ export function Game() {
               echoReward: generated.quest.echoReward,
             } : undefined,
           };
+
+          // Generate portrait in background — don't block the encounter UI
+          if (generated.portraitPrompt) {
+            generateEnemyPortraitFromPrompt(
+              generated.portraitPrompt,
+              enemyRace,
+              generated.characterName || enemyName
+            ).then(url => {
+              if (url) {
+                setEnemyEncounterData(prev => prev ? { ...prev, portraitUrl: url } : prev);
+              }
+            }).catch(() => {});
+          }
         }
       } catch (err) {
         console.warn('[EnemyEncounter] Generation failed:', err);
       }
-      
-      // If AI generation failed, use fallback encounter
+
       if (!encounter) {
         console.log('[EnemyEncounter] Using fallback encounter');
-        // Generate a random name for fallback
         const fallbackNames = ['The Hollow One', 'Wandering Soul', 'Lost Shade', 'Broken Spirit', 'Trapped Wretch'];
         const fallbackName = fallbackNames[Math.floor(Math.random() * fallbackNames.length)] ?? 'Unknown';
         encounter = {
@@ -2135,6 +2125,7 @@ export function Game() {
           enemyName,
           characterName: fallbackName,
           characterTitle: `once ${enemyName}`,
+          portraitUrl: getFallbackEnemyPortrait(enemyName),
           dialogue: {
             rootNodeId: 'encounter',
             nodes: {
@@ -2232,12 +2223,14 @@ export function Game() {
       setEnemyEncounterData(encounter);
       setPendingEnemyId(enemyId);
       setShowEnemyEncounter(true);
+      encounterInFlightRef.current = false;
       return true;
     }
     
     console.log('[EnemyEncounter] No encounter to show');
+    encounterInFlightRef.current = false;
     return false;
-  }, [state]);
+  }, [state, showEnemyEncounter]);
 
   // ── Room Event Handlers ──
   // Start background art generation when floor changes
@@ -2847,7 +2840,9 @@ export function Game() {
       [`setInterval(()=>postMessage('tick'),200)`],
       { type: 'application/javascript' },
     );
-    const worker = new Worker(URL.createObjectURL(blob));
+    const blobUrl = URL.createObjectURL(blob);
+    const worker = new Worker(blobUrl);
+    URL.revokeObjectURL(blobUrl);
     workerRef.current = worker;
 
     worker.onmessage = () => {
@@ -3122,17 +3117,24 @@ export function Game() {
   }, [autoPlay, showRoomEvent, state?.pendingRoomEvent]);
 
   async function submitScore(score: number, duration: number) {
-    // Guard: don't submit invalid scores
     if (!score || score <= 0 || !Number.isFinite(score)) return;
     if (!duration || duration <= 0 || !Number.isFinite(duration)) return;
-    // Respect the platform's 60-second rate limit
+
+    // Anonymous users can't create score tokens — skip submit entirely
+    // to avoid the 76 "Score token required" errors hitting 53 users.
+    try {
+      if (RundotGameAPI.accessGate.isAnonymous()) return;
+    } catch {
+      // accessGate unavailable — try to submit anyway
+    }
+
     const now = Date.now();
     if (now - lastScoreSubmitRef.current < 61000) return;
     const roundedScore = Math.round(score);
     const roundedDuration = Math.round(duration);
-    // Try with the pre-created token first (token mode)
+
     const token = scoreTokenRef.current;
-    scoreTokenRef.current = null; // consume the token — one use only
+    scoreTokenRef.current = null;
     if (token) {
       try {
         await RundotGameAPI.leaderboard.submitScore({
@@ -3143,10 +3145,9 @@ export function Game() {
         lastScoreSubmitRef.current = now;
         return;
       } catch {
-        // Token may have expired (1h limit) or been rejected — fall through to retry
+        // Token expired or rejected — fall through
       }
     }
-    // Fallback 1: Try to create a fresh token and submit (fixes "Score token required" errors)
     try {
       const freshToken = await RundotGameAPI.leaderboard.createScoreToken();
       if (freshToken?.token) {
@@ -3159,9 +3160,8 @@ export function Game() {
         return;
       }
     } catch {
-      // Fresh token creation failed — try one more fallback
+      // Token creation failed
     }
-    // Fallback 2: submit without token (simple mode may still work on some server configs)
     try {
       await RundotGameAPI.leaderboard.submitScore({
         score: roundedScore,
@@ -3169,7 +3169,10 @@ export function Game() {
       });
       lastScoreSubmitRef.current = now;
     } catch (e) {
-      reportError('leaderboard_submit', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes('Score token') && !msg.includes('Invalid leaderboard')) {
+        reportError('leaderboard_submit', e);
+      }
     }
   }
 
@@ -3417,6 +3420,32 @@ export function Game() {
               >
                 [ Download Project ]
               </a>
+              <button
+                style={{ background: '#002200', border: '1px solid #44ff88', color: '#44ff88', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
+                onClick={async () => {
+                  const classes: PlayerClass[] = ['warrior', 'rogue', 'mage', 'ranger', 'paladin', 'necromancer', 'impregnar'];
+                  const links: string[] = [];
+                  for (const cls of classes) {
+                    try {
+                      const { shareUrl } = await RundotGameAPI.social.shareLinkAsync({
+                        shareParams: { source: 'runtv', tvClass: cls },
+                        metadata: {
+                          title: `Play Depths of Dungeon as ${cls.charAt(0).toUpperCase() + cls.slice(1)}!`,
+                          description: 'Start your run with this class from RUN TV',
+                        },
+                      });
+                      links.push(`${cls}: ${shareUrl}`);
+                    } catch (e) {
+                      links.push(`${cls}: FAILED - ${e}`);
+                    }
+                  }
+                  const text = links.join('\n');
+                  try { await navigator.clipboard.writeText(text); } catch {}
+                  alert('TV Links copied to clipboard:\n\n' + text);
+                }}
+              >
+                [ Gen TV Links ]
+              </button>
             </div>
           )}
 
@@ -3495,7 +3524,7 @@ export function Game() {
                   <div style={mz('m-hist', 36.9, 35.8, 47.1, 63.8)} {...mp('m-hist')} onClick={() => { setShowMoreMenu(false); setShowRunHistory(true); }} />
                   <div style={mz('m-how', 36.9, 67.0, 46.9, 95.3)} {...mp('m-how')} onClick={() => { setShowMoreMenu(false); setShowTips(true); }} />
                   <div style={mz('m-new', 50.6, 4.5, 60.5, 32.5)} {...mp('m-new')} onClick={() => { setShowMoreMenu(false); setShowWhatsNew(true); }} />
-                  <div style={mz('m-disc', 50.6, 35.8, 60.6, 64.0)} {...mp('m-disc')} onClick={() => { setShowMoreMenu(false); window.open('https://discord.gg/A9ayUtVv2Q', '_blank'); }} />
+                  <div style={mz('m-disc', 50.6, 35.8, 60.6, 64.0)} {...mp('m-disc')} onClick={() => { setShowMoreMenu(false); const a = document.createElement('a'); a.href = 'https://discord.gg/A9ayUtVv2Q'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.click(); }} />
                   <div style={mz('m-bug', 50.6, 67.0, 60.6, 95.3)} {...mp('m-bug')} onClick={() => { setShowMoreMenu(false); setShowBugReport(true); }} />
                   <div style={mz('m-close', 73.5, 28.8, 81.4, 72.2)} {...mp('m-close')} onClick={() => setShowMoreMenu(false)} />
                 </>);
@@ -3609,369 +3638,26 @@ export function Game() {
   }
 
   if (screen === 'classSelect') {
-    // Image-based class select: the background has characters already drawn in the arches.
-    // These are invisible tap zones positioned over each arch window.
-    // Coordinates based on 1080x1920 design spec converted to percentages.
-    const imageSlots: { classId: string; left: number; top: number; width: number; height: number }[] = [
-      { classId: 'warrior',  left: 7,   top: 28,  width: 25, height: 19 }, // Top-Left
-      { classId: 'rogue',    left: 37,  top: 28,  width: 25, height: 19 }, // Top-Middle
-      { classId: 'mage',     left: 67,  top: 28,  width: 25, height: 19 }, // Top-Right
-      { classId: 'ranger',   left: 7,   top: 56,  width: 25, height: 19 }, // Bottom-Left
-      { classId: 'paladin',  left: 37,  top: 56,  width: 25, height: 19 }, // Bottom-Middle
-      { classId: 'hellborn', left: 67,  top: 56,  width: 25, height: 19 }, // Bottom-Right
+    // Always show all classes (unlocked ones from dynamic sources + always-visible locked ones)
+    const unlockedNecro = getNecropolisClasses(getNecropolisState().communalDeaths, questEchoRef.current.unlockedEchoNodes);
+    const unlockedHellborn = getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes);
+    // Get all possible necropolis/hellborn classes so locked ones still appear
+    const allNecro = getNecropolisClasses(999999, ['mas_class_3', 'mas_class_4']);
+    const allClasses = [
+      ...CLASS_DEFS,
+      ...allNecro.map(c => unlockedNecro.some(u => u.id === c.id) ? c : { ...c, requiresBestFloor: 9999 }),
+      ...(unlockedHellborn.length > 0 ? unlockedHellborn : [{ ...HELLBORN_CLASS, requiresBestFloor: 9999 }]),
     ];
-    // "BACK" text position in the image (bottom center)
-    const backBtnSlot = { left: 33, top: 92, width: 34, height: 6 };
-    const allClasses = [...CLASS_DEFS, ...getNecropolisClasses(getNecropolisState().communalDeaths, questEchoRef.current.unlockedEchoNodes), ...getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes)];
 
     return (
       <>
       <div style={{
         ...fullScreenStyle,
-        overflowY: classSelectBgUrl ? 'hidden' : 'auto',
+        overflowY: 'auto',
         justifyContent: 'flex-start',
-        paddingTop: classSelectBgUrl ? 0 : 20,
-        padding: classSelectBgUrl ? 0 : 20,
-        gap: classSelectBgUrl ? 0 : 16,
+        padding: 20,
+        gap: 16,
       }}>
-        {classSelectBgUrl ? (
-          <>
-          {/* Image-based class select — single container with bg image, keeps 9:16 ratio */}
-          {/* Container fills viewport, centers a 9:16 box with the image as background */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#000',
-          }}>
-            {/* Inner box: constrained to 9:16 aspect ratio, never exceeds parent */}
-            <div style={{
-              position: 'relative',
-              /* Height fills the parent; width is derived from aspect ratio */
-              height: '100%',
-              aspectRatio: '9 / 16',
-              maxWidth: '100%',
-              backgroundImage: `url(${classSelectBgUrl})`,
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-              imageRendering: 'pixelated' as const,
-            }}>
-              {/* Tap zones over each class arch */}
-              {imageSlots.map((slot) => {
-                const cls = allClasses.find(c => c.id === slot.classId);
-                const floorLocked = cls ? bestFloor < cls.requiresBestFloor : true;
-                const registrationLocked = cls?.id === 'paladin' && !isRegistered;
-                const rogueLocked = cls?.id === 'rogue' && !addToHomeUnlocked;
-                const locked = !cls || floorLocked || registrationLocked || rogueLocked;
-
-                // Build unlock reason text for the info popup
-                let unlockHint = '';
-                if (!cls && slot.classId === 'hellborn') {
-                  unlockHint = 'Defeat bosses with different classes to unlock the Hellborne.';
-                } else if (!cls) {
-                  unlockHint = 'This hero has not been discovered yet.';
-                } else if (registrationLocked) {
-                  unlockHint = 'Create a free account to unlock the Paladin.';
-                } else if (rogueLocked) {
-                  unlockHint = 'Save the game to your home screen to unlock the Rogue.';
-                } else if (floorLocked) {
-                  unlockHint = `Reach floor ${cls.requiresBestFloor} to unlock the ${cls.name}.`;
-                }
-
-                return (
-                  <div
-                    key={slot.classId}
-                    style={{
-                      position: 'absolute',
-                      left: `${slot.left}%`,
-                      top: `${slot.top}%`,
-                      width: `${slot.width}%`,
-                      height: `${slot.height}%`,
-                      zIndex: 1,
-                    }}
-                  >
-                    {/* Main tap area */}
-                    <button
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        background: 'transparent',
-                        border: 'none',
-                        borderRadius: 0,
-                        padding: 0,
-                        cursor: locked && !registrationLocked && !rogueLocked ? 'not-allowed' : 'pointer',
-                        overflow: 'visible',
-                      }}
-                      onClick={async () => {
-                        if (!cls) return;
-                        if (registrationLocked) { setActiveElderTip(ELDER_PALADIN_UNLOCK); return; }
-                        if (rogueLocked) { setActiveElderTip(ELDER_ROGUE_UNLOCK); return; }
-                        if (!locked) {
-                          if (cls.id === 'rogue') tryShowElderTip(ELDER_ROGUE_FIRST_SELECT);
-                          if (cls.id === 'paladin') tryShowElderTip(ELDER_PALADIN_FIRST_SELECT);
-                          selectClassAndPickZone(cls.id);
-                        }
-                      }}
-                      disabled={!cls || (rogueLocked ? false : floorLocked)}
-                    />
-                    {/* Dark overlay for locked classes */}
-                    {locked && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%',
-                          background: 'rgba(0, 0, 0, 0.65)',
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )}
-                    {/* Small info button for locked classes — tucked into top-right of arch */}
-                    {locked && (cls || slot.classId === 'hellborn') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setUnlockInfoClass(unlockInfoClass === slot.classId ? null : slot.classId);
-                        }}
-                        style={{
-                          position: 'absolute',
-                          top: '4%',
-                          right: '4%',
-                          width: 16,
-                          height: 16,
-                          borderRadius: '50%',
-                          background: '#1a1a2e',
-                          border: '1.5px solid #ffd700',
-                          color: '#ffd700',
-                          fontFamily: 'serif',
-                          fontWeight: 'bold',
-                          fontSize: 9,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          zIndex: 3,
-                          padding: 0,
-                          lineHeight: 1,
-                        }}
-                      >
-                        i
-                      </button>
-                    )}
-                    {/* Unlock info popup */}
-                    {unlockInfoClass === slot.classId && locked && (cls || slot.classId === 'hellborn') && (
-                      <div
-                        onClick={() => setUnlockInfoClass(null)}
-                        style={{
-                          position: 'absolute',
-                          top: '-60%',
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          background: '#1a1a2e',
-                          border: '2px solid #ffd700',
-                          borderRadius: 8,
-                          padding: '8px 12px',
-                          color: '#ffd700',
-                          fontSize: 'clamp(9px, 1.5vw, 13px)',
-                          fontFamily: "'Press Start 2P', monospace",
-                          textAlign: 'center',
-                          whiteSpace: 'nowrap',
-                          zIndex: 10,
-                          boxShadow: '0 0 12px rgba(255, 215, 0, 0.3)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {unlockHint}
-                        <div style={{
-                          position: 'absolute',
-                          bottom: -8,
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          width: 0,
-                          height: 0,
-                          borderLeft: '8px solid transparent',
-                          borderRight: '8px solid transparent',
-                          borderTop: '8px solid #ffd700',
-                        }} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {/* Legacy Gear button — centered below Paladin */}
-              <button
-                style={{
-                  position: 'absolute',
-                  left: '50%',
-                  top: '78%',
-                  transform: 'translateX(-50%)',
-                  padding: 0,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  zIndex: 3,
-                  width: '28%',
-                  imageRendering: 'pixelated' as const,
-                }}
-                onClick={() => setShowLegacyGear(true)}
-              >
-                <img
-                  src={`${import.meta.env.BASE_URL}legacy-gear-btn.png`}
-                  alt="Legacy Gear"
-                  style={{
-                    width: '100%',
-                    height: 'auto',
-                    display: 'block',
-                    imageRendering: 'pixelated',
-                  }}
-                />
-              </button>
-              {/* Debug panel overlay for image-based class select */}
-              {debugMode && (
-                <div style={{
-                  position: 'absolute', top: 0, left: 0, right: 0,
-                  background: 'rgba(68, 0, 0, 0.92)', borderBottom: '1px solid #ff4444',
-                  padding: '6px 8px', fontFamily: 'monospace', fontSize: 9,
-                  display: 'flex', flexDirection: 'column', gap: 4, color: '#ff6666',
-                  zIndex: 20,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 'bold', fontSize: 10 }}>DEBUG</span>
-                    <span style={{ color: '#886666', fontSize: 8 }}>Gen:{bloodline.generation} Best:F{bloodline.cumulative.highestFloor}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                    <span style={{ color: '#c49eff', fontSize: 9, fontWeight: 'bold' }}>Legacy:</span>
-                    <span style={{ color: '#886666', fontSize: 8 }}>Shards: {ensureLegacyData(bloodline).essenceShards}</span>
-                    <button
-                      style={{ background: '#1a0044', color: '#c49eff', border: '1px solid #c49eff44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => { const bl = structuredClone(bloodline); const ld = ensureLegacyData(bl); addEssenceShards(ld, 50); const g = getGearForClass(ld, selectedClass); if (!g.earned) { g.earned = true; if (g.level === 0) g.level = 1; } saveBloodline(bl); setBloodline(bl); }}
-                    >+50</button>
-                    <button
-                      style={{ background: '#1a0044', color: '#c49eff', border: '1px solid #c49eff44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => { const bl = structuredClone(bloodline); const ld = ensureLegacyData(bl); addEssenceShards(ld, 500); const g = getGearForClass(ld, selectedClass); if (!g.earned) { g.earned = true; if (g.level === 0) g.level = 1; } saveBloodline(bl); setBloodline(bl); }}
-                    >+500</button>
-                    <button
-                      style={{ background: '#1a0044', color: '#ffcc33', border: '1px solid #ffcc3344', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => { const bl = structuredClone(bloodline); const ld = ensureLegacyData(bl); for (const d of LEGACY_GEAR_DEFS) { const g = getGearForClass(ld, d.classId); g.earned = true; if (g.level === 0) g.level = 1; } saveBloodline(bl); setBloodline(bl); }}
-                    >Earn All</button>
-                    <button
-                      style={{ background: '#1a0044', color: '#ff2a6d', border: '1px solid #ff2a6d44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => { const bl = structuredClone(bloodline); const ld = ensureLegacyData(bl); for (const d of LEGACY_GEAR_DEFS) { const g = getGearForClass(ld, d.classId); g.earned = true; g.level = 20; } saveBloodline(bl); setBloodline(bl); }}
-                    >Max All</button>
-                    <button
-                      style={{ background: '#440022', color: '#ff4488', border: '1px solid #ff448844', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => { const bl = structuredClone(bloodline); bl.legacyData = undefined; saveBloodline(bl); setBloodline(bl); }}
-                    >Reset</button>
-                    <button
-                      style={{ background: '#002244', color: '#44ccff', border: '1px solid #44ccff44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => { setActiveElderTip(ELDER_LEGACY_SHARD); }}
-                    >Elder Tip</button>
-                    <button
-                      style={{ background: '#220044', color: '#aa44dd', border: '1px solid #aa44dd44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => {
-                        const qe = structuredClone(questEchoRef.current);
-                        if (!qe.unlockedEchoNodes.includes('mas_class_3')) qe.unlockedEchoNodes.push('mas_class_3');
-                        if (!qe.unlockedEchoNodes.includes('mas_class_4')) qe.unlockedEchoNodes.push('mas_class_4');
-                        questEchoRef.current = qe;
-                        setQuestEchoData(qe);
-                        safeSetItem('questEchoData', JSON.stringify(qe));
-                        selectClassAndPickZone('necromancer');
-                      }}
-                    >Play Necro</button>
-                    <button
-                      style={{ background: '#440022', color: '#ff4444', border: '1px solid #ff444444', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => {
-                        const qe = structuredClone(questEchoRef.current);
-                        if (!qe.unlockedEchoNodes.includes('mas_class_3')) qe.unlockedEchoNodes.push('mas_class_3');
-                        if (!qe.unlockedEchoNodes.includes('mas_class_4')) qe.unlockedEchoNodes.push('mas_class_4');
-                        questEchoRef.current = qe;
-                        setQuestEchoData(qe);
-                        safeSetItem('questEchoData', JSON.stringify(qe));
-                        selectClassAndPickZone('revenant');
-                      }}
-                    >Play Rev</button>
-                    <button
-                      style={{ background: '#002244', color: '#44aaff', border: '1px solid #44aaff44', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: 8, cursor: 'pointer' }}
-                      onClick={() => setScreen('generativeClassSelect')}
-                    >Gen Class</button>
-                  </div>
-                </div>
-              )}
-              {/* Invisible "Back" tap zone over the BACK text in the image */}
-              <button
-                style={{
-                  position: 'absolute',
-                  left: `${backBtnSlot.left}%`,
-                  top: `${backBtnSlot.top}%`,
-                  width: `${backBtnSlot.width}%`,
-                  height: `${backBtnSlot.height}%`,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  zIndex: 2,
-                }}
-                onClick={() => { setScreen('title'); setActiveElderTip(null); setUnlockInfoClass(null); }}
-              />
-              {/* Small Necromancer button - only shown when unlocked */}
-              {(() => {
-                const necroUnlocked = getNecropolisClasses(getNecropolisState().communalDeaths, questEchoRef.current.unlockedEchoNodes).some(c => c.id === 'necromancer');
-                if (!necroUnlocked) return null;
-                return (
-                  <button
-                    style={{
-                      position: 'absolute',
-                      right: '3%',
-                      bottom: '3%',
-                      width: 'clamp(40px, 10%, 56px)',
-                      height: 'clamp(40px, 10%, 56px)',
-                      background: 'rgba(10, 0, 20, 0.85)',
-                      border: '2px solid #aa44dd',
-                      borderRadius: 8,
-                      padding: 3,
-                      cursor: 'pointer',
-                      zIndex: 3,
-                      boxShadow: '0 0 12px #aa44dd66, inset 0 0 8px #aa44dd33',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    onClick={() => {
-                      setSelectedClass('necromancer');
-                      setShowClassDetail('necromancer');
-                    }}
-                    title="Play as Necromancer"
-                  >
-                    {classPortraits['necromancer'] ? (
-                      <img
-                        src={classPortraits['necromancer']!}
-                        alt="Necromancer"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          borderRadius: 4,
-                          imageRendering: 'pixelated',
-                        }}
-                      />
-                    ) : (
-                      <span style={{ color: '#aa44dd', fontSize: 18 }}>💀</span>
-                    )}
-                  </button>
-                );
-              })()}
-            </div>
-          </div>
-          </>
-        ) : (
-          <>
         <div style={{ ...titleTextStyle, fontSize: 20 }}>Choose Your Class</div>
         {/* DEBUG PANEL — remove before shipping */}
         {debugMode && (
@@ -4351,7 +4037,10 @@ export function Game() {
                       HP:?? Atk:?? Def:?? Spd:??
                     </div>
                     <div style={{ color: '#ffd700', fontSize: 10, marginTop: 6, fontWeight: 'bold' }}>
-                      Reach floor {cls.requiresBestFloor} to unlock
+                      {cls.id === 'necromancer' ? 'Unlocked through the Necropolis'
+                        : cls.id === 'revenant' ? 'Unlocked through the Necropolis'
+                        : cls.id === 'hellborn' ? 'Defeat bosses with different classes'
+                        : `Reach floor ${cls.requiresBestFloor} to unlock`}
                     </div>
                   </>
                 ) : (
@@ -4472,8 +4161,6 @@ export function Game() {
         <button style={secondaryBtnStyle} onClick={() => { setScreen('title'); setActiveElderTip(null); }}>
           {'[ Back ]'}
         </button>
-          </>
-        )}
       </div>
       {elderPortal}
       {generationLoadingPortal}
@@ -4551,7 +4238,8 @@ export function Game() {
             }}
             onClick={() => {
               setShowClassDetail(null);
-              setScreen('zoneSelect');
+              setRaceFilter('all');
+              setScreen('raceSelect');
             }}
           />
         </div>,
@@ -4582,6 +4270,149 @@ export function Game() {
         }}
         onBack={() => setScreen('classSelect')}
       />
+    );
+  }
+
+  if (screen === 'raceSelect') {
+    const filteredRaces = raceFilter === 'all' ? RACE_DEFS : RACE_DEFS.filter(r => r.category === raceFilter);
+    const classDef = CLASS_DEFS.find(c => c.id === selectedClass);
+    return (
+      <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 16 }}>
+        <div style={{ ...titleTextStyle, fontSize: 18 }}>Choose Your Race</div>
+        <div style={{ color: '#88aa88', fontFamily: 'monospace', fontSize: 11, marginBottom: 2 }}>
+          Playing as <span style={{ color: classDef?.color ?? '#33ff66' }}>{classDef?.name ?? selectedClass}</span>
+        </div>
+
+        {/* Category filter bar */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center', marginBottom: 6, padding: '0 8px' }}>
+          <button
+            onClick={() => setRaceFilter('all')}
+            style={{
+              background: raceFilter === 'all' ? '#1a5a2a' : 'transparent',
+              border: '1px solid #1a5a2a',
+              color: raceFilter === 'all' ? '#33ff66' : '#446644',
+              fontFamily: 'monospace',
+              fontSize: 10,
+              padding: '3px 8px',
+              cursor: 'pointer',
+            }}
+          >All</button>
+          {RACE_CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setRaceFilter(cat.id)}
+              style={{
+                background: raceFilter === cat.id ? '#1a5a2a' : 'transparent',
+                border: `1px solid ${cat.color}44`,
+                color: raceFilter === cat.id ? cat.color : `${cat.color}88`,
+                fontFamily: 'monospace',
+                fontSize: 10,
+                padding: '3px 8px',
+                cursor: 'pointer',
+              }}
+            >{cat.name}</button>
+          ))}
+        </div>
+
+        {/* Random race button */}
+        <button
+          onClick={() => selectRaceAndPickZone(getRandomRace().id)}
+          style={{
+            background: 'rgba(0,0,0,0.8)',
+            border: '1px solid #ff880088',
+            color: '#ff8800',
+            fontFamily: 'monospace',
+            fontSize: 13,
+            fontWeight: 'bold',
+            padding: '8px 20px',
+            cursor: 'pointer',
+            marginBottom: 6,
+            letterSpacing: 2,
+          }}
+        >{'[ \u2684 RANDOM RACE ]'}</button>
+
+        {/* Race grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 6,
+          padding: '0 8px',
+          maxWidth: 380,
+          width: '100%',
+        }}>
+          {filteredRaces.map(race => (
+            <button
+              key={race.id}
+              onClick={() => selectRaceAndPickZone(race.id)}
+              style={{
+                background: 'rgba(0,0,0,0.75)',
+                border: `1px solid ${race.color}44`,
+                padding: '6px 6px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                gap: 6,
+                alignItems: 'flex-start',
+              }}
+            >
+              <img
+                src={`/cdn-assets/races/${race.thumbnailFile}`}
+                alt={race.name}
+                style={{ width: 44, height: 44, objectFit: 'cover', imageRendering: 'pixelated', flexShrink: 0 }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ color: race.color, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>
+                  {race.name}
+                </div>
+                <div style={{ color: '#668866', fontFamily: 'monospace', fontSize: 9, lineHeight: '12px' }}>
+                  {race.description.slice(0, 50)}{race.description.length > 50 ? '...' : ''}
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: 9, marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {race.statMods.hp != null && race.statMods.hp !== 0 && (
+                    <span style={{ color: race.statMods.hp > 0 ? '#44ff44' : '#ff4444' }}>
+                      HP{race.statMods.hp > 0 ? '+' : ''}{race.statMods.hp}
+                    </span>
+                  )}
+                  {race.statMods.attack != null && race.statMods.attack !== 0 && (
+                    <span style={{ color: race.statMods.attack > 0 ? '#44ff44' : '#ff4444' }}>
+                      ATK{race.statMods.attack > 0 ? '+' : ''}{race.statMods.attack}
+                    </span>
+                  )}
+                  {race.statMods.defense != null && race.statMods.defense !== 0 && (
+                    <span style={{ color: race.statMods.defense > 0 ? '#44ff44' : '#ff4444' }}>
+                      DEF{race.statMods.defense > 0 ? '+' : ''}{race.statMods.defense}
+                    </span>
+                  )}
+                  {race.statMods.speed != null && race.statMods.speed !== 0 && (
+                    <span style={{ color: race.statMods.speed > 0 ? '#44ff44' : '#ff4444' }}>
+                      SPD{race.statMods.speed > 0 ? '+' : ''}{race.statMods.speed}
+                    </span>
+                  )}
+                </div>
+                <div style={{ color: '#aaaa44', fontFamily: 'monospace', fontSize: 8, marginTop: 1 }}>
+                  {race.passive.name}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Back button */}
+        <button
+          onClick={() => setScreen('classSelect')}
+          style={{
+            marginTop: 10,
+            background: 'transparent',
+            border: '1px solid #333',
+            color: '#666',
+            fontFamily: 'monospace',
+            fontSize: 11,
+            padding: '6px 16px',
+            cursor: 'pointer',
+          }}
+        >{'[ Back ]'}</button>
+      </div>
     );
   }
 
@@ -4971,9 +4802,22 @@ export function Game() {
             })()}
           </button>
         </div>
-        <button style={discordBtnStyle} onClick={() => window.open('https://discord.gg/A9ayUtVv2Q', '_blank')}>
-          {'[ Discord Community ]'}
-        </button>
+        <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <a href="https://discord.gg/A9ayUtVv2Q" target="_blank" rel="noopener noreferrer" style={discordBtnStyle}>
+            {'[ Discord Community ]'}
+          </a>
+          <a
+            href="https://run-game.onelink.me/5Mmv/0h4l9shh"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={runTvBtnStyle}
+            onClick={() => {
+              try { RundotGameAPI.analytics.recordCustomEvent('runtv_tap', { screen: 'title' }); } catch {}
+            }}
+          >
+            {'[ Watch on RUN TV ]'}
+          </a>
+        </div>
         {showBloodline && <BloodlineView bloodline={bloodline} onClose={() => setShowBloodline(false)} />}
         {showNecropolis && <NecropolisView onClose={() => setShowNecropolis(false)} />}
         {showQuestLog && <QuestLog data={questEchoData} characterQuests={state?.activeCharacterQuests} onClaim={handleClaimQuest} onClaimCharacterQuest={handleClaimCharacterQuest} onClose={() => setShowQuestLog(false)} onOpenEchoTree={() => { setShowQuestLog(false); openEchoTree('death_quest_log'); }} />}
@@ -5021,9 +4865,9 @@ export function Game() {
           {muted ? '♪' : '♫'}
         </button>
       </div>
-      <button style={discordOverlayBtnStyle} onClick={() => window.open('https://discord.gg/A9ayUtVv2Q', '_blank')}>
+      <a href="https://discord.gg/A9ayUtVv2Q" target="_blank" rel="noopener noreferrer" style={discordOverlayBtnStyle}>
         {'Discord'}
-      </button>
+      </a>
       <GameView 
         state={state} 
         onChange={handleChange} 
@@ -5182,6 +5026,32 @@ export function Game() {
                 title={ready ? `Summon Skeleton! Raise a skeleton minion to fight for you (${skele.count}/${skele.max})` : skele.count >= skele.max ? `Max skeletons summoned (${skele.count}/${skele.max})` : `Summon on cooldown (${skele.cooldown} turns)`}
               >
                 {skele.cooldown > 0 ? `[ 💀 ${skele.cooldown} ]` : `[ 💀 ${skele.count}/${skele.max} ]`}
+              </button>
+            );
+          })()}
+          {state.playerClass === 'impregnar' && (() => {
+            const imp = getImpregnarInfo(state);
+            const ready = imp.cooldown === 0;
+            return (
+              <button
+                style={{
+                  ...actionBtnStyle,
+                  color: ready ? '#88ff44' : '#555555',
+                  borderColor: ready ? '#88ff44' : '#444444',
+                  textShadow: ready ? '0 0 8px #88ff4488' : undefined,
+                  cursor: ready ? 'pointer' : 'not-allowed',
+                }}
+                onClick={() => {
+                  if (!state || state.gameOver) return;
+                  const next = { ...state };
+                  const ok = impregnate(next);
+                  trackAbilityUsed({ ability: 'impregnate', playerClass: next.playerClass, floor: next.floorNumber, zone: next.zone, hpPercent: next.player.stats.hp / next.player.stats.maxHp, success: ok, source: 'manual' });
+                  if (ok) handleChange(next);
+                }}
+                disabled={!ready}
+                title={ready ? `Impregnate! Infest an adjacent enemy (${imp.broodCount} broodlings, ${imp.impregnatedCount} infested)` : `Impregnate on cooldown (${imp.cooldown} turns)`}
+              >
+                {imp.cooldown > 0 ? `[ 🤮 ${imp.cooldown} ]` : `[ 🤮 ${imp.broodCount}b ]`}
               </button>
             );
           })()}
@@ -6296,6 +6166,7 @@ const classCardRegLockedStyle: CSSProperties = {
 /* premiumBtnStyle removed — baked into background image */
 
 const discordBtnStyle: CSSProperties = {
+  display: 'inline-block',
   padding: '6px 14px',
   fontSize: 11,
   fontFamily: 'monospace',
@@ -6305,6 +6176,22 @@ const discordBtnStyle: CSSProperties = {
   borderRadius: 4,
   cursor: 'pointer',
   marginTop: 6,
+  textDecoration: 'none',
+};
+
+const runTvBtnStyle: CSSProperties = {
+  display: 'inline-block',
+  padding: '6px 14px',
+  fontSize: 11,
+  fontFamily: 'monospace',
+  background: 'rgba(68,255,136,0.1)',
+  color: '#44ff88',
+  border: '1px solid #44ff8844',
+  borderRadius: 4,
+  cursor: 'pointer',
+  marginTop: 6,
+  marginLeft: 8,
+  textDecoration: 'none',
 };
 
 /* moreMenuBtnStyle removed — baked into background image */
@@ -6339,6 +6226,7 @@ const discordOverlayBtnStyle: CSSProperties = {
   cursor: 'pointer',
   padding: '3px 6px',
   whiteSpace: 'nowrap',
+  textDecoration: 'none',
 };
 
 

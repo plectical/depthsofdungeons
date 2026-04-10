@@ -43,11 +43,11 @@ export const EXPERIMENTS: ExperimentDef[] = [
     id: 'narrative_vs_classic',
     name: 'AI Narrative Mode vs Classic Mode',
     variants: [
-      { id: 'classic', name: 'Classic Mode (Control)', weight: 50 },
-      { id: 'narrative', name: 'AI Narrative Mode', weight: 50 },
+      { id: 'classic', name: 'Classic Mode (Control)', weight: 100 },
+      { id: 'narrative', name: 'AI Narrative Mode', weight: 0 },
     ],
-    rolloutPercent: 100, // 100% of users are in this experiment
-    enabled: true,
+    rolloutPercent: 100,
+    enabled: false,
   },
 ];
 

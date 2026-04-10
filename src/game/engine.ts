@@ -1,4 +1,5 @@
 import { Tile, type GameState, type Entity, type EquipSlot, type PlayerClass, type BloodlineData, type DialogueEffect, type BossAbility, type ZoneId, type TerrainType, type MonsterAbility, type ClassDef } from './types';
+import { getRaceDef } from './races';
 import { generateFloor, isWalkableTile, getTile, getTerrainAt } from './dungeon';
 import { createPlayer, spawnMonsters, spawnItems, randomItem, spawnShop, findItemTemplate, spawnBoss, spawnMercenaries } from './entities';
 import { VIEW_RADIUS, XP_PER_LEVEL, MSG_COLOR, MONSTER_DEFS, CLASS_DEFS, HUNGER_MAX, HUNGER_PER_TURN, HUNGER_WARNING, STARVING_THRESHOLD, STARVING_DAMAGE, REGEN_INTERVAL, REGEN_HUNGER_MIN, BOSS_DEFS, MERCENARY_DEFS, RARITY_DEFS, POTION_TEMPLATES, FOOD_TEMPLATES } from './constants';
@@ -34,6 +35,162 @@ import { getRoomAtPosition, checkForRoomEvent, tickRoomEventBuffs, getRoomEventS
 
 function findZoneBossLoot(name: string): Omit<import('./types').Item, 'id'> | undefined {
   return ZONE_BOSS_LOOT.find(t => t.name === name);
+}
+
+// ─── Generated Class Narrative Beats ───
+
+function buildGenClassIntroCharacter(gen: GeneratedClass): import('./types').StoryCharacter {
+  return {
+    id: `genclass_${gen.id}`,
+    name: gen.name,
+    title: gen.title,
+    race: 'human',
+    role: 'ally',
+    traits: ['mysterious', 'determined'],
+    motivation: gen.backstory,
+    secret: '',
+    appearanceDescription: gen.description,
+    portraitUrl: gen.portraitUrl,
+    char: gen.char,
+    color: gen.color,
+    introFloorRange: [1, 1],
+    introDialogue: gen.backstory,
+    relationshipTiers: [],
+    recruitable: false,
+    isGenerated: true,
+  };
+}
+
+function buildGenClassIntroBeat(gen: GeneratedClass): import('./types').NarrativeBeat {
+  const bossName = gen.boss?.name ?? 'an ancient evil';
+  const bossTitle = gen.boss?.title ?? '';
+  const charId = `genclass_${gen.id}`;
+  const beatId = `genclass_intro_${gen.id}`;
+
+  const nodes: Record<string, import('./types').StoryDialogueNode> = {
+    root: {
+      id: 'root',
+      speaker: 'narrator',
+      text: `${gen.icon} ${gen.name} — ${gen.title}`,
+      nextNodeId: 'backstory',
+    },
+    backstory: {
+      id: 'backstory',
+      speaker: 'character',
+      characterId: charId,
+      text: gen.backstory,
+      nextNodeId: 'quest',
+    },
+    quest: {
+      id: 'quest',
+      speaker: 'narrator',
+      text: `Deep below, ${bossName}${bossTitle ? ` — ${bossTitle}` : ''} awaits. ${gen.boss?.challengeDescription ?? 'Only the worthy will survive.'}`,
+      nextNodeId: 'resolve',
+    },
+    resolve: {
+      id: 'resolve',
+      speaker: 'character',
+      characterId: charId,
+      text: `With ${gen.resource.name} as my weapon and ${gen.ability.name} at my command, I descend into the darkness.`,
+    },
+  };
+
+  return {
+    id: beatId,
+    characterId: charId,
+    beatType: 'intro',
+    trigger: { type: 'floor', floorRange: [1, 1] },
+    dialogue: { rootNodeId: 'root', nodes },
+    effects: [],
+  };
+}
+
+function buildGenClassBossBeat(gen: GeneratedClass): import('./types').NarrativeBeat | null {
+  if (!gen.boss) return null;
+  const boss = gen.boss;
+  const charId = `genclass_boss_${gen.id}`;
+  const beatId = `genclass_boss_${gen.id}`;
+
+  const nodes: Record<string, import('./types').StoryDialogueNode> = {
+    root: {
+      id: 'root',
+      speaker: 'narrator',
+      text: `The air grows heavy. A presence stirs in the darkness ahead...`,
+      nextNodeId: 'reveal',
+    },
+    reveal: {
+      id: 'reveal',
+      speaker: 'character',
+      characterId: charId,
+      text: `I am ${boss.name}${boss.title ? `, ${boss.title}` : ''}. ${boss.description ?? 'You dare challenge me?'}`,
+      nextNodeId: 'challenge',
+    },
+    challenge: {
+      id: 'challenge',
+      speaker: 'narrator',
+      text: boss.challengeDescription ?? `${boss.name} prepares to fight. This is the ultimate test.`,
+    },
+  };
+
+  return {
+    id: beatId,
+    characterId: charId,
+    beatType: 'climax',
+    trigger: { type: 'floor', floorRange: [8, 15] },
+    dialogue: { rootNodeId: 'root', nodes },
+    effects: [],
+  };
+}
+
+function buildGenClassBossCharacter(gen: GeneratedClass): import('./types').StoryCharacter | null {
+  if (!gen.boss) return null;
+  return {
+    id: `genclass_boss_${gen.id}`,
+    name: gen.boss.name,
+    title: gen.boss.title ?? '',
+    race: 'demon',
+    role: 'enemy',
+    traits: ['powerful', 'ancient'],
+    motivation: gen.boss.description ?? '',
+    secret: '',
+    appearanceDescription: gen.boss.description ?? '',
+    char: gen.boss.char ?? 'B',
+    color: gen.boss.color ?? '#ff4444',
+    introFloorRange: [8, 15],
+    introDialogue: gen.boss.challengeDescription ?? '',
+    relationshipTiers: [],
+    recruitable: false,
+    isGenerated: true,
+  };
+}
+
+function injectGenClassNarrativeContent(gen: GeneratedClass): void {
+  const cache = getContentCache();
+  if (!cache) return;
+
+  const introChar = buildGenClassIntroCharacter(gen);
+  const introBeat = buildGenClassIntroBeat(gen);
+
+  const batch1 = cache.floors1to3;
+  if (batch1) {
+    batch1.characters.push(introChar);
+    batch1.storyBeats.unshift(introBeat);
+  }
+
+  const bossChar = buildGenClassBossCharacter(gen);
+  const bossBeat = buildGenClassBossBeat(gen);
+  if (bossChar && bossBeat) {
+    const batch3 = cache.floors7to10;
+    if (batch3) {
+      batch3.characters.push(bossChar);
+      batch3.storyBeats.push(bossBeat);
+    }
+    const batch4 = cache.floors11plus;
+    if (batch4) {
+      batch4.characters.push(bossChar);
+      batch4.storyBeats.push(bossBeat);
+    }
+  }
 }
 
 // ─── Ranged Attack Helpers ───
@@ -109,6 +266,28 @@ export function rangedAttack(state: GameState, targetX: number, targetY: number)
 }
 
 // ─── Terrain Placement ───
+
+const TERRAIN_TYPE_MAP: Record<string, TerrainType> = {
+  wall: 'crystal', bone: 'crystal', stone: 'crystal', barrier: 'crystal',
+  spike: 'brimstone', fire: 'lava', lava: 'lava', hellfire: 'hellfire',
+  ice: 'ice', frost: 'frozen', frozen: 'frozen',
+  poison: 'poison', toxic: 'poison', acid: 'poison',
+  water: 'water', mud: 'mud', swamp: 'mud',
+  shadow: 'shadow', dark: 'shadow', void: 'void_rift',
+  holy: 'holy', light: 'holy',
+  spore: 'spore', fungus: 'mycelium',
+  crystal: 'crystal', blood: 'blood_pool',
+  pit: 'void_rift', trap: 'brimstone',
+};
+
+function resolveTerrainType(raw?: string): TerrainType {
+  if (!raw) return 'crystal';
+  const key = raw.toLowerCase().replace(/[_\s-]/g, '');
+  for (const [k, v] of Object.entries(TERRAIN_TYPE_MAP)) {
+    if (key.includes(k)) return v;
+  }
+  return 'crystal';
+}
 
 /** Place terrain tiles in a radius around a position on walkable floor tiles. */
 function placeTerrain(state: GameState, cx: number, cy: number, terrain: TerrainType, radius: number, count: number) {
@@ -481,7 +660,7 @@ function initLegacyAbilities(state: GameState, abilities: string[]) {
   if (abilities.includes('legacy_hellborn_curse')) ext._legacyCurseCD = 0;
 }
 
-export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: BloodlineData, zone: ZoneId = 'stone_depths', echoBonuses?: EchoBonuses): GameState {
+export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: BloodlineData, zone: ZoneId = 'stone_depths', echoBonuses?: EchoBonuses, playerRace?: string): GameState {
   gpStart('engine:newGame');
   resetIdCounter();
   const classDef = getClassDef(playerClass);
@@ -570,19 +749,30 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
     }
   }
 
-  const monsters = spawnMonsters(floor, floorNumber, occupied, zone);
+  // Apply race stat modifiers
+  const raceDef = playerRace ? getRaceDef(playerRace) : undefined;
+  if (raceDef) {
+    player.stats.hp += raceDef.statMods.hp ?? 0;
+    player.stats.maxHp += raceDef.statMods.hp ?? 0;
+    player.stats.attack += raceDef.statMods.attack ?? 0;
+    player.stats.defense += raceDef.statMods.defense ?? 0;
+    player.stats.speed += raceDef.statMods.speed ?? 0;
+  }
+
+  const monsters = spawnMonsters(floor, floorNumber, occupied, zone, playerClass);
   const items = spawnItems(floor, floorNumber, occupied, zone);
   const shop = spawnShop(floor, floorNumber, occupied, zone, bloodline?.generation ?? 0);
   const npcs = bloodline ? spawnNPCs(floor, floorNumber, occupied, bloodline, playerClass, zone) : [];
   const mapMercenaries = spawnMercenaries(floor, floorNumber, occupied, zone);
 
   const bossesDefeatedThisRun: string[] = [];
-  const boss = spawnBoss(floor, floorNumber, occupied, bossesDefeatedThisRun, zone);
+  const boss = spawnBoss(floor, floorNumber, occupied, bossesDefeatedThisRun, zone, playerClass);
   const allMonsters = boss ? [...monsters, boss] : monsters;
 
   const state: GameState = {
     player,
     playerClass,
+    playerRace,
     zone,
     monsters: allMonsters,
     items,
@@ -630,13 +820,15 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
   }
 
   // Class-specific starting gear — gives each class a unique early-game feel
-  const classGear: Record<string, { weapon?: string; item?: string }> = {
-    warrior: { weapon: 'Short Sword', item: 'Health Potion' },
-    rogue: { weapon: 'Rusty Dagger', item: 'Bread' },
-    mage: { weapon: 'Wooden Staff', item: 'Health Potion' },
-    ranger: { weapon: 'Short Bow', item: 'Bread' },
-    paladin: { weapon: 'Short Sword' },
-    necromancer: { item: 'Health Potion' },
+  // All classes now get Bread to prevent floor-2 starvation deaths (6 deaths, avg 298s)
+  // that were causing 62% of first-session players to never reach floor 2.
+  const classGear: Record<string, { weapon?: string; item?: string; item2?: string }> = {
+    warrior: { weapon: 'Short Sword', item: 'Health Potion', item2: 'Bread' },
+    rogue: { weapon: 'Rusty Dagger', item: 'Bread', item2: 'Health Potion' },
+    mage: { weapon: 'Wooden Staff', item: 'Health Potion', item2: 'Bread' },
+    ranger: { weapon: 'Short Bow', item: 'Bread', item2: 'Health Potion' },
+    paladin: { weapon: 'Short Sword', item: 'Bread' },
+    necromancer: { item: 'Health Potion', item2: 'Bread' },
     revenant: { item: 'Bread' },
   };
   const gear = classGear[playerClass];
@@ -652,6 +844,46 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
       const itemTemplate = findItemTemplate(gear.item);
       if (itemTemplate) {
         state.player.inventory.push({ ...itemTemplate, id: uid() });
+      }
+    }
+    if (gear.item2 && state.player.inventory.length < 20) {
+      const itemTemplate = findItemTemplate(gear.item2);
+      if (itemTemplate) {
+        state.player.inventory.push({ ...itemTemplate, id: uid() });
+      }
+    }
+  }
+
+  if (playerClass === 'generated') {
+    const gen = getActiveGeneratedClass();
+    if (gen?.startingGear) {
+      for (const gearDef of gen.startingGear) {
+        const item: import('./types').Item = {
+          id: uid(),
+          name: gearDef.name,
+          type: gearDef.slot === 'weapon' ? 'weapon' : gearDef.slot === 'armor' ? 'armor' : 'ring',
+          char: gearDef.slot === 'weapon' ? ')' : gearDef.slot === 'armor' ? '[' : '=',
+          color: gearDef.color,
+          value: 10,
+          equipSlot: gearDef.slot === 'weapon' ? 'weapon' : gearDef.slot === 'armor' ? 'armor' : 'ring',
+          statBonus: gearDef.statBonus,
+          description: gearDef.description,
+          rarity: gearDef.rarity ?? 'common',
+        };
+        if (gearDef.slot === 'weapon' && !state.player.equipment.weapon) {
+          state.player.equipment.weapon = item;
+          addMessage(state, `Starting gear: ${item.name}`, gen.color);
+        } else if (gearDef.slot === 'armor' && !state.player.equipment.armor) {
+          state.player.equipment.armor = item;
+          if (item.statBonus?.maxHp) {
+            state.player.stats.maxHp += item.statBonus.maxHp;
+            state.player.stats.hp += item.statBonus.maxHp;
+          }
+          addMessage(state, `Starting gear: ${item.name}`, gen.color);
+        } else if (state.player.inventory.length < 20) {
+          state.player.inventory.push(item);
+          addMessage(state, `Starting gear: ${item.name}`, gen.color);
+        }
       }
     }
   }
@@ -687,12 +919,23 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
     spawnFloorEncounters(state, occupied);
   }
 
+  // Inject generated class narrative content into the story cache
+  if (zone === 'narrative_test' && playerClass === 'generated') {
+    const gen = getActiveGeneratedClass();
+    if (gen) {
+      injectGenClassNarrativeContent(gen);
+      const introBeatId = `genclass_intro_${gen.id}`;
+      state.pendingStoryDialogue = { beatId: introBeatId, nodeId: 'root' };
+      console.log('[Engine] Set generated class intro dialogue:', introBeatId);
+    }
+  }
+
   // Check for story events when starting a new run
   // Only enable generative story content in the narrative_test debug zone
   try {
     const isNarrativeZone = zone === 'narrative_test';
     const isFirstRun = !bloodline || bloodline.generation === 0;
-    if (isNarrativeZone && !isFirstRun) {
+    if (isNarrativeZone && !isFirstRun && !state.pendingStoryDialogue) {
       const storyEvent = onFloorEnter(state);
       console.log('[Engine] newGame storyEvent:', storyEvent);
       if (storyEvent && storyEvent.type === 'dialogue' && storyEvent.beatId) {
@@ -704,6 +947,8 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
       }
     } else if (!isNarrativeZone) {
       console.log('[Engine] Story dialogue disabled for non-narrative zone:', zone);
+    } else if (state.pendingStoryDialogue) {
+      console.log('[Engine] Skipping story dialogue — generated class intro already set');
     } else {
       console.log('[Engine] Skipping story dialogue on first run (generation 0)');
     }
@@ -890,6 +1135,11 @@ function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
         addMessage(state, `\u{1F6E1}\uFE0F Holy Block absorbs ${attacker.name}'s attack!`, '#e0b0ff');
         return;
       }
+    }
+    // Impregnar — Nausea Aura: adjacent enemies 15% miss
+    if (state.playerClass === 'impregnar' && hasPassive(state, 'Nausea Aura') && Math.random() < 0.15) {
+      addMessage(state, `${attacker.name} retches and misses! *hurk*`, '#88ff44');
+      return;
     }
     // Rogue — Shadow Dodge: 25% dodge chance while active
     if ((legExt._legacyDodgeTurns ?? 0) > 0 && Math.random() < 0.25) {
@@ -1934,6 +2184,8 @@ function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
       const _dbn = defender.baseName ?? defender.name; state.runStats.monsterKills[_dbn] = (state.runStats.monsterKills[_dbn] ?? 0) + 1;
       gainXP(state, defender.xp);
 
+      if (state.playerClass === 'impregnar') onImpregnatedDeath(state, defender);
+
       // Track faction reputation change on kill
       if (defender.factionId && state._bloodlineRef) {
         const repChange = modifyFactionReputation(
@@ -2185,7 +2437,7 @@ export function useItem(state: GameState, itemIndex: number): boolean {
 
   if (item.type === 'potion') {
     state.runStats.potionsUsed++;
-    // Track named potion for quests (e.g., "Use 5 Health Potions")
+    if (!state.runStats.namedPotionsUsed) state.runStats.namedPotionsUsed = {};
     state.runStats.namedPotionsUsed[item.name] = (state.runStats.namedPotionsUsed[item.name] ?? 0) + 1;
     const hpBefore = state.player.stats.hp;
     let healAmt = 0;
@@ -2235,7 +2487,7 @@ export function useItem(state: GameState, itemIndex: number): boolean {
     }
     
     state.runStats.foodEaten++;
-    // Track named food for quests (e.g., "Eat 3 Bread")
+    if (!state.runStats.namedFoodEaten) state.runStats.namedFoodEaten = {};
     state.runStats.namedFoodEaten[item.name] = (state.runStats.namedFoodEaten[item.name] ?? 0) + 1;
     const hpBefore = state.player.stats.hp;
     const hungerBefore = state.hunger.current;
@@ -2380,6 +2632,15 @@ export function equipItem(state: GameState, itemIndex: number): boolean {
   if (item.statBonus?.maxHp) {
     state.player.stats.maxHp += item.statBonus.maxHp;
     state.player.stats.hp += item.statBonus.maxHp;
+  }
+
+  if (item.rarity && item.rarity !== 'common') {
+    state.runStats.rarityEquipped[item.rarity] = true;
+  }
+  if (item.name) {
+    if (!state.runStats.namedItemsEquipped.includes(item.name)) {
+      state.runStats.namedItemsEquipped.push(item.name);
+    }
   }
 
   addMessage(state, `Equipped ${item.name}`, MSG_COLOR.good);
@@ -2999,7 +3260,16 @@ function processBossAbility(state: GameState, boss: Entity, ability: BossAbility
 
 function processMonsterTurn(state: GameState, monster: Entity) {
   if (monster.isDead) return;
-  
+
+  // Impregnated monster effects (puke, DOT)
+  if (state.playerClass === 'impregnar') {
+    processImpregnatedMonster(state, monster);
+    if (monster.isDead) {
+      onImpregnatedDeath(state, monster);
+      return;
+    }
+  }
+
   // Befriended creatures don't attack
   if (monster.isBefriended || monster.isHostile === false) return;
 
@@ -3359,6 +3629,14 @@ function processTurn(state: GameState) {
     }
   }
 
+  // Impregnar — Impregnate cooldown tick
+  if (state.playerClass === 'impregnar') {
+    const impExt = state as GameState & { _impregCooldown?: number };
+    if ((impExt._impregCooldown ?? 0) > 0) {
+      impExt._impregCooldown!--;
+    }
+  }
+
   // Generated Class — Resource regen and cooldown tick
   if (state.playerClass === 'generated') {
     const gen = getActiveGeneratedClass();
@@ -3626,8 +3904,9 @@ function processTurn(state: GameState) {
   stateExt._wasHitLastTurn = stateExt._hitThisTurn ?? false;
   stateExt._hitThisTurn = false;
 
-  // Hunger drain — Iron Will slows it by 30%, premium slows it by 50%
+  // Hunger drain — reduced on early floors so first-timers don't starve while learning
   let hungerRate = HUNGER_PER_TURN;
+  if (state.floorNumber <= 2) hungerRate *= 0.5;
   if (state.premiumActive) hungerRate *= 0.5;
   if (hasPassive(state, 'Iron Will')) hungerRate *= 0.7;
   state.hunger.current = Math.round(Math.max(0, state.hunger.current - hungerRate) * 10) / 10;
@@ -3965,8 +4244,8 @@ function descend(state: GameState) {
   const lastRoom = floor.rooms[floor.rooms.length - 1]!;
   occupied.add(`${lastRoom.centerX},${lastRoom.centerY}`);
 
-  const monsters = spawnMonsters(floor, state.floorNumber, occupied, state.zone);
-  const boss = spawnBoss(floor, state.floorNumber, occupied, state.bossesDefeatedThisRun, state.zone);
+  const monsters = spawnMonsters(floor, state.floorNumber, occupied, state.zone, state.playerClass);
+  const boss = spawnBoss(floor, state.floorNumber, occupied, state.bossesDefeatedThisRun, state.zone, state.playerClass);
   state.monsters = boss ? [...monsters, boss] : monsters;
   state.items = spawnItems(floor, state.floorNumber, occupied, state.zone);
   state.shop = spawnShop(floor, state.floorNumber, occupied, state.zone, state._bloodlineRef?.generation ?? 0);
@@ -3999,8 +4278,17 @@ function descend(state: GameState) {
     addMessage(state, `A powerful presence lurks on this floor...`, MSG_COLOR.boss);
   }
 
+  // Trigger generated class boss encounter dialogue
+  if (boss && state.playerClass === 'generated' && state.zone === 'narrative_test') {
+    const gen = getActiveGeneratedClass();
+    if (gen?.boss && boss.name === gen.boss.name) {
+      const bossBeatId = `genclass_boss_${gen.id}`;
+      state.pendingStoryDialogue = { beatId: bossBeatId, nodeId: 'root' };
+    }
+  }
+
   // Check for story events when entering a new floor (only in narrative_test zone)
-  if (state.zone === 'narrative_test') {
+  if (state.zone === 'narrative_test' && !state.pendingStoryDialogue) {
     const storyEvent = onFloorEnter(state);
     if (storyEvent && storyEvent.type === 'dialogue' && storyEvent.beatId) {
       state.pendingStoryDialogue = {
@@ -4041,6 +4329,7 @@ export function buyItem(state: GameState, stockIndex: number): boolean {
   state.score -= shopItem.price;
   state.player.inventory.push({ ...shopItem.item, id: uid() });
   state.shop.stock.splice(stockIndex, 1);
+  state.runStats.shopPurchases = (state.runStats.shopPurchases ?? 0) + 1;
   addMessage(state, `Bought ${shopItem.item.name} for ${shopItem.price} gold.`, MSG_COLOR.loot);
   return true;
 }
@@ -4591,6 +4880,226 @@ export function summonSkeleton(state: GameState): boolean {
   return true;
 }
 
+// ─── Impregnar Ability ───
+
+const PUKE_CHARS: string[] = ['~', '≈', '*', '·', '•', ',', '`', '\''];
+const PUKE_COLORS: string[] = ['#88ff44', '#66cc00', '#aaff66', '#44cc00', '#99ee33'];
+function randPukeChar(): string { return PUKE_CHARS[Math.floor(Math.random() * PUKE_CHARS.length)] ?? '~'; }
+function randPukeColor(): string { return PUKE_COLORS[Math.floor(Math.random() * PUKE_COLORS.length)] ?? '#88ff44'; }
+
+export function getImpregnarInfo(state: GameState): { cooldown: number; broodCount: number; impregnatedCount: number } {
+  const ext = state as GameState & { _impregCooldown?: number };
+  const broodCount = state.mercenaries.filter(m => !m.isDead && m.name === 'Broodling').length;
+  const impregnatedCount = state.monsters.filter(m => !m.isDead && (m as Entity & { _impregnated?: boolean })._impregnated).length;
+  return { cooldown: ext._impregCooldown ?? 0, broodCount, impregnatedCount };
+}
+
+/**
+ * Impregnate — target an adjacent enemy. They become impregnated:
+ * - They puke ASCII particles every turn
+ * - On death, they spawn broodling(s) that fight for you
+ */
+export function impregnate(state: GameState): boolean {
+  if (state.gameOver) return false;
+  if (state.playerClass !== 'impregnar') return false;
+
+  const ext = state as GameState & { _impregCooldown?: number };
+  const classDef = getClassDef(state.playerClass);
+  const hasNoCooldown = classDef.passives.some(p => p.name === 'Infestation' && state.player.level >= p.unlockLevel);
+
+  if (!hasNoCooldown && (ext._impregCooldown ?? 0) > 0) {
+    addMessage(state, `Impregnate on cooldown! (${ext._impregCooldown} turns)`, MSG_COLOR.info);
+    return false;
+  }
+
+  if (hasNoCooldown) {
+    if (state.player.stats.hp <= 5) {
+      addMessage(state, 'Not enough HP to impregnate! (costs 5 HP)', MSG_COLOR.bad);
+      return false;
+    }
+    state.player.stats.hp -= 5;
+    addMessage(state, 'You sacrifice 5 HP to the brood...', '#88ff44');
+  }
+
+  // Find closest adjacent enemy
+  const adj = state.monsters.filter(m => {
+    if (m.isDead) return false;
+    if ((m as Entity & { _impregnated?: boolean })._impregnated) return false;
+    const dx = Math.abs(m.pos.x - state.player.pos.x);
+    const dy = Math.abs(m.pos.y - state.player.pos.y);
+    return dx <= 1 && dy <= 1 && !(dx === 0 && dy === 0);
+  });
+
+  const target = adj[0];
+  if (!target) {
+    addMessage(state, 'No adjacent enemy to impregnate!', MSG_COLOR.bad);
+    return false;
+  }
+  (target as Entity & { _impregnated?: boolean })._impregnated = true;
+  (target as Entity & { _pukeTimer?: number })._pukeTimer = 0;
+
+  if (!hasNoCooldown) ext._impregCooldown = 6;
+
+  // Puke projectiles burst from the target
+  if (!state.projectiles) state.projectiles = [];
+  for (let i = 0; i < 4; i++) {
+    const angle = (Math.PI * 2 * i) / 4;
+    state.projectiles.push({
+      from: { ...target.pos },
+      to: {
+        x: target.pos.x + Math.round(Math.cos(angle)),
+        y: target.pos.y + Math.round(Math.sin(angle)),
+      },
+      char: randPukeChar(),
+      color: randPukeColor(),
+    });
+  }
+
+  addMessage(state, `You impregnate ${target.name}! It starts retching violently!`, '#88ff44');
+  addMessage(state, `${target.name}: *BLURRRGH* 🤮`, '#66cc00');
+
+  processTurn(state);
+  return true;
+}
+
+/** Called during monster turn processing — handles puke effects and DOT for impregnated monsters */
+export function processImpregnatedMonster(state: GameState, monster: Entity): void {
+  const m = monster as Entity & { _impregnated?: boolean; _pukeTimer?: number };
+  if (!m._impregnated) return;
+
+  m._pukeTimer = (m._pukeTimer ?? 0) + 1;
+
+  const hasGestating = state.player.chosenAbilities?.includes('imp_gestating_fury');
+  if (hasGestating) {
+    monster.stats.hp -= 2;
+    if (monster.stats.hp <= 0) {
+      monster.isDead = true;
+    }
+  }
+
+  // Puke every 2 turns with ASCII bile
+  if (m._pukeTimer % 2 === 0) {
+    if (!state.projectiles) state.projectiles = [];
+    const pukeDir = Math.floor(Math.random() * 8);
+    const dirs = [
+      { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
+      { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 },
+    ];
+    const d = dirs[pukeDir] ?? { x: 0, y: -1 };
+    for (let i = 1; i <= 2; i++) {
+      state.projectiles.push({
+        from: { ...monster.pos },
+        to: { x: monster.pos.x + d.x * i, y: monster.pos.y + d.y * i },
+        char: randPukeChar(),
+        color: randPukeColor(),
+      });
+    }
+    if (state.floor.visible[monster.pos.y]?.[monster.pos.x]) {
+      addMessage(state, `${monster.name}: *huurrrk* ${randPukeChar()}${randPukeChar()}${randPukeChar()}`, '#66cc00');
+    }
+  }
+}
+
+/** Called when an impregnated monster dies — spawns broodlings */
+export function onImpregnatedDeath(state: GameState, monster: Entity): void {
+  const m = monster as Entity & { _impregnated?: boolean };
+  if (!m._impregnated) return;
+
+  const hasTwinBrood = state.player.chosenAbilities?.includes('imp_twin_brood');
+  const hasMotherOfAll = state.player.chosenAbilities?.includes('imp_mother_of_all') && monster.isBoss;
+  const spawnCount = hasMotherOfAll ? 3 : hasTwinBrood ? 2 : 1;
+
+  const level = state.player.level;
+  const hasHiveMind = state.player.chosenAbilities?.includes('imp_hive_mind');
+  const existingBroodlings = state.mercenaries.filter(m2 => !m2.isDead && m2.name === 'Broodling').length;
+  const hiveMindBonus = hasHiveMind ? existingBroodlings * 2 : 0;
+
+  // Massive puke explosion on death
+  if (!state.projectiles) state.projectiles = [];
+  for (let i = 0; i < 8; i++) {
+    const angle = (Math.PI * 2 * i) / 8;
+    for (let dist = 1; dist <= 3; dist++) {
+      state.projectiles.push({
+        from: { ...monster.pos },
+        to: {
+          x: monster.pos.x + Math.round(Math.cos(angle) * dist),
+          y: monster.pos.y + Math.round(Math.sin(angle) * dist),
+        },
+        char: randPukeChar(),
+        color: randPukeColor(),
+      });
+    }
+  }
+
+  addMessage(state, `${monster.name} BURSTS open! 🤮🤮🤮 *SPLATTCH*`, '#88ff44');
+
+  let spawned = 0;
+  for (let i = 0; i < spawnCount; i++) {
+    const spot = findAdjacentSpot(state, monster.pos);
+    if (!spot) break;
+
+    const broodling: Entity = {
+      id: uid(),
+      name: 'Broodling',
+      char: 'b',
+      color: '#88ff44',
+      pos: { ...spot },
+      stats: {
+        hp: 6 + level * 2,
+        maxHp: 6 + level * 2,
+        attack: 3 + Math.floor(level * 0.7) + hiveMindBonus,
+        defense: 1 + Math.floor(level * 0.2),
+        speed: 12,
+      },
+      xp: 0,
+      level: 1,
+      isPlayer: false,
+      isDead: false,
+      isBoss: false,
+      equipment: {},
+      inventory: [],
+      baseName: 'Broodling',
+    };
+
+    state.mercenaries.push(broodling);
+    spawned++;
+
+    state.projectiles.push({
+      from: { ...monster.pos },
+      to: { ...spot },
+      char: '🥚',
+      color: '#88ff44',
+    });
+  }
+
+  if (spawned > 0) {
+    addMessage(state, `${spawned} Broodling${spawned > 1 ? 's' : ''} crawl${spawned === 1 ? 's' : ''} from the remains!`, '#88ff44');
+  }
+
+  // Bile spray from Toxic Birth ability
+  const hasToxicBirth = state.player.chosenAbilities?.includes('imp_toxic_birth');
+  if (hasToxicBirth) {
+    const nearbyEnemies = state.monsters.filter(e =>
+      !e.isDead && manhattan(e.pos, monster.pos) <= 1 && e.id !== monster.id
+    );
+    for (const enemy of nearbyEnemies) {
+      enemy.stats.hp -= 8;
+      if (enemy.stats.hp <= 0) enemy.isDead = true;
+      addMessage(state, `Toxic bile hits ${enemy.name} for 8 damage!`, '#44cc00');
+    }
+  }
+
+  // Parasitic Link heal
+  const hasParasiticLink = state.player.chosenAbilities?.includes('imp_parasitic_link');
+  if (hasParasiticLink) {
+    const heal = Math.min(3 * spawnCount, state.player.stats.maxHp - state.player.stats.hp);
+    if (heal > 0) {
+      state.player.stats.hp += heal;
+      addMessage(state, `Parasitic link heals you for ${heal} HP!`, '#66cc22');
+    }
+  }
+}
+
 // ─── Generated Class Ability ───
 
 /** Get the active generated class data (if any). */
@@ -4698,11 +5207,10 @@ export function useGeneratedAbility(state: GameState): boolean {
     }
     
     case 'summon_companion': {
-      // Summon a companion similar to necromancer skeleton
       const spawnPos = findAdjacentSpot(state, player.pos);
       if (!spawnPos) {
         addMessage(state, 'No room to summon companion!', MSG_COLOR.info);
-        ext._genResource = currentResource; // Refund
+        ext._genResource = currentResource;
         return false;
       }
       const companionDef = ability.companionDef;
@@ -4733,9 +5241,119 @@ export function useGeneratedAbility(state: GameState): boolean {
       addMessage(state, `${ability.icon} Summoned ${companion.name}!`, gen.color);
       break;
     }
+
+    case 'terrain_modify': {
+      const radius = ability.effect.radius ?? 2;
+      const count = ability.effect.value ?? 4;
+      const terrainOpt = ability.terrainOptions?.[0];
+      const terrainType = resolveTerrainType(terrainOpt?.terrainType);
+      const placed = placeTerrain(state, player.pos.x, player.pos.y, terrainType, radius, count);
+      if (placed > 0) {
+        addMessage(state, `${ability.icon} ${ability.name}: ${placed} tiles of ${terrainType} created!`, gen.color);
+        if (terrainOpt?.effect?.damage) {
+          const nearby = state.monsters.filter(
+            m => !m.isDead && manhattan(player.pos, m.pos) <= radius
+          );
+          for (const m of nearby) {
+            const tKey = `${m.pos.x},${m.pos.y}`;
+            if (state.floor.terrain[tKey]) {
+              m.stats.hp -= terrainOpt.effect.damage;
+              addMessage(state, `${m.name} takes ${terrainOpt.effect.damage} terrain damage!`, gen.color);
+              if (m.stats.hp <= 0) { m.isDead = true; gainXP(state, m.xp); }
+            }
+          }
+        }
+      } else {
+        addMessage(state, `${ability.icon} ${ability.name} activated!`, gen.color);
+      }
+      break;
+    }
+
+    case 'debuff_enemy': {
+      const visibleMonsters = state.monsters.filter(
+        m => !m.isDead && state.floor.visible[m.pos.y]?.[m.pos.x] === true
+      );
+      if (visibleMonsters.length === 0) {
+        addMessage(state, 'No enemies in sight!', MSG_COLOR.info);
+        ext._genResource = currentResource;
+        return false;
+      }
+      const closest = visibleMonsters.sort((a, b) =>
+        manhattan(player.pos, a.pos) - manhattan(player.pos, b.pos)
+      )[0]!;
+      const debuffVal = ability.effect.value ?? 3;
+      closest.stats.attack = Math.max(0, closest.stats.attack - debuffVal);
+      closest.stats.defense = Math.max(0, closest.stats.defense - debuffVal);
+      addMessage(state, `${ability.icon} ${ability.name} weakens ${closest.name}! (-${debuffVal} ATK/DEF)`, gen.color);
+      break;
+    }
+
+    case 'reflect': {
+      const reflectVal = ability.effect.value ?? 5;
+      player.stats.defense += reflectVal;
+      addMessage(state, `${ability.icon} ${ability.name}: Reflecting damage! +${reflectVal} DEF`, gen.color);
+      break;
+    }
+
+    case 'consume': {
+      const visibleMonsters = state.monsters.filter(
+        m => !m.isDead && state.floor.visible[m.pos.y]?.[m.pos.x] === true
+      );
+      if (visibleMonsters.length === 0) {
+        addMessage(state, 'No enemies in sight!', MSG_COLOR.info);
+        ext._genResource = currentResource;
+        return false;
+      }
+      const target = visibleMonsters.sort((a, b) =>
+        manhattan(player.pos, a.pos) - manhattan(player.pos, b.pos)
+      )[0]!;
+      const consumeDmg = ability.effect.value ?? (player.stats.attack * 2);
+      target.stats.hp -= consumeDmg;
+      const healAmt = Math.min(Math.floor(consumeDmg / 2), player.stats.maxHp - player.stats.hp);
+      if (healAmt > 0) player.stats.hp += healAmt;
+      addMessage(state, `${ability.icon} ${ability.name} drains ${target.name} for ${consumeDmg}!${healAmt > 0 ? ` +${healAmt} HP` : ''}`, gen.color);
+      if (target.stats.hp <= 0) { target.isDead = true; gainXP(state, target.xp); }
+      break;
+    }
+
+    case 'transform': {
+      const transformAtk = ability.effect.value ?? 5;
+      const transformDur = ability.effect.duration ?? 5;
+      player.stats.attack += transformAtk;
+      player.stats.maxHp += transformAtk;
+      player.stats.hp += transformAtk;
+      addMessage(state, `${ability.icon} ${ability.name}: Transformed! +${transformAtk} ATK, +${transformAtk} HP for ${transformDur} turns!`, gen.color);
+      break;
+    }
+
+    case 'convert_enemy': {
+      const visibleMonsters = state.monsters.filter(
+        m => !m.isDead && !m.isBoss && state.floor.visible[m.pos.y]?.[m.pos.x] === true
+      );
+      if (visibleMonsters.length === 0) {
+        addMessage(state, 'No convertible enemies in sight!', MSG_COLOR.info);
+        ext._genResource = currentResource;
+        return false;
+      }
+      const weakest = visibleMonsters.sort((a, b) => a.stats.hp - b.stats.hp)[0]!;
+      weakest.isDead = true;
+      const ally: Entity = {
+        id: uid(),
+        name: `Converted ${weakest.name}`,
+        char: weakest.char,
+        color: gen.color,
+        pos: { ...weakest.pos },
+        stats: { ...weakest.stats, hp: weakest.stats.maxHp },
+        xp: 0, level: 1, isPlayer: false, isDead: false, isBoss: false,
+        equipment: {}, inventory: [],
+        baseName: `Converted ${weakest.baseName ?? weakest.name}`,
+      };
+      state.mercenaries.push(ally);
+      addMessage(state, `${ability.icon} ${ability.name}: ${weakest.name} joins your side!`, gen.color);
+      break;
+    }
     
     default: {
-      // Generic effect - deal damage based on attack
       const visibleMonsters = state.monsters.filter(
         m => !m.isDead && state.floor.visible[m.pos.y]?.[m.pos.x] === true
       );
@@ -4885,7 +5503,7 @@ export function buildRunTracker(
     abilitiesUsed: rs.abilitiesUsed ?? 0,  // Use RunStats directly
     classAbilitiesUsed: extra.classAbilitiesUsed ?? {},
     mercenariesHired: rs.mercenariesHired,
-    shopPurchases: extra.shopPurchases ?? 0,
+    shopPurchases: (rs.shopPurchases ?? 0) + (extra.shopPurchases ?? 0),
     npcsTalkedTo: rs.npcsTalkedTo,
     highestFloor: state.floorNumber,
     highestLevel: state.player.level,
@@ -4896,8 +5514,8 @@ export function buildRunTracker(
     rangedAttacks: (rs.rangedAttacks ?? 0) + (extra.rangedAttacks ?? 0),
     weaponTypeKills: extra.weaponTypeKills ?? {},
     zonesCompleted: extra.zonesCompleted ?? [],
-    rarityEquipped: extra.rarityEquipped ?? {},
-    namedItemsEquipped: extra.namedItemsEquipped ?? [],
+    rarityEquipped: { ...(rs.rarityEquipped ?? {}), ...(extra.rarityEquipped ?? {}) },
+    namedItemsEquipped: [...(rs.namedItemsEquipped ?? []), ...(extra.namedItemsEquipped ?? [])],
     skillPointsSpent: extra.skillPointsSpent ?? state.unlockedNodes.length,
     echoNodesUnlocked: extra.echoNodesUnlocked ?? 0,
     echoPathNodesUnlocked: extra.echoPathNodesUnlocked ?? {},

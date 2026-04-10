@@ -80,6 +80,7 @@ interface GenerationState {
   currentWave: number;
   errors: string[];
   useAI: boolean;
+  genClassContext?: import('./storyManager').GeneratedClassContext;
 }
 
 let generationState: GenerationState = {
@@ -175,7 +176,7 @@ async function generateWave(
           
           try {
             console.log('[Story] Calling generateStoryBeat...');
-            storyBeat = await generateStoryBeat(result.character);
+            storyBeat = await generateStoryBeat(result.character, generationState.genClassContext);
             console.log('[Story] generateStoryBeat returned:', storyBeat ? 'VALID BEAT' : 'NULL');
             if (storyBeat) {
               console.log('[Story] ✓ AI story beat generated:', storyBeat.id);
@@ -429,7 +430,8 @@ async function generateWave(
 export async function startGeneration(
   playerClass: PlayerClass,
   bloodline: BloodlineData,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  genClassContext?: import('./storyManager').GeneratedClassContext,
 ): Promise<boolean> {
   if (generationState.isGenerating) {
     console.warn('Generation already in progress');
@@ -462,6 +464,7 @@ export async function startGeneration(
     currentWave: 0,
     errors: [],
     useAI: aiAvailable,
+    genClassContext,
   };
   
   if (!generationState.useAI) {

@@ -123,6 +123,9 @@ export interface GeneratedClass {
   isGenerated: true;
   generatedAt: string;
   seed?: string;
+
+  /** True when only preview data has been generated; deferred content still pending */
+  _needsCompletion?: boolean;
 }
 
 // ══════════════════════════════════════════════════════════════

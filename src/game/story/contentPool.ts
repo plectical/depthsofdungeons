@@ -6,7 +6,8 @@ const POOL_ENABLED = true;
 // Track if pool is full to avoid repeated 429 errors
 let _poolFull = false;
 let _lastSaveAttempt = 0;
-const SAVE_COOLDOWN_MS = 5000; // 5 seconds between save attempts
+let _saveCooldownMs = 5000;
+let _consecutive429s = 0;
 
 // Content types we manage
 const CONTENT_TYPES = [
@@ -317,9 +318,9 @@ export async function saveToPool<T extends PooledContent>(
     return null;
   }
   
-  // Rate limit save attempts
+  // Rate limit save attempts with exponential backoff on 429s
   const now = Date.now();
-  if (now - _lastSaveAttempt < SAVE_COOLDOWN_MS) {
+  if (now - _lastSaveAttempt < _saveCooldownMs) {
     console.log('[ContentPool] Skipping save - rate limited');
     return null;
   }
@@ -337,18 +338,20 @@ export async function saveToPool<T extends PooledContent>(
     });
 
     console.log(`[ContentPool] Saved to pool: ${contentType} -> ${entry.id}`);
+    _consecutive429s = 0;
+    _saveCooldownMs = 5000;
     return entry.id;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
-    // Check for pool full error
     if (errorMessage.includes('Maximum entries') || errorMessage.includes('100')) {
       console.warn('[ContentPool] Pool is full (100 entries max) - auto-exporting to local cache...');
       _poolFull = true;
-      // Trigger auto-export in background
       autoExportPoolToCache().catch(() => {});
     } else if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-      console.warn('[ContentPool] Rate limited - will retry later');
+      _consecutive429s++;
+      _saveCooldownMs = Math.min(5000 * Math.pow(2, _consecutive429s), 120000);
+      console.warn(`[ContentPool] Rate limited (${_consecutive429s}x) - backing off to ${_saveCooldownMs}ms`);
     } else {
       console.warn('[ContentPool] Failed to save to pool:', error);
     }

@@ -457,12 +457,22 @@ export function getStoryProgress(state: GameState): {
   };
 }
 
+export interface GeneratedClassContext {
+  playerName: string;
+  playerTitle: string;
+  playerBackstory: string;
+  bossName: string;
+  bossTitle: string;
+  enemyNames: string[];
+}
+
 export async function prepareRunContent(
   playerClass: PlayerClass,
   bloodline: BloodlineData,
-  onProgress?: (progress: number, message: string) => void
+  onProgress?: (progress: number, message: string) => void,
+  genClassContext?: GeneratedClassContext,
 ): Promise<boolean> {
-  return startGeneration(playerClass, bloodline, onProgress);
+  return startGeneration(playerClass, bloodline, onProgress, genClassContext);
 }
 
 export function isContentReady(): boolean {

@@ -1,4 +1,5 @@
 import type { Entity, Item, MapItem, MonsterDef, Pos, DungeonFloor, ClassDef, Shop, ShopItem, MapMercenary, ZoneId, ItemRarity, MercenaryDef } from './types';
+import type { GeneratedClass, GeneratedEnemyDef } from './generativeClass';
 import { getContentCache } from './story/progressiveLoader';
 import { getMercenariesForFloor } from './story/contentCache';
 import { getFactionForCreature } from './factions';
@@ -35,7 +36,7 @@ import {
   getUnlockedBountyItems,
 } from './necropolis';
 import { getNecropolisState } from './necropolisService';
-import { ZONE_MONSTERS, ZONE_BOSSES, ZONE_WEAPONS, ZONE_ARMOR, ZONE_POTIONS, ZONE_FOOD, ZONE_BOSS_LOOT } from './zones';
+import { ZONE_MONSTERS, ZONE_BOSSES, ZONE_WEAPONS, ZONE_ARMOR, ZONE_POTIONS, ZONE_FOOD, ZONE_BOSS_LOOT, ZONE_RINGS, ZONE_AMULETS, ZONE_OFFHANDS, ZONE_SCROLLS } from './zones';
 import { getEchoWeapons, getEchoEnemies, ECHO_BOSS_LOOT } from './echoTree';
 
 // ── Echo Tree integration — module-level cache of unlocked nodes ──
@@ -229,9 +230,29 @@ function applyRarity(item: Item, floorNumber: number): Item {
   return item;
 }
 
-export function spawnMonsters(floor: DungeonFloor, floorNumber: number, occupied: Set<string>, zone: ZoneId = 'stone_depths'): Entity[] {
+function getGeneratedClassEnemyDefs(): MonsterDef[] {
+  try {
+    const json = localStorage.getItem('dod_backup_activeGeneratedClass');
+    if (!json) return [];
+    const gen: GeneratedClass = JSON.parse(json);
+    if (!gen?.enemies?.length) return [];
+    return gen.enemies.map((e: GeneratedEnemyDef): MonsterDef => ({
+      name: e.name,
+      char: e.char,
+      color: e.color,
+      stats: { ...e.baseStats },
+      xpValue: e.xpValue,
+      minFloor: e.minFloor,
+      lootChance: 0.2,
+    }));
+  } catch { return []; }
+}
+
+export function spawnMonsters(floor: DungeonFloor, floorNumber: number, occupied: Set<string>, zone: ZoneId = 'stone_depths', playerClass?: string): Entity[] {
   const allDefs = getAllMonsterDefs(zone);
-  const eligible = allDefs.filter((m) => m.minFloor <= floorNumber);
+  const genEnemies = (playerClass === 'generated') ? getGeneratedClassEnemyDefs() : [];
+  const combined = [...allDefs, ...genEnemies];
+  const eligible = combined.filter((m) => m.minFloor <= floorNumber);
   if (eligible.length === 0) return [];
 
   // Monster density: gentler on early floors, ramps up later
@@ -312,7 +333,11 @@ export function randomItem(floorNumber: number, zone: ZoneId = 'stone_depths'): 
   const zonePotions = getZonePotions(zone);
   const zoneFood = getZoneFood(zone);
 
-  const allOffhands = [...SHIELD_TEMPLATES, ...OFFHAND_DAGGER_TEMPLATES, ...FOCUS_TEMPLATES, ...QUIVER_TEMPLATES];
+  const zoneOffhands = ZONE_OFFHANDS[zone] ?? [];
+  const allOffhands = [...SHIELD_TEMPLATES, ...OFFHAND_DAGGER_TEMPLATES, ...FOCUS_TEMPLATES, ...QUIVER_TEMPLATES, ...zoneOffhands];
+  const zoneRings = ZONE_RINGS[zone] ?? [];
+  const zoneAmulets = ZONE_AMULETS[zone] ?? [];
+  const zoneScrolls = ZONE_SCROLLS[zone] ?? [];
 
   if (roll < 0.13) {
     const maxIdx = Math.min(allWeapons.length - 1, Math.floor(floorNumber / 2));
@@ -321,23 +346,21 @@ export function randomItem(floorNumber: number, zone: ZoneId = 'stone_depths'): 
     const maxIdx = Math.min(allArmor.length - 1, Math.floor(floorNumber / 3));
     template = allArmor[randInt(0, maxIdx)];
   } else if (roll < 0.31) {
-    // Offhand items — all class types can drop, equip restriction enforced at equip time
     const maxIdx = Math.min(allOffhands.length - 1, Math.floor(floorNumber / 2));
     template = allOffhands[randInt(0, maxIdx)];
   } else if (roll < 0.37) {
-    template = pick(RING_TEMPLATES);
+    const ringPool = [...RING_TEMPLATES, ...zoneRings];
+    template = pick(ringPool);
   } else if (roll < 0.42) {
-    // Include necropolis accessories in amulet pool
-    const pool = [...AMULET_TEMPLATES, ...extraItems.filter((i) => i.type === 'amulet' || i.type === 'ring')];
+    const pool = [...AMULET_TEMPLATES, ...zoneAmulets, ...extraItems.filter((i) => i.type === 'amulet' || i.type === 'ring')];
     template = pick(pool.length > 0 ? pool : AMULET_TEMPLATES);
   } else if (roll < 0.52) {
-    // Include necropolis potions + zone potions
     const pool = [...POTION_TEMPLATES, ...zonePotions, ...extraItems.filter((i) => i.type === 'potion')];
     template = pick(pool);
   } else if (roll < 0.62) {
-    template = pick(SCROLL_TEMPLATES);
+    const scrollPool = [...SCROLL_TEMPLATES, ...zoneScrolls];
+    template = pick(scrollPool);
   } else if (roll < 0.85) {
-    // Zone-specific food + base food (slightly higher chance — hunger is a real threat)
     const foodPool = [...FOOD_TEMPLATES, ...zoneFood];
     template = pick(foodPool);
   }
@@ -406,23 +429,73 @@ export function spawnItems(floor: DungeonFloor, floorNumber: number, occupied: S
  * `isBossArena`. Returns `null` when no arena exists or no eligible boss
  * is available.
  */
+function getGeneratedClassBoss(floorNumber: number): Entity | null {
+  try {
+    const json = localStorage.getItem('dod_backup_activeGeneratedClass');
+    if (!json) return null;
+    const gen: GeneratedClass = JSON.parse(json);
+    if (!gen?.boss) return null;
+    const b = gen.boss;
+    const scale = 1 + Math.max(0, floorNumber - 5) * 0.1;
+    return {
+      id: uid(),
+      pos: { x: 0, y: 0 },
+      name: b.name,
+      char: b.char ?? 'B',
+      color: b.color ?? '#ff4444',
+      stats: {
+        hp: Math.round(b.stats.hp * scale),
+        maxHp: Math.round(b.stats.maxHp * scale),
+        attack: Math.round(b.stats.attack * scale),
+        defense: Math.round(b.stats.defense * scale),
+        speed: b.stats.speed,
+      },
+      xp: b.xpValue,
+      level: floorNumber,
+      inventory: [],
+      equipment: {},
+      isPlayer: false,
+      isDead: false,
+      isBoss: true,
+      bossAbilityCooldown: 0,
+      baseName: b.name,
+    };
+  } catch { return null; }
+}
+
 export function spawnBoss(
   floor: DungeonFloor,
   floorNumber: number,
   occupied: Set<string>,
   defeatedBosses: string[],
   zone: ZoneId = 'stone_depths',
+  playerClass?: string,
 ): Entity | null {
   // Find the boss arena room
   const arena = floor.rooms.find((r) => r.isBossArena);
   if (!arena) return null;
+
+  const defeated = new Set(defeatedBosses);
+
+  // For generated classes, spawn their custom boss on floors 5+
+  if (playerClass === 'generated' && floorNumber >= 5) {
+    const genBoss = getGeneratedClassBoss(floorNumber);
+    if (genBoss && !defeated.has(genBoss.name)) {
+      const pos = randomWalkableInRoom(floor, arena, occupied);
+      if (pos) {
+        genBoss.pos = pos;
+        const factionId = getFactionForCreature(genBoss.name);
+        if (factionId) genBoss.factionId = factionId;
+        return genBoss;
+      }
+    }
+  }
 
   // Use zone-specific bosses, or base bosses for stone_depths
   const zoneBosses = ZONE_BOSSES[zone] ?? [];
   const bossDefs = zone === 'stone_depths' ? BOSS_DEFS : (zoneBosses.length > 0 ? zoneBosses : BOSS_DEFS);
 
   // Filter eligible bosses
-  const defeated = new Set(defeatedBosses);
   const eligible = bossDefs.filter(
     (b) => b.minFloor <= floorNumber && !defeated.has(b.name),
   );

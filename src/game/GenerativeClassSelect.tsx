@@ -3,10 +3,11 @@
  * Allows players to roll a new AI-generated class or browse saved/community classes
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { GeneratedClass, ArchetypeId } from './generativeClass';
 import { 
-  generateClass, 
+  generateClassPreview,
+  completeClassGeneration,
   resetGeneration,
   getAllArchetypes,
   ARCHETYPES,
@@ -190,15 +191,20 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
   const [archetypeThumbnails, setArchetypeThumbnails] = useState<Record<string, string>>({});
   const [generatingThumbnails, setGeneratingThumbnails] = useState<Set<string>>(new Set());
 
-  const archetypes = getAllArchetypes();
+  const archetypes = useMemo(() => getAllArchetypes(), []);
+  const thumbnailsStarted = useRef(false);
   
-  // Load cached thumbnails and generate missing ones
+  // Load cached thumbnails and generate missing ones (once)
   useEffect(() => {
+    if (thumbnailsStarted.current) return;
+    thumbnailsStarted.current = true;
+
+    let cancelled = false;
+
     const loadThumbnails = async () => {
       const cached: Record<string, string> = {};
       const missing: ArchetypeId[] = [];
       
-      // Check cache for each archetype
       for (const arch of archetypes) {
         const cachedUrl = getCachedArchetypeThumbnail(arch.id);
         if (cachedUrl) {
@@ -210,79 +216,90 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
       
       setArchetypeThumbnails(cached);
       
-      // Generate missing thumbnails in background (2 at a time)
       if (missing.length > 0) {
         console.log(`[GenClass] Generating ${missing.length} missing archetype thumbnails...`);
-        
-        const generateBatch = async (ids: ArchetypeId[]) => {
-          for (const id of ids) {
-            setGeneratingThumbnails(prev => new Set([...prev, id]));
-            try {
-              const url = await generateArchetypeThumbnail(id);
-              if (url) {
-                cacheArchetypeThumbnail(id, url);
-                setArchetypeThumbnails(prev => ({ ...prev, [id]: url }));
-              }
-            } catch (e) {
-              console.warn(`[GenClass] Failed to generate thumbnail for ${id}:`, e);
+        for (const id of missing) {
+          if (cancelled) return;
+          setGeneratingThumbnails(prev => new Set([...prev, id]));
+          try {
+            const url = await generateArchetypeThumbnail(id);
+            if (cancelled) return;
+            if (url) {
+              cacheArchetypeThumbnail(id, url);
+              setArchetypeThumbnails(prev => ({ ...prev, [id]: url }));
             }
-            setGeneratingThumbnails(prev => {
-              const next = new Set(prev);
-              next.delete(id);
-              return next;
-            });
+          } catch (e) {
+            console.warn(`[GenClass] Failed to generate thumbnail for ${id}:`, e);
           }
-        };
-        
-        // Generate 2 at a time
-        const batchSize = 2;
-        for (let i = 0; i < missing.length; i += batchSize) {
-          await generateBatch(missing.slice(i, i + batchSize));
+          setGeneratingThumbnails(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
         }
       }
     };
     
     loadThumbnails();
+    return () => { cancelled = true; };
   }, [archetypes]);
+
+  const handleGenError = useCallback((e: unknown) => {
+    const msg = e instanceof Error ? e.message : '';
+    if (msg.includes('expired') || msg.includes('reload')) {
+      setError(msg);
+    } else {
+      setError('Generation failed. Please try again.');
+    }
+    setMode('menu');
+  }, []);
 
   const handleGenerateRandom = useCallback(async () => {
     setMode('generating');
     setError(null);
     resetGeneration();
-    
-    const result = await generateClass(undefined, (p, text) => {
-      setProgress(p);
-      setProgressText(text);
-    });
-    
-    if (result) {
-      setGeneratedClass(result);
-      setMode('preview');
-    } else {
-      setError('Generation failed. Please try again.');
-      setMode('menu');
+
+    try {
+      const result = await generateClassPreview(undefined, (p, text) => {
+        setProgress(p);
+        setProgressText(text);
+      });
+
+      if (result) {
+        setGeneratedClass(result);
+        setMode('preview');
+      } else {
+        setError('Generation failed. Please try again.');
+        setMode('menu');
+      }
+    } catch (e) {
+      handleGenError(e);
     }
-  }, []);
+  }, [handleGenError]);
 
   const handleGenerateArchetype = useCallback(async (archetypeId: ArchetypeId) => {
     setSelectedArchetype(archetypeId);
     setMode('generating');
     setError(null);
     resetGeneration();
-    
-    const result = await generateClass(archetypeId, (p, text) => {
-      setProgress(p);
-      setProgressText(text);
-    });
-    
-    if (result) {
-      setGeneratedClass(result);
-      setMode('preview');
-    } else {
-      setError('Generation failed. Please try again.');
-      setMode('menu');
+
+    try {
+      const result = await generateClassPreview(archetypeId, (p, text) => {
+        setProgress(p);
+        setProgressText(text);
+      });
+
+      if (result) {
+        setGeneratedClass(result);
+        setMode('preview');
+      } else {
+        setError('Generation failed. Please try again.');
+        setMode('menu');
+      }
+    } catch (e) {
+      handleGenError(e);
     }
-  }, []);
+  }, [handleGenError]);
 
   const handleReroll = useCallback(() => {
     if (selectedArchetype) {
@@ -292,11 +309,25 @@ export function GenerativeClassSelect({ onSelectClass, onBack, savedClasses = []
     }
   }, [selectedArchetype, handleGenerateArchetype, handleGenerateRandom]);
 
-  const handleSelectClass = useCallback(() => {
-    if (generatedClass) {
-      onSelectClass(generatedClass);
+  const handleSelectClass = useCallback(async () => {
+    if (!generatedClass) return;
+
+    if (generatedClass._needsCompletion) {
+      setMode('generating');
+      setProgress(0);
+      setProgressText('Preparing your adventure...');
+      try {
+        await completeClassGeneration(generatedClass, (p, text) => {
+          setProgress(p);
+          setProgressText(text);
+        });
+      } catch (e) {
+        handleGenError(e);
+        return;
+      }
     }
-  }, [generatedClass, onSelectClass]);
+    onSelectClass(generatedClass);
+  }, [generatedClass, onSelectClass, handleGenError]);
 
   const handleBackToMenu = useCallback(() => {
     setMode('menu');

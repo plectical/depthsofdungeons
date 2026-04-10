@@ -510,6 +510,38 @@ export const SHARED_ABILITIES: ChoosableAbility[] = [
   { id: 'shared_xp_boost', name: 'Quick Learner', description: '+25% XP from kills', icon: '\u{1F4DA}', color: '#cc77ff', minLevel: 4, classId: 'any' },
 ];
 
+// ── Impregnar class ──
+
+export const IMPREGNAR_ABILITIES: ChoosableAbility[] = [
+  { id: 'imp_twin_brood', name: 'Twin Brood', description: 'Impregnated enemies spawn 2 broodlings instead of 1', icon: '🥚', color: '#88ff44', minLevel: 2, classId: 'impregnar' },
+  { id: 'imp_toxic_birth', name: 'Toxic Birth', description: 'Broodlings explode on death, dealing 8 poison damage to adjacent enemies', icon: '☠️', color: '#44cc00', minLevel: 2, classId: 'impregnar' },
+  { id: 'imp_gestating_fury', name: 'Gestating Fury', description: 'Impregnated enemies take 2 damage per turn and move 50% slower', icon: '🤢', color: '#99ee33', minLevel: 3, classId: 'impregnar' },
+  { id: 'imp_bile_spray', name: 'Bile Spray', description: 'Broodlings spray bile on spawn, slowing nearby enemies for 3 turns', icon: '🤮', color: '#77dd00', minLevel: 3, classId: 'impregnar' },
+  { id: 'imp_parasitic_link', name: 'Parasitic Link', description: 'Heal 3 HP whenever an impregnated enemy takes damage', icon: '🔗', color: '#66cc22', minLevel: 4, classId: 'impregnar' },
+  { id: 'imp_chain_gestation', name: 'Chain Gestation', description: 'When a broodling kills an enemy, that enemy also spawns a broodling', icon: '🧬', color: '#55bb11', minLevel: 5, classId: 'impregnar' },
+  { id: 'imp_hive_mind', name: 'Hive Mind', description: 'Broodlings gain +2 attack per other living broodling on the floor', icon: '🧠', color: '#44aa00', minLevel: 5, classId: 'impregnar' },
+  { id: 'imp_mother_of_all', name: 'Mother of All', description: 'Boss enemies spawn 3 broodlings and puke for 4 turns straight', icon: '👑', color: '#33ff00', minLevel: 6, classId: 'impregnar' },
+];
+
+export const IMPREGNAR_CLASS: ClassDef = {
+  id: 'impregnar' as PlayerClass,
+  name: 'Impregnar',
+  char: '@',
+  color: '#88ff44',
+  description: 'Infests enemies with parasitic spawn. They puke, they burst, they birth your army.',
+  baseStats: { hp: 22, maxHp: 22, attack: 3, defense: 2, speed: 11 },
+  levelBonusHp: 3,
+  levelBonusAtk: 1,
+  levelBonusDef: 1,
+  requiresBestFloor: 3,
+  passives: [
+    { name: 'Brood Mother', description: 'Broodlings fight for you and scale with your level', unlockLevel: 1 },
+    { name: 'Nausea Aura', description: 'Enemies adjacent to you have 15% chance to miss (they\'re too busy retching)', unlockLevel: 4 },
+    { name: 'Infestation', description: 'Impregnate has no cooldown but costs 5 HP per use', unlockLevel: 7 },
+  ],
+  abilityPool: IMPREGNAR_ABILITIES,
+};
+
 // ── Class definitions ──
 // Base stats are intentionally weak — bloodline bonuses are how players get strong.
 export const CLASS_DEFS: ClassDef[] = [
@@ -573,6 +605,7 @@ export const CLASS_DEFS: ClassDef[] = [
     ],
     abilityPool: PALADIN_ABILITIES,
   },
+  IMPREGNAR_CLASS,
 ];
 
 // ── Hellborn class (unlocked by defeating Lucifer in Hell) ──
