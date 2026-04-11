@@ -105,9 +105,15 @@ export function newStoryFloor(
   // Spawn pre-baked items
   const items = spawnPrebakedItems(floorDef.items, floor, occupied);
 
-  // Spawn pre-baked NPCs as MapNPCs
-  const npcs = floorDef.npcs.map((npc, i) => {
-    const room = floor.rooms[Math.min(i + 1, floor.rooms.length - 1)]!;
+  // Distribute story content evenly across rooms so players encounter it naturally.
+  // Room 0 = player start, rooms 1..N-1 = content rooms, last room = stairs/boss
+  const contentRooms = floor.rooms.slice(1, Math.max(2, floor.rooms.length - 1));
+  let nextContentRoom = 0;
+  const getNextRoom = () => contentRooms[nextContentRoom++ % contentRooms.length]!;
+
+  // Spawn pre-baked NPCs in early rooms so they're found quickly
+  const npcs = floorDef.npcs.map((npc) => {
+    const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
     return {
@@ -118,9 +124,9 @@ export function newStoryFloor(
     };
   });
 
-  // Convert pre-baked encounters into interactable elements on the map
-  const interactables: import('../types').InteractableElement[] = floorDef.encounters.map((enc, i) => {
-    const room = floor.rooms[Math.min(i + 2, floor.rooms.length - 1)]!;
+  // Place encounters as interactable elements (visible as ! on the map)
+  const interactables: import('../types').InteractableElement[] = floorDef.encounters.map((enc) => {
+    const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
     return {
@@ -141,22 +147,25 @@ export function newStoryFloor(
     };
   });
 
-  // Convert pre-baked room events into hidden elements the player can discover
-  const hiddenElements: import('../types').HiddenElement[] = floorDef.roomEvents.map((evt, i) => {
-    const room = floor.rooms[Math.min(i + 1, floor.rooms.length - 1)]!;
+  // Room events — also placed as interactables so they're visible and triggerable
+  const roomEventInteractables: import('../types').InteractableElement[] = floorDef.roomEvents.map((evt) => {
+    const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
     return {
       id: evt.id,
       pos,
-      type: 'lore_inscription' as const,
-      skill: evt.primarySkill,
-      threshold: evt.baseDifficulty,
-      discovered: false,
+      type: 'ancient_puzzle' as import('../types').InteractableElement['type'],
+      primarySkill: evt.primarySkill,
+      alternateSkill: evt.alternateSkill,
+      target: evt.baseDifficulty,
       description: evt.description,
-      reward: { type: 'heal' as const, value: 0 },
+      interacted: false,
+      successEffect: { type: 'heal' as const, value: 10 },
     };
   });
+
+  interactables.push(...roomEventInteractables);
 
   const state: GameState = {
     player,
@@ -184,7 +193,7 @@ export function newStoryFloor(
     skillPoints: save.skillPoints,
     unlockedNodes: [...save.unlockedNodes],
     interactables,
-    hiddenElements,
+    hiddenElements: [],
   };
 
   // Add gold from save
