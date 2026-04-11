@@ -337,6 +337,23 @@ export function Game() {
   const runTvPopupImg = useCdnImage('runtv-impregnar-popup.png');
   const runTvPopupShownRef = useRef(false);
 
+  // Re-check globalStorage when the tab regains focus (player returns from watching)
+  useEffect(() => {
+    if (hasWatchedDodShow) return;
+    const onVisChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const watched = await RundotGameAPI.globalStorage.getItem('watched_dod_show');
+        if (watched === '1') {
+          setHasWatchedDodShow(true);
+          try { RundotGameAPI.analytics.recordCustomEvent('runtv_impregnar_unlock', { source: 'visibility_check' }).catch(() => {}); } catch {}
+        }
+      } catch { /* globalStorage unavailable */ }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => document.removeEventListener('visibilitychange', onVisChange);
+  }, [hasWatchedDodShow]);
+
   // Keep refs in sync
   useEffect(() => {
     bloodlineRef.current = bloodline;
@@ -405,12 +422,32 @@ export function Game() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, screen]);
 
-  // Auto-show RUN TV popup on class select for returning players who haven't watched
+  // Re-check globalStorage for watch status every time class select is shown
+  // (the player may have watched the show and returned to the game)
   useEffect(() => {
-    if (screen === 'classSelect' && !hasWatchedDodShow && bloodline.generation >= 1 && !runTvPopupShownRef.current) {
-      runTvPopupShownRef.current = true;
-      setShowRunTvPopup(true);
-    }
+    if (screen !== 'classSelect') return;
+    if (hasWatchedDodShow) return;
+
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const watched = await RundotGameAPI.globalStorage.getItem('watched_dod_show');
+        if (!cancelled && watched === '1') {
+          setHasWatchedDodShow(true);
+          try { RundotGameAPI.analytics.recordCustomEvent('runtv_impregnar_unlock', { source: 'global_storage_check' }).catch(() => {}); } catch {}
+        }
+      } catch { /* globalStorage unavailable */ }
+      // If still not watched, show the popup once per session
+      if (!cancelled && !runTvPopupShownRef.current) {
+        const latest = await RundotGameAPI.globalStorage.getItem('watched_dod_show').catch(() => null);
+        if (!cancelled && latest !== '1' && bloodline.generation >= 1) {
+          runTvPopupShownRef.current = true;
+          setShowRunTvPopup(true);
+        }
+      }
+    };
+    check();
+    return () => { cancelled = true; };
   }, [screen, hasWatchedDodShow, bloodline.generation]);
   
   // Archetype thumbnails are generated on-demand in GenerativeClassSelect
@@ -621,9 +658,6 @@ export function Game() {
             autoStartRef.current = true;
             setSelectedClass(tvClass as PlayerClass);
             RundotGameAPI.analytics.recordCustomEvent('runtv_deeplink', { class: tvClass }).catch(() => {});
-            // Arriving from RUN TV counts as having watched the show
-            setHasWatchedDodShow(true);
-            try { RundotGameAPI.globalStorage.setItem('watched_dod_show', '1').catch(() => {}); } catch {}
           }
         }
       } catch { /* share params not available */ }
@@ -3403,7 +3437,6 @@ export function Game() {
                   setNecropolisUnlocked(false);
                   setHasWatchedDodShow(false);
                   runTvPopupShownRef.current = false;
-                  try { RundotGameAPI.globalStorage.removeItem('watched_dod_show').catch(() => {}); } catch {}
                   // Now trigger first-time auto-start flow
                   setDebugMode(false);
                   autoStartRef.current = true;
@@ -3752,7 +3785,6 @@ export function Game() {
                   setNecropolisUnlocked(false);
                   setHasWatchedDodShow(false);
                   runTvPopupShownRef.current = false;
-                  try { RundotGameAPI.globalStorage.removeItem('watched_dod_show').catch(() => {}); } catch {}
                   // Close debug menu after reset
                   setDebugMode(false);
                   alert('All data reset! You can now start fresh.');
@@ -4350,9 +4382,7 @@ export function Game() {
               }}
               onClick={() => {
                 window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank');
-                setHasWatchedDodShow(true);
-                try { RundotGameAPI.globalStorage.setItem('watched_dod_show', '1').catch(() => {}); } catch {}
-                try { RundotGameAPI.analytics.recordCustomEvent('runtv_impregnar_unlock', { source: 'popup' }).catch(() => {}); } catch {}
+                try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
                 setShowRunTvPopup(false);
               }}
             >
