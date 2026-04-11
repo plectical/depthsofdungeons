@@ -331,6 +331,11 @@ export function Game() {
   const [pendingReputationTransform, setPendingReputationTransform] = useState<FactionId | null>(null);
   const [offeredTransformFactions, setOfferedTransformFactions] = useState<Set<FactionId>>(new Set());
 
+  // RUN TV — Impregnar class unlock via watching the show
+  const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
+  const [showRunTvPopup, setShowRunTvPopup] = useState(false);
+  const runTvPopupImg = useCdnImage('runtv-impregnar-popup.png');
+
   // Keep refs in sync
   useEffect(() => {
     bloodlineRef.current = bloodline;
@@ -607,9 +612,18 @@ export function Game() {
             autoStartRef.current = true;
             setSelectedClass(tvClass as PlayerClass);
             RundotGameAPI.analytics.recordCustomEvent('runtv_deeplink', { class: tvClass }).catch(() => {});
+            // Arriving from RUN TV counts as having watched the show
+            setHasWatchedDodShow(true);
+            try { RundotGameAPI.globalStorage.setItem('watched_dod_show', '1').catch(() => {}); } catch {}
           }
         }
       } catch { /* share params not available */ }
+
+      // Check globalStorage for RUN TV show watch status (unlocks Impregnar class)
+      try {
+        const watched = await RundotGameAPI.globalStorage.getItem('watched_dod_show');
+        if (watched === '1') setHasWatchedDodShow(true);
+      } catch { /* globalStorage unavailable */ }
 
       // First-session auto-start: skip title/class/zone and drop into gameplay
       if (isFirstSession && !autoStartRef.current) {
@@ -3965,25 +3979,26 @@ export function Game() {
             const floorLocked = bestFloor < cls.requiresBestFloor;
             const registrationLocked = cls.id === 'paladin' && !isRegistered;
             const rogueLocked = cls.id === 'rogue' && !addToHomeUnlocked;
-            const locked = floorLocked || registrationLocked || rogueLocked;
+            const impregnarLocked = cls.id === 'impregnar' && !hasWatchedDodShow;
+            const locked = floorLocked || registrationLocked || rogueLocked || impregnarLocked;
             return (
               <button
                 key={cls.id}
-                style={locked ? (registrationLocked ? classCardRegLockedStyle : rogueLocked ? classCardRogueLockedStyle : classCardLockedStyle) : classCardStyle}
+                style={locked ? (registrationLocked ? classCardRegLockedStyle : rogueLocked ? classCardRogueLockedStyle : impregnarLocked ? classCardLockedStyle : classCardLockedStyle) : classCardStyle}
                 onClick={async () => {
                   if (registrationLocked) {
-                    // Show Elder dialogue first, then the account-creation modal
                     setActiveElderTip(ELDER_PALADIN_UNLOCK);
                     return;
                   }
                   if (rogueLocked) { setActiveElderTip(ELDER_ROGUE_UNLOCK); return; }
+                  if (impregnarLocked) { setShowRunTvPopup(true); return; }
                   if (!locked) {
                     if (cls.id === 'rogue') tryShowElderTip(ELDER_ROGUE_FIRST_SELECT);
                     if (cls.id === 'paladin') tryShowElderTip(ELDER_PALADIN_FIRST_SELECT);
                     selectClassAndPickZone(cls.id);
                   }
                 }}
-                disabled={rogueLocked ? false : floorLocked}
+                disabled={rogueLocked ? false : impregnarLocked ? false : floorLocked}
               >
                 {registrationLocked ? (
                   <>
@@ -4029,6 +4044,27 @@ export function Game() {
                     </div>
                     <div style={{ color: '#ffcc33', fontSize: 10, marginTop: 6, fontWeight: 'bold', lineHeight: 1.5 }}>
                       Save to home screen to unlock
+                    </div>
+                    <div style={{ color: '#664400', fontSize: 9, marginTop: 4, fontStyle: 'italic' }}>
+                      Tap to learn how
+                    </div>
+                  </>
+                ) : impregnarLocked ? (
+                  <>
+                    <div style={{ color: cls.color, fontSize: 20, fontWeight: 'bold', opacity: 0.6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      {classPortraits[cls.id] ? (
+                        <img src={classPortraits[cls.id]!} alt="" style={{ width: 40, height: 40, borderRadius: 4, border: `2px solid ${classBorderColors[cls.id] ?? '#33ff66'}44`, boxShadow: `0 0 6px ${classBorderColors[cls.id] ?? '#33ff66'}22`, objectFit: 'cover', imageRendering: 'pixelated' as const, opacity: 0.6 }} />
+                      ) : (
+                        <span>{cls.char}</span>
+                      )}
+                      {cls.name}
+                    </div>
+                    <div style={{ color: '#1a5a2a', fontSize: 10, marginTop: 4 }}>{cls.description}</div>
+                    <div style={{ color: '#33ff66', fontSize: 10, marginTop: 6, opacity: 0.4 }}>
+                      HP:?? Atk:?? Def:?? Spd:??
+                    </div>
+                    <div style={{ color: '#ff8800', fontSize: 10, marginTop: 6, fontWeight: 'bold', lineHeight: 1.5 }}>
+                      Watch on RUN TV to unlock
                     </div>
                     <div style={{ color: '#664400', fontSize: 9, marginTop: 4, fontStyle: 'italic' }}>
                       Tap to learn how
@@ -4256,6 +4292,69 @@ export function Game() {
           />
         </div>,
         document.body,
+      )}
+      {showRunTvPopup && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+        }} onClick={() => setShowRunTvPopup(false)}>
+          <div style={{
+            maxWidth: 360, width: '100%', position: 'relative',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
+          }} onClick={(e) => e.stopPropagation()}>
+            {runTvPopupImg ? (
+              <img src={runTvPopupImg} alt="Watch Depths of Dungeon on RUN TV" style={{
+                width: '100%', maxWidth: 360, borderRadius: 8,
+                border: '2px solid #ff880088',
+                boxShadow: '0 0 30px rgba(136,255,68,0.3)',
+              }} />
+            ) : (
+              <div style={{
+                width: '100%', aspectRatio: '1', background: '#111',
+                border: '2px solid #ff880088', borderRadius: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexDirection: 'column', gap: 12, padding: 20,
+              }}>
+                <div style={{ color: '#88ff44', fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
+                  Watch Depths of Dungeon on RUN TV
+                </div>
+                <div style={{ color: '#ff8800', fontFamily: 'monospace', fontSize: 14, textAlign: 'center' }}>
+                  to unlock the Impregnar class!
+                </div>
+              </div>
+            )}
+            <button
+              style={{
+                marginTop: 12, padding: '10px 30px',
+                background: '#ff8800', color: '#000', fontFamily: 'monospace',
+                fontSize: 16, fontWeight: 'bold', border: '2px solid #ff8800',
+                borderRadius: 6, cursor: 'pointer', letterSpacing: 1,
+                boxShadow: '0 0 20px rgba(255,136,0,0.4)',
+              }}
+              onClick={() => {
+                setHasWatchedDodShow(true);
+                try { RundotGameAPI.globalStorage.setItem('watched_dod_show', '1').catch(() => {}); } catch {}
+                try { RundotGameAPI.analytics.recordCustomEvent('runtv_impregnar_unlock', { source: 'popup' }).catch(() => {}); } catch {}
+                setShowRunTvPopup(false);
+              }}
+            >
+              WATCH NOW
+            </button>
+            <button
+              style={{
+                position: 'absolute', top: 8, right: 8,
+                background: 'rgba(0,0,0,0.6)', color: '#ff6644',
+                border: '2px solid #ff664488', borderRadius: 6,
+                width: 32, height: 32, cursor: 'pointer',
+                fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+              onClick={() => setShowRunTvPopup(false)}
+            >X</button>
+          </div>
+        </div>
       )}
       </>
     );

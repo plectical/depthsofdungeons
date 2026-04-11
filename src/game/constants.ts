@@ -533,7 +533,7 @@ export const IMPREGNAR_CLASS: ClassDef = {
   levelBonusHp: 3,
   levelBonusAtk: 1,
   levelBonusDef: 1,
-  requiresBestFloor: 3,
+  requiresBestFloor: 0,
   passives: [
     { name: 'Brood Mother', description: 'Broodlings fight for you and scale with your level', unlockLevel: 1 },
     { name: 'Nausea Aura', description: 'Enemies adjacent to you have 15% chance to miss (they\'re too busy retching)', unlockLevel: 4 },
