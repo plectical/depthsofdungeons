@@ -4349,10 +4349,10 @@ export function Game() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 20, cursor: 'pointer',
         }} onClick={() => {
-          window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank');
           setHasWatchedDodShow(true);
           try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
           setShowRunTvPopup(false);
+          window.location.href = 'https://run-game.onelink.me/5Mmv/0h4l9shh';
         }}>
           <div style={{
             maxWidth: 360, width: '100%', position: 'relative',
