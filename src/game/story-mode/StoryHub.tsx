@@ -137,9 +137,7 @@ export function StoryHub({ save, onNewCampaign, onContinue, onSelectChapter, onB
           <button
             style={{ ...secondaryButtonStyle, color: '#ff4444', borderColor: '#ff444444' }}
             onClick={() => {
-              if (confirm('Delete your campaign save? This cannot be undone.')) {
-                onDeleteSave();
-              }
+              onDeleteSave();
             }}
           >
             {'[ Delete Save ]'}

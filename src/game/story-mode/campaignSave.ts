@@ -30,10 +30,10 @@ export async function loadCampaign(): Promise<CampaignSave | null> {
 
 export async function deleteCampaign(): Promise<void> {
   try {
-    await safeSetItem(SAVE_KEY, '');
-  } catch {
-    // best effort
-  }
+    const RundotGameAPI = (await import('@series-inc/rundot-game-sdk/api')).default;
+    await RundotGameAPI.appStorage.removeItem(SAVE_KEY);
+  } catch { /* best effort */ }
+  try { localStorage.removeItem('dod_backup_' + SAVE_KEY); } catch { /* ok */ }
 }
 
 /**
