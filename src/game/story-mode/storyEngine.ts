@@ -6,7 +6,7 @@
 
 import type { GameState, PlayerClass } from '../types';
 import type { ChapterDef, StoryFloorDef, CampaignSave, PrebakedMonsterSpawn } from './campaignTypes';
-import { addMessage } from '../engine';
+import { addMessage, updateFOV } from '../engine';
 import { generateFloor } from '../dungeon';
 import { createPlayer } from '../entities';
 import { uid, resetIdCounter } from '../utils';
@@ -76,6 +76,32 @@ export function newStoryFloor(
   // Spawn pre-baked monsters into available rooms
   const monsters = spawnPrebakedMonsters(floorDef.monsters, floor, occupied);
 
+  // Spawn the chapter boss on the last floor
+  const isLastFloor = floorDef.floorIndex === chapter.floors[chapter.floors.length - 1]?.floorIndex;
+  if (isLastFloor && chapter.boss) {
+    const lastRoom = floor.rooms[floor.rooms.length - 1]!;
+    const bossPos = findOpenTile(lastRoom, floor, occupied);
+    occupied.add(`${bossPos.x},${bossPos.y}`);
+    monsters.push({
+      id: uid(),
+      pos: bossPos,
+      name: chapter.boss.name,
+      char: chapter.boss.char,
+      color: chapter.boss.color,
+      stats: { ...chapter.boss.stats },
+      xp: 0,
+      level: 1,
+      inventory: [],
+      equipment: {},
+      isPlayer: false,
+      isDead: false,
+      isBoss: true,
+      bossAbility: chapter.boss.bossAbility,
+      element: chapter.boss.element,
+      isHostile: true,
+    });
+  }
+
   // Spawn pre-baked items
   const items = spawnPrebakedItems(floorDef.items, floor, occupied);
 
@@ -89,6 +115,46 @@ export function newStoryFloor(
       pos,
       defId: npc.id,
       talked: false,
+    };
+  });
+
+  // Convert pre-baked encounters into interactable elements on the map
+  const interactables: import('../types').InteractableElement[] = floorDef.encounters.map((enc, i) => {
+    const room = floor.rooms[Math.min(i + 2, floor.rooms.length - 1)]!;
+    const pos = findOpenTile(room, floor, occupied);
+    occupied.add(`${pos.x},${pos.y}`);
+    return {
+      id: enc.id,
+      pos,
+      type: (enc.type === 'skill_challenge' ? 'stuck_mechanism' :
+             enc.type === 'negotiation' ? 'negotiation' :
+             enc.type === 'trapped_room' ? 'locked_door' :
+             enc.type === 'hidden_cache' ? 'ancient_puzzle' :
+             'stuck_mechanism') as import('../types').InteractableElement['type'],
+      primarySkill: enc.primarySkill,
+      alternateSkill: enc.alternateSkill,
+      target: enc.target,
+      description: enc.description,
+      interacted: false,
+      successEffect: enc.successReward,
+      failureEffect: enc.failurePenalty ? { type: enc.failurePenalty.type as 'damage', value: enc.failurePenalty.value } : undefined,
+    };
+  });
+
+  // Convert pre-baked room events into hidden elements the player can discover
+  const hiddenElements: import('../types').HiddenElement[] = floorDef.roomEvents.map((evt, i) => {
+    const room = floor.rooms[Math.min(i + 1, floor.rooms.length - 1)]!;
+    const pos = findOpenTile(room, floor, occupied);
+    occupied.add(`${pos.x},${pos.y}`);
+    return {
+      id: evt.id,
+      pos,
+      type: 'lore_inscription' as const,
+      skill: evt.primarySkill,
+      threshold: evt.baseDifficulty,
+      discovered: false,
+      description: evt.description,
+      reward: { type: 'heal' as const, value: 0 },
     };
   });
 
@@ -117,6 +183,8 @@ export function newStoryFloor(
     bossesDefeatedThisRun: [],
     skillPoints: save.skillPoints,
     unlockedNodes: [...save.unlockedNodes],
+    interactables,
+    hiddenElements,
   };
 
   // Add gold from save
@@ -148,6 +216,9 @@ export function newStoryFloor(
   }
 
   addMessage(state, `Chapter: ${chapter.name} — Floor ${floorNumber}`, '#ffcc44');
+
+  // Reveal tiles around the player
+  updateFOV(state);
 
   return state;
 }
