@@ -205,7 +205,7 @@ export function Game() {
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
     necromancer: useCdnImage('necromancer-thumb.png'),
     'necromancer-fullscreen': useCdnImage('necromancer-fullscreen.png'),
-    revenant: useCdnImage('necromancer-thumb.png'),
+    revenant: useCdnImage('revenant-portrait.png'),
     impregnar: useCdnImage('impregnar-portrait.png'),
   };
   const classBorderColors: Record<string, string> = {
@@ -335,6 +335,7 @@ export function Game() {
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
   const [showRunTvPopup, setShowRunTvPopup] = useState(false);
   const runTvPopupImg = useCdnImage('runtv-impregnar-popup.png');
+  const runTvPopupShownRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => {
@@ -403,6 +404,14 @@ export function Game() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, screen]);
+
+  // Auto-show RUN TV popup on class select for returning players who haven't watched
+  useEffect(() => {
+    if (screen === 'classSelect' && !hasWatchedDodShow && bloodline.generation >= 1 && !runTvPopupShownRef.current) {
+      runTvPopupShownRef.current = true;
+      setShowRunTvPopup(true);
+    }
+  }, [screen, hasWatchedDodShow, bloodline.generation]);
   
   // Archetype thumbnails are generated on-demand in GenerativeClassSelect
 
@@ -4334,6 +4343,7 @@ export function Game() {
                 boxShadow: '0 0 20px rgba(255,136,0,0.4)',
               }}
               onClick={() => {
+                window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank');
                 setHasWatchedDodShow(true);
                 try { RundotGameAPI.globalStorage.setItem('watched_dod_show', '1').catch(() => {}); } catch {}
                 try { RundotGameAPI.analytics.recordCustomEvent('runtv_impregnar_unlock', { source: 'popup' }).catch(() => {}); } catch {}

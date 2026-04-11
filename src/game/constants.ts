@@ -545,6 +545,7 @@ export const IMPREGNAR_CLASS: ClassDef = {
 // ── Class definitions ──
 // Base stats are intentionally weak — bloodline bonuses are how players get strong.
 export const CLASS_DEFS: ClassDef[] = [
+  IMPREGNAR_CLASS,
   {
     id: 'warrior', name: 'Warrior', char: '@', color: '#ff6644',
     description: 'High HP and defense. Built to take hits.',
@@ -605,7 +606,6 @@ export const CLASS_DEFS: ClassDef[] = [
     ],
     abilityPool: PALADIN_ABILITIES,
   },
-  IMPREGNAR_CLASS,
 ];
 
 // ── Hellborn class (unlocked by defeating Lucifer in Hell) ──
