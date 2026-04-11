@@ -18,6 +18,7 @@ export const CHAPTER_1: ChapterDef = {
       floorIndex: 1,
       zone: 'stone_depths',
       hasCheckpoint: true,
+      introArt: 'story/mine-entrance.png',
       narrativeIntro: 'The mine entrance looms before you — a gaping maw of darkness cut into the mountainside. Rusted cart tracks disappear into the gloom. The air smells of damp stone and something else... something old.',
       encounters: [
         {
@@ -37,6 +38,7 @@ export const CHAPTER_1: ChapterDef = {
           name: 'Gristle',
           char: 'G',
           color: '#cc9966',
+          portraitAsset: 'story/gristle.png',
           dialogue: {
             text: '"You\'re heading down there? Hah. I was the last one to come back up alive, thirty years ago. The tunnels... they\'ve changed. They breathe now. Here — take this. You\'ll need light more than courage where you\'re going."',
             choices: [
@@ -65,6 +67,7 @@ export const CHAPTER_1: ChapterDef = {
           id: 'ch1_f1_collapsed_tunnel',
           type: 'trap_chamber',
           name: 'Unstable Ceiling',
+          artAsset: 'story/unstable-ceiling.png',
           description: 'Cracks spider-web across the ceiling above. Pebbles rain down with each step.',
           primarySkill: 'athletics',
           alternateSkill: 'awareness',
@@ -106,11 +109,13 @@ export const CHAPTER_1: ChapterDef = {
       floorIndex: 2,
       zone: 'stone_depths',
       hasCheckpoint: true,
+      introArt: 'story/flooded-tunnels.png',
       narrativeIntro: 'The tunnels slope downward into standing water. Your boots splash through ankle-deep pools that reflect your torchlight like black mirrors. Something moves beneath the surface.',
       encounters: [
         {
           id: 'ch1_f2_submerged_chest',
           type: 'skill_challenge',
+          artAsset: 'story/submerged-chest.png',
           description: 'A wooden chest sits half-submerged in murky water. The lock is rusted but might still hold.',
           primarySkill: 'survival',
           alternateSkill: 'athletics',
@@ -137,6 +142,7 @@ export const CHAPTER_1: ChapterDef = {
           name: 'Sera',
           char: 'S',
           color: '#88ccff',
+          portraitAsset: 'story/sera.png',
           dialogue: {
             text: '"Thank the gods — another person. I came down here looking for the old Deepfolk ruins. Found them. Also found what guards them. My leg is broken... I can\'t go further. But I mapped the tunnels. Take my notes — they\'ll show you safe paths through the next level."',
             choices: [
@@ -177,11 +183,13 @@ export const CHAPTER_1: ChapterDef = {
       floorIndex: 3,
       zone: 'stone_depths',
       hasCheckpoint: true,
+      introArt: 'story/deepfolk-ruins.png',
       narrativeIntro: 'The rough mine tunnels give way to carved stone — impossibly smooth walls covered in geometric patterns that seem to shift in your peripheral vision. You\'ve found the Deepfolk ruins. The air hums with a low, subsonic vibration you feel in your teeth.',
       encounters: [
         {
           id: 'ch1_f3_ancient_puzzle',
           type: 'negotiation',
+          artAsset: 'story/glyph-door.png',
           description: 'A stone door blocks the path, covered in rotating glyph discs. The mechanism is clearly a lock — but the symbols are alien.',
           primarySkill: 'lore',
           alternateSkill: 'awareness',
@@ -193,6 +201,7 @@ export const CHAPTER_1: ChapterDef = {
         {
           id: 'ch1_f3_trapped_corridor',
           type: 'trapped_room',
+          artAsset: 'story/dart-trap.png',
           description: 'The floor tiles ahead are pressure-sensitive — you can see faint seams between them. A dart trap, most likely.',
           primarySkill: 'stealth',
           alternateSkill: 'athletics',
@@ -209,6 +218,7 @@ export const CHAPTER_1: ChapterDef = {
           id: 'ch1_f3_ancient_altar',
           type: 'ancient_altar',
           name: 'Deepfolk Shrine',
+          artAsset: 'story/deepfolk-ruins.png',
           description: 'A stone altar carved with spiraling patterns radiates faint warmth. Offering bowls sit empty before a faceless idol.',
           primarySkill: 'lore',
           alternateSkill: 'diplomacy',
@@ -254,6 +264,7 @@ export const CHAPTER_1: ChapterDef = {
       floorIndex: 4,
       zone: 'stone_depths',
       hasCheckpoint: true,
+      introArt: 'story/sleeper-chamber.png',
       narrativeIntro: 'The ruins open into a vast natural cavern. In the center, suspended in a web of crystallized stone, something massive and ancient shifts in its millennia-long sleep. The subsonic hum is deafening now — you can feel it in your bones. This is what the miners disturbed. This is what Gristle ran from. The Sleeper is waking.',
       encounters: [],
       npcs: [],
@@ -282,6 +293,7 @@ export const CHAPTER_1: ChapterDef = {
       ],
     },
     element: 'dark',
+    portraitAsset: 'story/sleeper-boss.png',
     introDialogue: 'The crystalline web shatters. The Sleeper unfolds — a mass of pale flesh and too many limbs, eyes opening across its surface like wounds. Each eye fixes on you. A voice that is not a voice reverberates through the stone itself:\n\n"WHO DISTURBS THE DREAMING?"',
     defeatDialogue: 'The Sleeper shudders, its countless eyes dimming one by one. The subsonic hum fades to silence. As the ancient horror collapses, the crystal formations around the chamber begin to glow — centuries of stored energy releasing all at once. The ruins tremble.\n\nYou need to get out. Now.\n\nBut as you turn to flee, you notice something in the rubble where the Sleeper fell: a passage. Leading further down. The Deepfolk built deeper than anyone knew.\n\nThis is not the bottom. This is only the beginning.',
   },

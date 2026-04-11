@@ -89,6 +89,8 @@ export interface StoryFloorDef {
   narrativeIntro?: string;
   /** Optional narrator text shown after clearing the floor */
   narrativeOutro?: string;
+  /** CDN asset path for the floor intro scene art (e.g. 'story/mine-entrance.png') */
+  introArt?: string;
 }
 
 // ── Pre-baked content types ──
@@ -104,6 +106,8 @@ export interface PrebakedEncounter {
   successReward: { type: 'item' | 'gold' | 'heal'; value: string | number };
   failureDescription: string;
   failurePenalty?: { type: 'damage' | 'hunger'; value: number };
+  /** CDN asset path for encounter scene art */
+  artAsset?: string;
 }
 
 export interface PrebakedNPC {
@@ -112,6 +116,8 @@ export interface PrebakedNPC {
   char: string;
   color: string;
   dialogue: DialogueNode;
+  /** CDN asset path for NPC portrait (e.g. 'story/gristle.png') */
+  portraitAsset?: string;
   /** Story flag set when the player talks to this NPC */
   setsFlag?: { key: string; value: string };
   /** Only show this NPC if this flag is set */
@@ -131,6 +137,8 @@ export interface PrebakedRoomEvent {
   partial: RoomEventOutcome;
   failure: RoomEventOutcome;
   criticalFailure: RoomEventOutcome;
+  /** CDN asset path for room event scene art */
+  artAsset?: string;
 }
 
 export interface PrebakedMonsterSpawn {
@@ -173,6 +181,8 @@ export interface StoryBossDef {
   introDialogue: string;
   /** Dialogue shown after defeating the boss */
   defeatDialogue: string;
+  /** CDN asset path for boss portrait */
+  portraitAsset?: string;
 }
 
 export interface ChapterReward {
