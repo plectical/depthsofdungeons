@@ -269,7 +269,7 @@ export function Game() {
   const [raceFilter, setRaceFilter] = useState<RaceCategory | 'all'>('all');
   const [expandedClass, setExpandedClass] = useState<string | null>(null);
   const [_unlockInfoClass, _setUnlockInfoClass] = useState<string | null>(null);
-  const [showClassDetail, setShowClassDetail] = useState<PlayerClass | null>(null);
+  const [_showClassDetail, _setShowClassDetail] = useState<PlayerClass | null>(null);
   const [, setActiveGeneratedClass] = useState<GeneratedClass | null>(null);
   const [savedGeneratedClasses, setSavedGeneratedClasses] = useState<GeneratedClass[]>([]);
   const startTimeRef = useRef(0);
@@ -1089,14 +1089,6 @@ export function Game() {
   }, [isFirstTimeBuyer]);
 
   const selectClassAndPickZone = useCallback((cls: PlayerClass) => {
-    // For special classes with detail portraits, show the detail screen first
-    const classesWithDetailScreen = ['necromancer', 'revenant'];
-    if (classesWithDetailScreen.includes(cls)) {
-      setSelectedClass(cls);
-      setShowClassDetail(cls);
-      trackClassSelected(cls);
-      return;
-    }
     setSelectedClass(cls);
     setRaceFilter('all');
     setScreen('raceSelect');
@@ -4276,72 +4268,7 @@ export function Game() {
         </div>,
         document.body,
       )}
-      {/* Class Detail Screen - FULLSCREEN stained glass portrait */}
-      {showClassDetail && createPortal(
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: '#000',
-          zIndex: 999999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          {/* Image fills screen, maintaining aspect ratio */}
-          {(classPortraits[`${showClassDetail}-fullscreen`] || classPortraits[showClassDetail]) && (
-            <img
-              src={classPortraits[`${showClassDetail}-fullscreen`] ?? classPortraits[showClassDetail]!}
-              alt={showClassDetail}
-              style={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                width: 'auto',
-                height: '100%',
-                objectFit: 'contain',
-                imageRendering: 'pixelated',
-              }}
-            />
-          )}
-          
-          {/* Invisible tap zone for BACK (bottom 8% of screen) */}
-          <button
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: '25%',
-              width: '50%',
-              height: '8%',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-            onClick={() => setShowClassDetail(null)}
-          />
-          
-          {/* Tap anywhere else to START (covers rest of screen) */}
-          <button
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '92%',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-            onClick={() => {
-              setShowClassDetail(null);
-              setRaceFilter('all');
-              setScreen('raceSelect');
-            }}
-          />
-        </div>,
-        document.body,
-      )}
+      
       {showRunTvPopup && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
