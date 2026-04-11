@@ -4279,7 +4279,7 @@ export function Game() {
           <div style={{ maxWidth: 360, width: '100%', position: 'relative' }}>
             <a
               href="https://run-game.onelink.me/5Mmv/0h4l9shh"
-              target="_blank"
+              target="_top"
               rel="noopener noreferrer"
               style={{ display: 'block', textDecoration: 'none' }}
               onClick={() => {
