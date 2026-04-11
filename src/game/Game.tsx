@@ -4347,34 +4347,39 @@ export function Game() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.85)', zIndex: 10000,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, cursor: 'pointer',
-        }} onClick={() => {
-          setHasWatchedDodShow(true);
-          try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
-          setShowRunTvPopup(false);
-          window.location.href = 'https://run-game.onelink.me/5Mmv/0h4l9shh';
+          padding: 20,
         }}>
-          <div style={{
-            maxWidth: 360, width: '100%', position: 'relative',
-          }}>
-            {runTvPopupImg ? (
-              <img src={runTvPopupImg} alt="Watch Depths of Dungeon on RUN TV" style={{
-                width: '100%', maxWidth: 360, borderRadius: 8,
-                border: '2px solid #ff880088',
-                boxShadow: '0 0 30px rgba(136,255,68,0.3)',
-              }} />
-            ) : (
-              <div style={{
-                width: '100%', aspectRatio: '1', background: '#111',
-                border: '2px solid #ff880088', borderRadius: 8,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexDirection: 'column', gap: 12, padding: 20,
-              }}>
-                <div style={{ color: '#88ff44', fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
-                  Watch Depths of Dungeon on RUN TV to unlock the Impregnar class!
+          <div style={{ maxWidth: 360, width: '100%', position: 'relative' }}>
+            <a
+              href="https://run-game.onelink.me/5Mmv/0h4l9shh"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'block', textDecoration: 'none' }}
+              onClick={() => {
+                setHasWatchedDodShow(true);
+                try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
+                setShowRunTvPopup(false);
+              }}
+            >
+              {runTvPopupImg ? (
+                <img src={runTvPopupImg} alt="Watch Depths of Dungeon on RUN TV" style={{
+                  width: '100%', maxWidth: 360, borderRadius: 8,
+                  border: '2px solid #ff880088',
+                  boxShadow: '0 0 30px rgba(136,255,68,0.3)',
+                }} />
+              ) : (
+                <div style={{
+                  width: '100%', aspectRatio: '1', background: '#111',
+                  border: '2px solid #ff880088', borderRadius: 8,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexDirection: 'column', gap: 12, padding: 20,
+                }}>
+                  <div style={{ color: '#88ff44', fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
+                    Watch Depths of Dungeon on RUN TV to unlock the Impregnar class!
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </a>
             <button
               style={{
                 position: 'absolute', top: 8, right: 8,
@@ -4383,8 +4388,9 @@ export function Game() {
                 width: 32, height: 32, cursor: 'pointer',
                 fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 1,
               }}
-              onClick={(e) => { e.stopPropagation(); setShowRunTvPopup(false); }}
+              onClick={() => setShowRunTvPopup(false)}
             >X</button>
           </div>
         </div>
