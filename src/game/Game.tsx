@@ -5298,6 +5298,13 @@ export function Game() {
                 const next = cloneState(state);
                 forfeitRun(next);
                 setState(next);
+                processDeathBloodline(next);
+                setTimeout(() => {
+                  const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                  trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, autoPlay));
+                  submitScore(next.score, duration);
+                  setScreen('gameover');
+                }, 400);
               }
             }}
           >
