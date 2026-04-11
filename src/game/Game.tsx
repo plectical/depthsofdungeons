@@ -341,6 +341,7 @@ export function Game() {
   const [campaignSave, setCampaignSave] = useState<CampaignSave | null>(null);
   const [isStoryMode, setIsStoryMode] = useState(false);
   const campaignSaveRef = useRef<CampaignSave | null>(null);
+  const [storyNarrative, setStoryNarrative] = useState<{ text: string; artAsset?: string; chapterName: string; floorNum: number } | null>(null);
 
   // RUN TV — Impregnar class unlock via watching the show
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
@@ -3421,7 +3422,6 @@ export function Game() {
             setCampaignSave(newSave);
             campaignSaveRef.current = newSave;
             await saveCampaign(newSave);
-            // Start chapter 1
             const chapter = getChapter(newSave.currentChapter);
             if (!chapter) return;
             const floorDef = chapter.floors[0];
@@ -3429,9 +3429,12 @@ export function Game() {
             const gs = newStoryFloor(chapter, floorDef, newSave);
             setState(gs);
             setIsStoryMode(true);
-            // Save checkpoint
             await saveCheckpoint(newSave, JSON.stringify(gs));
-            setScreen('game');
+            if (floorDef.narrativeIntro) {
+              setStoryNarrative({ text: floorDef.narrativeIntro, artAsset: floorDef.introArt, chapterName: chapter.name, floorNum: floorDef.floorIndex });
+            } else {
+              setScreen('game');
+            }
           }}
           onContinue={async (chapterId) => {
             if (!campaignSave) return;
@@ -3473,13 +3476,55 @@ export function Game() {
             campaignSaveRef.current = campaignSave;
             setScreen('game');
           }}
-          onBack={() => { setScreen('title'); setIsStoryMode(false); }}
+          onBack={() => { setScreen('title'); setIsStoryMode(false); setStoryNarrative(null); }}
           onDeleteSave={async () => {
             await deleteCampaign();
             setCampaignSave(null);
             campaignSaveRef.current = null;
           }}
         />
+      </div>
+    );
+  }
+
+  // ── Story Mode Narrative Intro Screen ──
+  const narrativeArtUrl = useCdnImage(storyNarrative?.artAsset ?? '');
+  if (storyNarrative) {
+    return (
+      <div
+        style={{
+          width: '100%', height: '100%', background: '#0a0a0a',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', padding: 20, cursor: 'pointer',
+        }}
+        onClick={() => { setStoryNarrative(null); setScreen('game'); }}
+      >
+        {narrativeArtUrl && (
+          <img src={narrativeArtUrl} alt="" style={{
+            width: '100%', maxWidth: 380, borderRadius: 8,
+            border: '1px solid #33ff6633',
+            marginBottom: 16, imageRendering: 'pixelated',
+          }} />
+        )}
+        <div style={{
+          color: '#cc8844', fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold',
+          marginBottom: 4, letterSpacing: 2,
+        }}>
+          {storyNarrative.chapterName} — Floor {storyNarrative.floorNum}
+        </div>
+        <div style={{
+          color: '#c49eff', fontFamily: 'monospace', fontSize: 12,
+          lineHeight: '18px', maxWidth: 360, textAlign: 'center',
+          marginBottom: 20, padding: '0 10px',
+        }}>
+          {storyNarrative.text}
+        </div>
+        <div style={{
+          color: '#556655', fontFamily: 'monospace', fontSize: 10,
+          animation: 'pulse 2s ease-in-out infinite',
+        }}>
+          Tap to continue...
+        </div>
       </div>
     );
   }
