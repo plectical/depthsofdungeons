@@ -3437,6 +3437,7 @@ export function Game() {
                   setNecropolisUnlocked(false);
                   setHasWatchedDodShow(false);
                   runTvPopupShownRef.current = false;
+                  try { RundotGameAPI.globalStorage.removeItem('watched_dod_show').catch(() => {}); } catch {}
                   // Now trigger first-time auto-start flow
                   setDebugMode(false);
                   autoStartRef.current = true;
@@ -3785,6 +3786,7 @@ export function Game() {
                   setNecropolisUnlocked(false);
                   setHasWatchedDodShow(false);
                   runTvPopupShownRef.current = false;
+                  try { RundotGameAPI.globalStorage.removeItem('watched_dod_show').catch(() => {}); } catch {}
                   // Close debug menu after reset
                   setDebugMode(false);
                   alert('All data reset! You can now start fresh.');
