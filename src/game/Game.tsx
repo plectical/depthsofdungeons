@@ -342,6 +342,7 @@ export function Game() {
   const [isStoryMode, setIsStoryMode] = useState(false);
   const campaignSaveRef = useRef<CampaignSave | null>(null);
   const [storyNarrative, setStoryNarrative] = useState<{ text: string; artAsset?: string; chapterName: string; floorNum: number } | null>(null);
+  const narrativeArtUrl = useCdnImage(storyNarrative?.artAsset ?? '');
 
   // RUN TV — Impregnar class unlock via watching the show
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
@@ -3488,7 +3489,6 @@ export function Game() {
   }
 
   // ── Story Mode Narrative Intro Screen ──
-  const narrativeArtUrl = useCdnImage(storyNarrative?.artAsset ?? '');
   if (storyNarrative) {
     return (
       <div
