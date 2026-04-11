@@ -4347,12 +4347,16 @@ export function Game() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.85)', zIndex: 10000,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20,
-        }} onClick={() => setShowRunTvPopup(false)}>
+          padding: 20, cursor: 'pointer',
+        }} onClick={() => {
+          window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank');
+          setHasWatchedDodShow(true);
+          try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
+          setShowRunTvPopup(false);
+        }}>
           <div style={{
             maxWidth: 360, width: '100%', position: 'relative',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
-          }} onClick={(e) => e.stopPropagation()}>
+          }}>
             {runTvPopupImg ? (
               <img src={runTvPopupImg} alt="Watch Depths of Dungeon on RUN TV" style={{
                 width: '100%', maxWidth: 360, borderRadius: 8,
@@ -4367,31 +4371,10 @@ export function Game() {
                 flexDirection: 'column', gap: 12, padding: 20,
               }}>
                 <div style={{ color: '#88ff44', fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
-                  Watch Depths of Dungeon on RUN TV
-                </div>
-                <div style={{ color: '#ff8800', fontFamily: 'monospace', fontSize: 14, textAlign: 'center' }}>
-                  to unlock the Impregnar class!
+                  Watch Depths of Dungeon on RUN TV to unlock the Impregnar class!
                 </div>
               </div>
             )}
-            <button
-              style={{
-                marginTop: 12, padding: '10px 30px',
-                background: '#ff8800', color: '#000', fontFamily: 'monospace',
-                fontSize: 16, fontWeight: 'bold', border: '2px solid #ff8800',
-                borderRadius: 6, cursor: 'pointer', letterSpacing: 1,
-                boxShadow: '0 0 20px rgba(255,136,0,0.4)',
-              }}
-              onClick={() => {
-                window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank');
-                // Temporary: unlock on click until RUN TV team sets the globalStorage flag
-                setHasWatchedDodShow(true);
-                try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
-                setShowRunTvPopup(false);
-              }}
-            >
-              WATCH NOW
-            </button>
             <button
               style={{
                 position: 'absolute', top: 8, right: 8,
@@ -4401,7 +4384,7 @@ export function Game() {
                 fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
-              onClick={() => setShowRunTvPopup(false)}
+              onClick={(e) => { e.stopPropagation(); setShowRunTvPopup(false); }}
             >X</button>
           </div>
         </div>
