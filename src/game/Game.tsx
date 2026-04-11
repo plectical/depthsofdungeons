@@ -141,7 +141,7 @@ function getFallbackEnemyPortrait(enemyName: string): string | undefined {
   return ENEMY_PORTRAIT_FALLBACKS['default'];
 }
 
-type Screen = 'title' | 'classSelect' | 'raceSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect' | 'storyHub' | 'storyGame';
+type Screen = 'title' | 'classSelect' | 'raceSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect' | 'storyHub';
 
 interface StatGain {
   label: string;
@@ -3426,7 +3426,7 @@ export function Game() {
             setIsStoryMode(true);
             // Save checkpoint
             await saveCheckpoint(newSave, JSON.stringify(gs));
-            setScreen('storyGame');
+            setScreen('game');
           }}
           onContinue={async (chapterId) => {
             if (!campaignSave) return;
@@ -3435,7 +3435,7 @@ export function Game() {
             if (checkpointState) {
               setState(checkpointState);
               setIsStoryMode(true);
-              setScreen('storyGame');
+              setScreen('game');
               return;
             }
             // No checkpoint — start fresh from current floor
@@ -3448,7 +3448,7 @@ export function Game() {
             setIsStoryMode(true);
             await saveCheckpoint(campaignSave, JSON.stringify(gs));
             await saveCampaign(campaignSave);
-            setScreen('storyGame');
+            setScreen('game');
           }}
           onSelectChapter={async (chapterId) => {
             if (!campaignSave) return;
@@ -3466,7 +3466,7 @@ export function Game() {
             await saveCampaign(campaignSave);
             setCampaignSave({ ...campaignSave });
             campaignSaveRef.current = campaignSave;
-            setScreen('storyGame');
+            setScreen('game');
           }}
           onBack={() => { setScreen('title'); setIsStoryMode(false); }}
           onDeleteSave={async () => {

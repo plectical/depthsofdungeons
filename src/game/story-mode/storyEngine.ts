@@ -12,8 +12,10 @@ import { createPlayer } from '../entities';
 import { uid, resetIdCounter } from '../utils';
 import { CLASS_DEFS } from '../constants';
 import { getRaceDef } from '../races';
-import { createEmptyRunStats } from '../traits';
+import { createEmptyRunStats, createDefaultBloodline } from '../traits';
 import { HUNGER_MAX } from '../constants';
+import { initializeCharacterSkills } from '../story';
+import { registerStoryNpcs } from './storyNpcRegistry';
 
 function getClassDef(id: PlayerClass) {
   return CLASS_DEFS.find(c => c.id === id) ?? CLASS_DEFS[0]!;
@@ -130,6 +132,15 @@ export function newStoryFloor(
     };
     player.inventory.push(goldItem);
   }
+
+  // Set empty bloodline so engine code that reads _bloodlineRef doesn't crash
+  state._bloodlineRef = createDefaultBloodline();
+
+  // Initialize character skills for skill check encounters (pass undefined bloodline for balanced defaults)
+  state.skills = initializeCharacterSkills(save.playerClass, undefined);
+
+  // Register story NPCs so the dialogue system can find them
+  registerStoryNpcs(floorDef.npcs);
 
   // Show narrative intro if defined
   if (floorDef.narrativeIntro) {

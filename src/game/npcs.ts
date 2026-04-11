@@ -2,6 +2,7 @@ import type { NPCDef, MapNPC, DungeonFloor, BloodlineData, DialogueNode } from '
 import type { GeneratedClass } from './generativeClass/types';
 import { uid, randInt } from './utils';
 import { isWalkableTile, getTile } from './dungeon';
+import { getStoryNpcDef as _getStoryNpcDef } from './story-mode/storyNpcRegistry';
 
 // Get stored generated class from localStorage
 function getStoredGeneratedClass(): GeneratedClass | null {
@@ -183,7 +184,24 @@ export function getNPCDef(defId: string): NPCDef | undefined {
       return createGeneratedClassIntroNPC(gen);
     }
   }
-  return NPC_DEFS.find((n) => n.id === defId);
+  const standard = NPC_DEFS.find((n) => n.id === defId);
+  if (standard) return standard;
+
+  // Fallback: check story mode NPC registry
+  const storyNpc = _getStoryNpcDef(defId);
+  if (storyNpc) {
+    return {
+      id: storyNpc.id,
+      name: storyNpc.name,
+      char: storyNpc.char,
+      color: storyNpc.color,
+      minFloor: 0,
+      spawnChance: 1,
+      dialogue: storyNpc.dialogue,
+      portraitUrl: undefined,
+    };
+  }
+  return undefined;
 }
 
 export function getNPCDialogue(def: NPCDef, bloodline: BloodlineData): DialogueNode {
