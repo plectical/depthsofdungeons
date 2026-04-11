@@ -1506,6 +1506,11 @@ export function Game() {
   const lastSavedFloorRef = useRef(0);
 
   const handleChange = useCallback((next: GameState) => {
+    // Story mode: disable hunger drain — keep it full
+    if (isStoryMode) {
+      next.hunger.current = next.hunger.max;
+    }
+
     // Combat VFX — detect new combat messages
     const newMsgs = next.messages.slice(prevMsgCountRef.current);
     prevMsgCountRef.current = next.messages.length;
@@ -5121,26 +5126,15 @@ export function Game() {
         state={state} 
         onChange={handleChange} 
         onEnemyEncounter={async (enemyId, enemyName, enemy, _targetX, _targetY) => {
-          console.log('[Game] onEnemyEncounter called:', enemyName);
-          
+          // Skip enemy encounter dialogues entirely in story mode
+          if (isStoryMode) return false;
+
           // Skip if already encountered
-          if (state?.encounteredEnemyIds?.includes(enemyId)) {
-            console.log('[Game] Already encountered, skipping');
-            return false;
-          }
-          
+          if (state?.encounteredEnemyIds?.includes(enemyId)) return false;
           // Skip bosses
-          if (enemy.isBoss) {
-            console.log('[Game] Boss, skipping');
-            return false;
-          }
+          if (enemy.isBoss) return false;
           
-          // All creatures get dialogue options in narrative zones
-          // Even "mindless" creatures can have interesting encounters
-          
-          // Trigger encounter
           const showed = await checkEnemyEncounter(enemyId, enemyName, enemy);
-          console.log('[Game] checkEnemyEncounter result:', showed);
           return showed;
         }}
       />
@@ -5337,19 +5331,21 @@ export function Game() {
           <button style={actionBtnStyle} onClick={() => setShowCharInfo(true)}>
             {'[ Me ]'}
           </button>
-          <button
-            style={{
-              ...actionBtnStyle,
-              color: questEchoData.activeQuests.some(q => q.completed) ? '#55ccff' : '#33ff66',
-              borderColor: questEchoData.activeQuests.some(q => q.completed) ? '#55ccff' : undefined,
-              textShadow: questEchoData.activeQuests.some(q => q.completed) ? '0 0 6px #55ccff44' : undefined,
-            }}
-            onClick={() => openQuestLog('game')}
-          >
-            {questEchoData.activeQuests.some(q => q.completed)
-              ? `[ Quests ${questEchoData.activeQuests.filter(q => q.completed).length} ]`
-              : '[ Quests ]'}
-          </button>
+          {!isStoryMode && (
+            <button
+              style={{
+                ...actionBtnStyle,
+                color: questEchoData.activeQuests.some(q => q.completed) ? '#55ccff' : '#33ff66',
+                borderColor: questEchoData.activeQuests.some(q => q.completed) ? '#55ccff' : undefined,
+                textShadow: questEchoData.activeQuests.some(q => q.completed) ? '0 0 6px #55ccff44' : undefined,
+              }}
+              onClick={() => openQuestLog('game')}
+            >
+              {questEchoData.activeQuests.some(q => q.completed)
+                ? `[ Quests ${questEchoData.activeQuests.filter(q => q.completed).length} ]`
+                : '[ Quests ]'}
+            </button>
+          )}
           <button
             style={{
               ...actionBtnStyle,
