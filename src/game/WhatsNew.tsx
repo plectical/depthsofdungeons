@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react';
  * When the player opens the game and their stored "lastSeenVersion" differs
  * from this value, the What's New screen auto-appears.
  */
-export const BUILD_VERSION = '1.83.0';
+export const BUILD_VERSION = '1.200.0';
 
 /** A single update entry shown in the changelog. */
 export interface UpdateEntry {
@@ -20,6 +20,20 @@ export interface UpdateEntry {
  * Each deploy, add a new entry at the TOP of this array.
  */
 export const UPDATE_LOG: UpdateEntry[] = [
+  {
+    version: '1.200.0',
+    date: 'Apr 11 2026',
+    title: 'Race System, Skill Trees & More',
+    notes: [
+      '32 playable races across 6 categories — Humanoid, Beastfolk, Undead, Demonic, Elemental, and Aberration.',
+      'Each race has unique stat modifiers and a racial passive ability.',
+      'New race selection screen with category filters, stat previews, and a Random Race button.',
+      'Your race portrait now shows in the HUD during gameplay.',
+      'Skill trees added for Hellborn (Inferno / Damnation / Overlord) and Impregnar (Broodmother / Pestilence / Parasite).',
+      'New "End Run" button lets you forfeit a run instantly.',
+      'Improved error tracking — console errors now sent to analytics for crash monitoring.',
+    ],
+  },
   {
     version: '1.57.7',
     date: 'Mar 24 2026',

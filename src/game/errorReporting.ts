@@ -122,35 +122,19 @@ export function installGlobalErrorHandlers() {
   _installed = true;
 
   // Uncaught synchronous errors
-  window.onerror = (
-    message: string | Event,
-    source?: string,
-    lineno?: number,
-    colno?: number,
-    error?: Error,
-  ) => {
-    reportError('uncaught_error', error ?? message, {
-      file: source ?? '',
-      line: lineno ?? 0,
-      col: colno ?? 0,
+  window.addEventListener('error', (event: ErrorEvent) => {
+    reportError('uncaught_error', event.error ?? event.message, {
+      file: event.filename ?? '',
+      line: event.lineno ?? 0,
+      col: event.colno ?? 0,
     });
-    // Don't suppress — let the ErrorBoundary also handle if applicable
-    return false;
-  };
+  });
 
   // Unhandled promise rejections
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
     const msg = event.reason instanceof Error ? event.reason.message : String(event.reason ?? '');
 
-    // Filter platform SDK internal RPC timeouts — these are not from our code,
-    // spam crash reports, and don't affect gameplay. Each of these has been
-    // verified in production crash data as pure platform noise:
-    //   H5_DEBUG: 78+ occurrences, SDK debug channel
-    //   H5_LOG_ANALYTICS_EVENT: platform analytics delivery
-    //   H5_TRIGGER_HAPTIC: ~820 occurrences, OS-level haptic feedback (not called by our game)
-    //   H5_APP_STORAGE_SET_ITEM: handled by safeStorage.ts with localStorage fallback
-    //   H5_APP_STORAGE_GET_ITEM: handled by safeStorage.ts with localStorage fallback
-    // Platform SDK RPC timeouts — not from our code
+    // Filter platform SDK internal RPC timeouts — not from our code, verified as noise
     const platformRpcNoise = [
       'H5_DEBUG',
       'H5_LOG_ANALYTICS_EVENT',
@@ -161,8 +145,6 @@ export function installGlobalErrorHandlers() {
     if (platformRpcNoise.some((rpc) => msg.includes(rpc))) return;
 
     // Transient errors handled by retry logic or not actionable
-    // "signal is aborted without reason" (409 occurrences) — AbortController cancellation
-    // "Failed to start the audio device" (55) — iOS autoplay restriction, harmless
     if (msg.includes('signal is aborted without reason')) return;
     if (msg.includes('Failed to start the audio device')) return;
 
@@ -170,6 +152,28 @@ export function installGlobalErrorHandlers() {
       promise_type: typeof event.reason,
     });
   });
+
+  // Intercept console.error() — capture explicit error logs from our code and libraries
+  const _originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    _originalConsoleError.apply(console, args);
+
+    const message = args.map(a => {
+      if (a instanceof Error) return a.message;
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(' ');
+
+    // Skip noise from the SDK transport layer and React internals
+    if (message.includes('[RUN.game Transport]')) return;
+    if (message.includes('React will try to recreate')) return;
+    if (message.includes('The above error occurred in')) return;
+    if (message.includes('ERR_NETWORK_IO_SUSPENDED')) return;
+
+    const firstArg = args[0];
+    const error = firstArg instanceof Error ? firstArg : message;
+    reportError('console_error', error);
+  };
 }
 
 // ── Safe wrapper for game engine calls ──

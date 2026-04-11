@@ -1,0 +1,139 @@
+---
+description: H5 Game Development rules for webview-based mobile games on the RUN.game (Venus/Rundot) platform
+globs:
+alwaysApply: true
+---
+
+# H5 Game Development Rules
+
+## Code Quality
+
+### DRY — Don't Repeat Yourself
+
+- Extract shared logic into utility functions or shared modules
+- Reuse existing components before creating new ones
+- If you copy-paste a block of code, it should be a function instead
+
+### Single Responsibility
+
+- Each file, class, or function does one thing
+- Stores manage state. Services call APIs. Components render UI. Keep them separate.
+- Game logic does not belong in UI components
+
+### Keep It Simple
+
+- Prefer readable code over clever code
+- Avoid premature abstraction — wait until you have 3+ use cases
+- Minimize inheritance chains; prefer composition
+
+### Type Safety
+
+- Use TypeScript strictly — no `any` types unless interfacing with untyped externals
+- Define interfaces for all data models, API responses, and store shapes
+- Use discriminated unions for state machines and variant types
+
+---
+
+## Webview Memory Optimization
+
+H5 games run in a mobile webview with constrained memory. Treat memory as a scarce resource.
+
+### Asset Management
+
+- Lazy-load assets — only load what the current scene needs
+- Unload/destroy assets when leaving a scene (textures, audio, spritesheets)
+- Compress images before bundling; prefer WebP over PNG where supported
+- Use texture atlases instead of individual sprite files
+- Keep total bundle size under control — large bundles cause slow loads and OOM on low-end devices
+
+### DOM and Rendering
+
+- Avoid mounting hundreds of DOM nodes at once — virtualize long lists
+- Remove event listeners and timers when components unmount
+- Cancel pending animations and tweens on scene exit
+- Pool frequently created/destroyed objects (particles, projectiles, UI elements)
+
+### State
+
+- Don't store large blobs (base64 images, full API responses) in state
+- Clean up derived/temporary state when it's no longer needed
+- Avoid deep object cloning in hot paths — use immutable update patterns
+
+---
+
+## RUN.game SDK / RPC Bridge
+
+The native RPC bridge connects H5 game code to platform APIs. It is the most common source of silent failures.
+
+### Storage
+
+**The #1 production issue: RPC timeouts on storage writes.**
+
+- Never fire-and-forget storage writes. Always `await` and handle errors.
+- Implement retry with exponential backoff for failed saves (max 3 attempts).
+- Keep save data payloads small.
+- Debounce saves — batch on meaningful events (level complete, purchase, scene exit).
+- Log save failures as high-severity analytics events.
+- Use `safeStorage.ts` wrappers — never call `RundotGameAPI.appStorage` directly.
+
+### General RPC Rules
+
+- All RPC calls can timeout or fail. Never assume they succeed.
+- Wrap every SDK call in try/catch. Handle the error path explicitly.
+- Don't make RPC calls in tight loops or on every frame.
+- Batch related RPC calls when possible.
+- Non-critical calls (analytics): catch and log silently. Critical calls (save, purchase): surface the failure.
+
+### Ads
+
+- Always check `RundotGameAPI.ads.isRewardedAdReady()` before showing
+- Handle all three outcomes: completed (grant reward), skipped (no reward), errored (no reward, show message)
+- Don't block the game while waiting for ad load
+
+### Analytics
+
+- Use consistent event naming: `snake_case`, verb-first (`level_completed`, `item_purchased`)
+- Include context: level ID, currency amount, duration, etc.
+- Don't send analytics on every frame or every state change — batch on meaningful events
+
+---
+
+## Error Handling
+
+- All async functions must have error handling — no unhandled promise rejections
+- Unhandled rejections crash webviews on some Android versions. This is not optional.
+- Log errors to analytics with enough context to debug (screen, action, error message)
+- Use `reportError()` from `errorReporting.ts` for all critical errors
+- For player-facing errors, show a retry option when possible rather than a dead end
+- All critical errors are sent as `crash_report` analytics events for Databricks monitoring
+
+---
+
+## Performance
+
+### Rendering
+
+- Target 60fps on mid-range devices; degrade gracefully to 30fps on low-end
+- Use `requestAnimationFrame` — never `setInterval` for game loops
+- Avoid layout thrashing — batch DOM reads and writes separately
+
+### Loading
+
+- Show a loading screen while assets load — never a blank white screen
+- Preload critical assets, lazy-load the rest
+- Use the SDK preloader API to report loading progress to the native shell
+
+### Network
+
+- Don't assume connectivity. Handle offline gracefully.
+- Cache API responses where appropriate
+- Timeout network requests explicitly — don't rely on browser defaults
+
+---
+
+## Testing
+
+- Test on real Android devices, not just Chrome DevTools — webview behavior differs
+- Test with slow network and airplane mode
+- Test with the app backgrounded and resumed mid-gameplay
+- Test save/load roundtrip after every schema change

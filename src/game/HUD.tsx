@@ -4,6 +4,7 @@ import { XP_PER_LEVEL, HUNGER_WARNING } from './constants';
 import { getPlayerEffectiveStats, getClassDef, getPlayerRange, getWarriorRage, getPaladinVow, isPaladinVowActive, getRogueShadowCooldown, getMageBlastCooldown, getRangerMark, getNecroSkeletons, getLegacyAbilityState, hasLegacyAbility, getGeneratedClassInfo } from './engine';
 import { getZoneDef } from './zones';
 import { useCdnImage } from './useCdnImage';
+import { getRaceDef } from './races';
 import { LEGACY_ABILITY_DESCRIPTIONS } from './legacyGear';
 
 interface HUDProps {
@@ -52,6 +53,8 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
 
   const nextXp = player.level < XP_PER_LEVEL.length ? (XP_PER_LEVEL[player.level] ?? 9999) : 9999;
 
+  const raceThumbUrl = useCdnImage(state.playerRace ? `races/${state.playerRace}.png` : '__noop__');
+
   const generatedClassThumb = useCdnImage('generated-class-thumb.png');
   const portraits: Record<string, string | null> = {
     warrior: useCdnImage('warrior-portrait.jpg'),
@@ -85,17 +88,21 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
     } catch { return null; }
   })() : null;
 
-  const normalSrc = playerClass === 'generated' 
+  const classPortraitSrc = playerClass === 'generated' 
     ? (genClass?.portraitUrl ?? generatedClassThumb)
     : (portraits[playerClass] ?? null);
+  const normalSrc = (state.playerRace && raceThumbUrl) ? raceThumbUrl : classPortraitSrc;
   const damagedSrc = portraits[`${playerClass}-damaged`] ?? null;
   const hasDamaged = !!damagedSrc;
   const showPortrait = !!normalSrc || (playerClass === 'generated' && genClass);
 
   let portraitSrc = normalSrc;
-  let portraitBorder = playerClass === 'generated' 
-    ? (genClass?.color ?? '#44ff88')
-    : (classBorders[playerClass] ?? '#ff6644');
+  const raceDef = state.playerRace ? getRaceDef(state.playerRace) : undefined;
+  let portraitBorder = (state.playerRace && raceDef)
+    ? raceDef.color
+    : playerClass === 'generated' 
+      ? (genClass?.color ?? '#44ff88')
+      : (classBorders[playerClass] ?? '#ff6644');
   if (hasDamaged && hpPct <= 0.5) {
     portraitSrc = damagedSrc;
     portraitBorder = '#ff3333';

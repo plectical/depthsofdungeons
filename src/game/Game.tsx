@@ -7,7 +7,7 @@ import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 import { getVariant, trackExposure, forceVariant, getNarrativeExperimentInfo } from './abTesting';
 import type { GameState, PlayerClass, BloodlineData, AncestorRecord, TraitDef, ZoneId, TutorialStepId } from './types';
 import { TutorialBar, TUTORIAL_STEPS } from './TutorialBar';
-import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, impregnate, getImpregnarInfo, addMessage, useGeneratedAbility, getGeneratedClassInfo } from './engine';
+import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, impregnate, getImpregnarInfo, addMessage, useGeneratedAbility, getGeneratedClassInfo, forfeitRun } from './engine';
 import { CLASS_DEFS, getHellbornClass, HELLBORN_CLASS } from './constants';
 import { createDefaultBloodline, mergeRunIntoBloodline, checkForNewTraits, generateAncestorName, computeBloodlineBonuses } from './traits';
 import { GameView } from './GameView';
@@ -4355,12 +4355,7 @@ export function Game() {
                 alignItems: 'flex-start',
               }}
             >
-              <img
-                src={`/cdn-assets/races/${race.thumbnailFile}`}
-                alt={race.name}
-                style={{ width: 44, height: 44, objectFit: 'cover', imageRendering: 'pixelated', flexShrink: 0 }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+              <RaceThumbnail assetPath={`races/${race.thumbnailFile}`} alt={race.name} color={race.color} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ color: race.color, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>
                   {race.name}
@@ -5135,6 +5130,19 @@ export function Game() {
           <button style={actionBtnStyle} onClick={handleWait}>
             {'[ Wait ]'}
           </button>
+          <button
+            style={{ ...actionBtnStyle, color: '#ff4444', borderColor: '#ff444444' }}
+            onClick={() => {
+              if (!state || state.gameOver) return;
+              if (confirm('End this run? Your character will die.')) {
+                const next = cloneState(state);
+                forfeitRun(next);
+                setState(next);
+              }
+            }}
+          >
+            {'[ End Run ]'}
+          </button>
           <div style={{ display: 'flex', gap: 2 }}>
             <button
               style={autoPlay ? autoBtnActiveStyle : actionBtnStyle}
@@ -5702,6 +5710,12 @@ const titleScreenStyle: CSSProperties = {
 /* titleBgImageStyle removed — image now uses absolute positioning inside aspect-ratio container */
 
 /* titleOverlayStyle removed — buttons are now baked into the background image */
+
+function RaceThumbnail({ assetPath, alt, color }: { assetPath: string; alt: string; color: string }) {
+  const url = useCdnImage(assetPath);
+  if (!url) return <div style={{ width: 44, height: 44, flexShrink: 0, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace', fontSize: 18, color }} />;
+  return <img src={url} alt={alt} style={{ width: 44, height: 44, objectFit: 'cover', imageRendering: 'pixelated', flexShrink: 0 }} />;
+}
 
 const titleTextStyle: CSSProperties = {
   color: '#33ff66',

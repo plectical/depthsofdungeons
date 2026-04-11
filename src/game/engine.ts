@@ -4378,11 +4378,19 @@ export function applyDialogueEffects(
 
 // ─── Cause of Death ───
 
+export function forfeitRun(state: GameState): void {
+  state.player.stats.hp = 0;
+  state.player.isDead = true;
+  state.gameOver = true;
+  addMessage(state, 'You gave up and collapsed in the dungeon...', MSG_COLOR.bad);
+}
+
 export function extractCauseOfDeath(state: GameState): string {
   const msgs = state.messages;
   for (let i = msgs.length - 1; i >= 0; i--) {
     const text = msgs[i]!.text;
     if (text.includes('starved')) return 'Starved to death';
+    if (text.includes('gave up')) return 'Gave up';
     const hitMatch = text.match(/^(.+) hits you/);
     if (hitMatch) return `Slain by ${hitMatch[1]}`;
   }
