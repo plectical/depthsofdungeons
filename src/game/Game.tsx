@@ -94,6 +94,12 @@ import type { FactionId } from './types';
 import { ElderGuide, markElderTipSeen } from './ElderGuide';
 import { RACE_DEFS, RACE_CATEGORIES, getRandomRace, type RaceCategory, type RaceDef, isRaceUnlocked, checkNewlyUnlockedRaces } from './races';
 import { WhatsNew, BUILD_VERSION } from './WhatsNew';
+import { StoryHub } from './story-mode/StoryHub';
+import type { CampaignSave } from './story-mode/campaignTypes';
+import { createEmptyCampaignSave } from './story-mode/campaignTypes';
+import { loadCampaign, saveCampaign, deleteCampaign, saveCheckpoint } from './story-mode/campaignSave';
+import { newStoryFloor, loadCheckpoint as loadStoryCheckpoint } from './story-mode/storyEngine';
+import { getChapter } from './story-mode/chapters';
 import {
   ELDER_WELCOME, ELDER_HUNGER, ELDER_SHOP, ELDER_MERCENARY,
   ELDER_NPC, ELDER_BOSS, ELDER_STATUS, ELDER_DEATH, ELDER_AUTO_MODE, ELDER_EXPLORE_MODE, ELDER_RAGE_INTRO, ELDER_SKILL_TREE,
@@ -135,7 +141,7 @@ function getFallbackEnemyPortrait(enemyName: string): string | undefined {
   return ENEMY_PORTRAIT_FALLBACKS['default'];
 }
 
-type Screen = 'title' | 'classSelect' | 'raceSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect';
+type Screen = 'title' | 'classSelect' | 'raceSelect' | 'zoneSelect' | 'game' | 'gameover' | 'generativeClassSelect' | 'storyHub' | 'storyGame';
 
 interface StatGain {
   label: string;
@@ -330,6 +336,11 @@ export function Game() {
   // Reputation-based transformation offer
   const [pendingReputationTransform, setPendingReputationTransform] = useState<FactionId | null>(null);
   const [offeredTransformFactions, setOfferedTransformFactions] = useState<Set<FactionId>>(new Set());
+
+  // Story Mode campaign state
+  const [campaignSave, setCampaignSave] = useState<CampaignSave | null>(null);
+  const [isStoryMode, setIsStoryMode] = useState(false);
+  const campaignSaveRef = useRef<CampaignSave | null>(null);
 
   // RUN TV — Impregnar class unlock via watching the show
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
@@ -1531,9 +1542,26 @@ export function Game() {
       const floorChanged = next.floorNumber > lastSavedFloorRef.current;
       if (floorChanged) {
         lastSavedFloorRef.current = next.floorNumber;
-        immediateSave(); // Floor descent — save immediately, don't risk losing it
+
+        // Story mode: save checkpoint on floor transition
+        if (isStoryMode && campaignSaveRef.current) {
+          const cs = campaignSaveRef.current;
+          cs.currentFloor = next.floorNumber;
+          cs.playerLevel = next.player.level;
+          cs.gold = next.player.inventory.filter(i => i.type === 'gold').reduce((sum, i) => sum + i.value, 0);
+          cs.skillPoints = next.skillPoints;
+          cs.unlockedNodes = [...next.unlockedNodes];
+          const chapter = getChapter(cs.currentChapter);
+          const floorDef = chapter?.floors.find(f => f.floorIndex === next.floorNumber);
+          if (floorDef?.hasCheckpoint) {
+            saveCheckpoint(cs, JSON.stringify(next));
+          }
+          saveCampaign(cs);
+        } else {
+          immediateSave();
+        }
       } else {
-        debouncedSave(); // Every other action — debounced so we don't spam storage
+        if (!isStoryMode) debouncedSave();
       }
     }
 
@@ -1661,6 +1689,18 @@ export function Game() {
     }
 
     if (next.gameOver) {
+      // Story mode: reload from checkpoint instead of permadeath
+      if (isStoryMode && campaignSaveRef.current) {
+        setState(next);
+        setTimeout(async () => {
+          const checkpoint = loadStoryCheckpoint(campaignSaveRef.current!);
+          if (checkpoint) {
+            addMessage(checkpoint, 'You have fallen... but the story continues.', '#ff8800');
+            setState(checkpoint);
+          }
+        }, 1500);
+        return;
+      }
       setState(next);
       processDeathBloodline(next);
       setTimeout(() => {
@@ -1668,7 +1708,6 @@ export function Game() {
         trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, autoPlay));
         submitScore(next.score, duration);
         setScreen('gameover');
-        // Elder: death tip on first death
         if (bloodlineRef.current.generation <= 1) {
           tryShowElderTip(ELDER_DEATH);
         }
@@ -3015,14 +3054,25 @@ export function Game() {
             }
           }
           if (next.gameOver) {
-            processDeathBloodline(next);
-            setTimeout(() => {
-              const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-              trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, true));
-              submitScore(next.score, duration);
-              setScreen('gameover');
+            if (isStoryMode && campaignSaveRef.current) {
               setAutoPlay(false);
-            }, 800);
+              setTimeout(async () => {
+                const checkpoint = loadStoryCheckpoint(campaignSaveRef.current!);
+                if (checkpoint) {
+                  addMessage(checkpoint, 'You have fallen... but the story continues.', '#ff8800');
+                  setState(checkpoint);
+                }
+              }, 1500);
+            } else {
+              processDeathBloodline(next);
+              setTimeout(() => {
+                const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, true));
+                submitScore(next.score, duration);
+                setScreen('gameover');
+                setAutoPlay(false);
+              }, 800);
+            }
           }
           // Clear projectiles after a brief moment (same as handleChange)
           if (next.projectiles && next.projectiles.length > 0) {
@@ -3355,6 +3405,80 @@ export function Game() {
 
   // ── SCREENS ──
 
+  // ── Story Mode Hub ──
+  if (screen === 'storyHub') {
+    return (
+      <div style={{ width: '100%', height: '100%', background: '#0a0a0a' }}>
+        <StoryHub
+          save={campaignSave}
+          onNewCampaign={async (playerClass, playerRace) => {
+            const newSave = createEmptyCampaignSave(playerClass, playerRace);
+            setCampaignSave(newSave);
+            campaignSaveRef.current = newSave;
+            await saveCampaign(newSave);
+            // Start chapter 1
+            const chapter = getChapter(newSave.currentChapter);
+            if (!chapter) return;
+            const floorDef = chapter.floors[0];
+            if (!floorDef) return;
+            const gs = newStoryFloor(chapter, floorDef, newSave);
+            setState(gs);
+            setIsStoryMode(true);
+            // Save checkpoint
+            await saveCheckpoint(newSave, JSON.stringify(gs));
+            setScreen('storyGame');
+          }}
+          onContinue={async (chapterId) => {
+            if (!campaignSave) return;
+            // Try loading checkpoint
+            const checkpointState = loadStoryCheckpoint(campaignSave);
+            if (checkpointState) {
+              setState(checkpointState);
+              setIsStoryMode(true);
+              setScreen('storyGame');
+              return;
+            }
+            // No checkpoint — start fresh from current floor
+            const chapter = getChapter(chapterId);
+            if (!chapter) return;
+            const floorDef = chapter.floors.find(f => f.floorIndex === campaignSave.currentFloor) ?? chapter.floors[0];
+            if (!floorDef) return;
+            const gs = newStoryFloor(chapter, floorDef, campaignSave);
+            setState(gs);
+            setIsStoryMode(true);
+            await saveCheckpoint(campaignSave, JSON.stringify(gs));
+            await saveCampaign(campaignSave);
+            setScreen('storyGame');
+          }}
+          onSelectChapter={async (chapterId) => {
+            if (!campaignSave) return;
+            campaignSave.currentChapter = chapterId;
+            campaignSave.currentFloor = 1;
+            campaignSave.checkpointState = null;
+            const chapter = getChapter(chapterId);
+            if (!chapter) return;
+            const floorDef = chapter.floors[0];
+            if (!floorDef) return;
+            const gs = newStoryFloor(chapter, floorDef, campaignSave);
+            setState(gs);
+            setIsStoryMode(true);
+            await saveCheckpoint(campaignSave, JSON.stringify(gs));
+            await saveCampaign(campaignSave);
+            setCampaignSave({ ...campaignSave });
+            campaignSaveRef.current = campaignSave;
+            setScreen('storyGame');
+          }}
+          onBack={() => { setScreen('title'); setIsStoryMode(false); }}
+          onDeleteSave={async () => {
+            await deleteCampaign();
+            setCampaignSave(null);
+            campaignSaveRef.current = null;
+          }}
+        />
+      </div>
+    );
+  }
+
   if (screen === 'title') {
     /* ── Invisible hit-zone style helper (positioned over the baked-in image buttons) ── */
     const hitZone = (id: string, top: number, left: number, bottom: number, right: number): CSSProperties => ({
@@ -3439,6 +3563,18 @@ export function Game() {
                 }}
               >
                 [ Test First-Time Flow ]
+              </button>
+              <button
+                style={{ background: '#0a1a2a', border: '1px solid #cc8844', color: '#cc8844', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
+                onClick={async () => {
+                  setDebugMode(false);
+                  const existing = await loadCampaign();
+                  setCampaignSave(existing);
+                  campaignSaveRef.current = existing;
+                  setScreen('storyHub');
+                }}
+              >
+                [ Story Mode ]
               </button>
               <button
                 style={{ background: '#1a0400', border: '1px solid #ff2200', color: '#ff2200', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
@@ -5252,21 +5388,28 @@ export function Game() {
             style={{ ...actionBtnStyle, color: '#ff4444', borderColor: '#ff444444' }}
             onClick={() => {
               if (!state || state.gameOver) return;
-              if (confirm('End this run? Your character will die.')) {
-                const next = cloneState(state);
-                forfeitRun(next);
-                setState(next);
-                processDeathBloodline(next);
-                setTimeout(() => {
-                  const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-                  trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, autoPlay));
-                  submitScore(next.score, duration);
-                  setScreen('gameover');
-                }, 400);
+              if (isStoryMode) {
+                if (confirm('Return to Story Hub? Progress since last checkpoint will be lost.')) {
+                  setAutoPlay(false);
+                  setScreen('storyHub');
+                }
+              } else {
+                if (confirm('End this run? Your character will die.')) {
+                  const next = cloneState(state);
+                  forfeitRun(next);
+                  setState(next);
+                  processDeathBloodline(next);
+                  setTimeout(() => {
+                    const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                    trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, autoPlay));
+                    submitScore(next.score, duration);
+                    setScreen('gameover');
+                  }, 400);
+                }
               }
             }}
           >
-            {'[ End Run ]'}
+            {isStoryMode ? '[ Return to Hub ]' : '[ End Run ]'}
           </button>
           <div style={{ display: 'flex', gap: 2 }}>
             <button
