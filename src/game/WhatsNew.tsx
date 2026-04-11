@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react';
  * When the player opens the game and their stored "lastSeenVersion" differs
  * from this value, the What's New screen auto-appears.
  */
-export const BUILD_VERSION = '1.200.0';
+export const BUILD_VERSION = '1.210.0';
 
 /** A single update entry shown in the changelog. */
 export interface UpdateEntry {
@@ -20,6 +20,18 @@ export interface UpdateEntry {
  * Each deploy, add a new entry at the TOP of this array.
  */
 export const UPDATE_LOG: UpdateEntry[] = [
+  {
+    version: '1.210.0',
+    date: 'Apr 11 2026',
+    title: 'Race Unlock Progression',
+    notes: [
+      'Races now have unlock requirements — earn new races by reaching deeper floors, killing enemies, defeating bosses, clearing zones, and more.',
+      '3 starter races (Human, Dwarf, Elf) are free. The other 29 must be unlocked through gameplay.',
+      'Locked races show their unlock requirement on the race select screen.',
+      'Newly unlocked races are announced on the death screen after each run.',
+      'Race progress counter (X/32) shown on both the race select and death screens.',
+    ],
+  },
   {
     version: '1.200.0',
     date: 'Apr 11 2026',

@@ -437,6 +437,8 @@ export interface BloodlineData {
   factionReputations?: FactionReputation[];
   /** Story journal — records all encountered stories/characters with images */
   storyJournal?: JournalEntry[];
+  /** Race IDs that the player has permanently unlocked */
+  unlockedRaces?: string[];
 }
 
 /** A journal entry recording an encountered character/story */

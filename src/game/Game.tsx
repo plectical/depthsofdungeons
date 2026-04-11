@@ -92,7 +92,7 @@ import { startAffliction, getAfflictionForFaction } from './afflictions';
 import { getFactionForCreature, modifyFactionReputation, REPUTATION_CHANGES, canTransformIntoFaction, FACTION_DEFS } from './factions';
 import type { FactionId } from './types';
 import { ElderGuide, markElderTipSeen } from './ElderGuide';
-import { RACE_DEFS, RACE_CATEGORIES, getRandomRace, type RaceCategory } from './races';
+import { RACE_DEFS, RACE_CATEGORIES, getRandomRace, type RaceCategory, type RaceDef, isRaceUnlocked, checkNewlyUnlockedRaces } from './races';
 import { WhatsNew, BUILD_VERSION } from './WhatsNew';
 import {
   ELDER_WELCOME, ELDER_HUNGER, ELDER_SHOP, ELDER_MERCENARY,
@@ -146,6 +146,7 @@ interface StatGain {
 interface DeathInfo {
   ancestor: AncestorRecord;
   newTraits: TraitDef[];
+  newRaces: RaceDef[];
   generation: number;
   statGains: StatGain[];
   goldGain: number;
@@ -478,6 +479,9 @@ export function Game() {
           const bl = JSON.parse(bloodlineRaw) as BloodlineData;
           if (!bl.bossKillLog) bl.bossKillLog = [];
           if (!Array.isArray(bl.unlockedTraits)) bl.unlockedTraits = [];
+          if (!Array.isArray(bl.unlockedRaces)) {
+            bl.unlockedRaces = RACE_DEFS.filter(r => isRaceUnlocked(r, bl)).map(r => r.id);
+          }
           setBloodline(bl);
           bloodlineRef.current = bl;
           if (bl.tutorialSteps) setTutorialSteps(bl.tutorialSteps);
@@ -1355,8 +1359,16 @@ export function Game() {
       }
     }
 
+    // Check for newly unlocked races
+    if (!bl.unlockedRaces) bl.unlockedRaces = [];
+    const previouslyUnlocked = [...bl.unlockedRaces];
+    const newRaces = checkNewlyUnlockedRaces(bl, previouslyUnlocked);
+    for (const race of newRaces) {
+      bl.unlockedRaces.push(race.id);
+    }
+
     const isSecondDeath = bloodlineRef.current.generation === 1;
-    setDeathInfo({ ancestor, newTraits, generation: bl.generation, statGains, goldGain, hungerGain, isFirstDeath, isSecondDeath });
+    setDeathInfo({ ancestor, newTraits, newRaces, generation: bl.generation, statGains, goldGain, hungerGain, isFirstDeath, isSecondDeath });
     saveBloodline(bl);
 
     // Clear auto-save on death (both slots + localStorage backup)
@@ -4276,11 +4288,16 @@ export function Game() {
   if (screen === 'raceSelect') {
     const filteredRaces = raceFilter === 'all' ? RACE_DEFS : RACE_DEFS.filter(r => r.category === raceFilter);
     const classDef = CLASS_DEFS.find(c => c.id === selectedClass);
+    const bl = bloodlineRef.current;
+    const unlockedCount = RACE_DEFS.filter(r => isRaceUnlocked(r, bl)).length;
     return (
       <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 16 }}>
         <div style={{ ...titleTextStyle, fontSize: 18 }}>Choose Your Race</div>
         <div style={{ color: '#88aa88', fontFamily: 'monospace', fontSize: 11, marginBottom: 2 }}>
           Playing as <span style={{ color: classDef?.color ?? '#33ff66' }}>{classDef?.name ?? selectedClass}</span>
+        </div>
+        <div style={{ color: '#556655', fontFamily: 'monospace', fontSize: 9, marginBottom: 4 }}>
+          {unlockedCount}/{RACE_DEFS.length} races unlocked
         </div>
 
         {/* Category filter bar */}
@@ -4316,7 +4333,7 @@ export function Game() {
 
         {/* Random race button */}
         <button
-          onClick={() => selectRaceAndPickZone(getRandomRace().id)}
+          onClick={() => selectRaceAndPickZone(getRandomRace(bl).id)}
           style={{
             background: 'rgba(0,0,0,0.8)',
             border: '1px solid #ff880088',
@@ -4340,57 +4357,83 @@ export function Game() {
           maxWidth: 380,
           width: '100%',
         }}>
-          {filteredRaces.map(race => (
-            <button
-              key={race.id}
-              onClick={() => selectRaceAndPickZone(race.id)}
-              style={{
-                background: 'rgba(0,0,0,0.75)',
-                border: `1px solid ${race.color}44`,
-                padding: '6px 6px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                display: 'flex',
-                gap: 6,
-                alignItems: 'flex-start',
-              }}
-            >
-              <RaceThumbnail assetPath={`races/${race.thumbnailFile}`} alt={race.name} color={race.color} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ color: race.color, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>
-                  {race.name}
-                </div>
-                <div style={{ color: '#668866', fontFamily: 'monospace', fontSize: 9, lineHeight: '12px' }}>
-                  {race.description.slice(0, 50)}{race.description.length > 50 ? '...' : ''}
-                </div>
-                <div style={{ fontFamily: 'monospace', fontSize: 9, marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {race.statMods.hp != null && race.statMods.hp !== 0 && (
-                    <span style={{ color: race.statMods.hp > 0 ? '#44ff44' : '#ff4444' }}>
-                      HP{race.statMods.hp > 0 ? '+' : ''}{race.statMods.hp}
-                    </span>
+          {filteredRaces.map(race => {
+            const unlocked = isRaceUnlocked(race, bl);
+            return (
+              <button
+                key={race.id}
+                onClick={() => unlocked && selectRaceAndPickZone(race.id)}
+                style={{
+                  background: unlocked ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.4)',
+                  border: `1px solid ${unlocked ? race.color + '44' : '#333'}`,
+                  padding: '6px 6px',
+                  cursor: unlocked ? 'pointer' : 'default',
+                  textAlign: 'left',
+                  display: 'flex',
+                  gap: 6,
+                  alignItems: 'flex-start',
+                  opacity: unlocked ? 1 : 0.55,
+                  position: 'relative',
+                }}
+              >
+                {unlocked ? (
+                  <RaceThumbnail assetPath={`races/${race.thumbnailFile}`} alt={race.name} color={race.color} />
+                ) : (
+                  <div style={{
+                    width: 44, height: 44, flexShrink: 0,
+                    background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'monospace', fontSize: 18, color: '#444',
+                  }}>?</div>
+                )}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {unlocked ? (
+                    <>
+                      <div style={{ color: race.color, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>
+                        {race.name}
+                      </div>
+                      <div style={{ color: '#668866', fontFamily: 'monospace', fontSize: 9, lineHeight: '12px' }}>
+                        {race.description.slice(0, 50)}{race.description.length > 50 ? '...' : ''}
+                      </div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 9, marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {race.statMods.hp != null && race.statMods.hp !== 0 && (
+                          <span style={{ color: race.statMods.hp > 0 ? '#44ff44' : '#ff4444' }}>
+                            HP{race.statMods.hp > 0 ? '+' : ''}{race.statMods.hp}
+                          </span>
+                        )}
+                        {race.statMods.attack != null && race.statMods.attack !== 0 && (
+                          <span style={{ color: race.statMods.attack > 0 ? '#44ff44' : '#ff4444' }}>
+                            ATK{race.statMods.attack > 0 ? '+' : ''}{race.statMods.attack}
+                          </span>
+                        )}
+                        {race.statMods.defense != null && race.statMods.defense !== 0 && (
+                          <span style={{ color: race.statMods.defense > 0 ? '#44ff44' : '#ff4444' }}>
+                            DEF{race.statMods.defense > 0 ? '+' : ''}{race.statMods.defense}
+                          </span>
+                        )}
+                        {race.statMods.speed != null && race.statMods.speed !== 0 && (
+                          <span style={{ color: race.statMods.speed > 0 ? '#44ff44' : '#ff4444' }}>
+                            SPD{race.statMods.speed > 0 ? '+' : ''}{race.statMods.speed}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color: '#aaaa44', fontFamily: 'monospace', fontSize: 8, marginTop: 1 }}>
+                        {race.passive.name}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ color: '#666', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>
+                        {race.name}
+                      </div>
+                      <div style={{ color: '#ff6644', fontFamily: 'monospace', fontSize: 9, marginTop: 2 }}>
+                        🔒 {race.unlock.label}
+                      </div>
+                    </>
                   )}
-                  {race.statMods.attack != null && race.statMods.attack !== 0 && (
-                    <span style={{ color: race.statMods.attack > 0 ? '#44ff44' : '#ff4444' }}>
-                      ATK{race.statMods.attack > 0 ? '+' : ''}{race.statMods.attack}
-                    </span>
-                  )}
-                  {race.statMods.defense != null && race.statMods.defense !== 0 && (
-                    <span style={{ color: race.statMods.defense > 0 ? '#44ff44' : '#ff4444' }}>
-                      DEF{race.statMods.defense > 0 ? '+' : ''}{race.statMods.defense}
-                    </span>
-                  )}
-                  {race.statMods.speed != null && race.statMods.speed !== 0 && (
-                    <span style={{ color: race.statMods.speed > 0 ? '#44ff44' : '#ff4444' }}>
-                      SPD{race.statMods.speed > 0 ? '+' : ''}{race.statMods.speed}
-                    </span>
-                  )}
                 </div>
-                <div style={{ color: '#aaaa44', fontFamily: 'monospace', fontSize: 8, marginTop: 1 }}>
-                  {race.passive.name}
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
         {/* Back button */}
@@ -4702,6 +4745,24 @@ export function Game() {
               </div>
             )}
 
+            {deathInfo.newRaces.length > 0 && (
+              <div style={{ marginTop: 8, borderTop: '1px solid #ff880022', paddingTop: 8 }}>
+                <div style={{ color: '#ff8800', fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+                  NEW RACES UNLOCKED:
+                </div>
+                {deathInfo.newRaces.map((r) => (
+                  <div key={r.id} style={{ marginTop: 4 }}>
+                    <span style={{ color: r.color, fontSize: 11, fontWeight: 'bold' }}>
+                      [{r.icon}] {r.name}
+                    </span>
+                    <span style={{ color: '#557755', fontSize: 9, marginLeft: 6 }}>
+                      {r.passive.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {deathInfo.newTraits.some((t) => t.id === 'initiate') && (
               <div style={{
                 marginTop: 10, padding: '8px 10px',
@@ -4720,7 +4781,7 @@ export function Game() {
             )}
 
             <div style={{ color: '#6a5a8a', fontSize: 9, marginTop: 6 }}>
-              Traits: {bloodline.unlockedTraits.length}/20
+              Traits: {bloodline.unlockedTraits.length}/20 · Races: {RACE_DEFS.filter(r => isRaceUnlocked(r, bloodline)).length}/{RACE_DEFS.length}
             </div>
           </div>
         )}
