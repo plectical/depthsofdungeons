@@ -4382,6 +4382,8 @@ export function Game() {
               }}
               onClick={() => {
                 window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank');
+                // Temporary: unlock on click until RUN TV team sets the globalStorage flag
+                setHasWatchedDodShow(true);
                 try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
                 setShowRunTvPopup(false);
               }}
