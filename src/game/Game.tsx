@@ -3795,6 +3795,26 @@ export function Game() {
             </div>
           )}
 
+          {/* ── Story Mode button — visible overlay ── */}
+          <button
+            style={{
+              position: 'absolute', top: '63%', left: '50%', transform: 'translateX(-50%)',
+              background: 'rgba(10,20,40,0.85)', border: '1px solid #cc8844', color: '#cc8844',
+              fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', padding: '5px 18px',
+              cursor: 'pointer', zIndex: 4, borderRadius: 4, letterSpacing: 1,
+              textShadow: '0 1px 4px #000', boxShadow: '0 0 8px rgba(204,136,68,0.3)',
+            }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              const existing = await loadCampaign();
+              setCampaignSave(existing);
+              campaignSaveRef.current = existing;
+              setScreen('storyHub');
+            }}
+          >
+            ⚔ Story Mode
+          </button>
+
           {/* ── Invisible hit zones mapped to baked-in image buttons ── */}
           <div style={hitZone('play', 66.3, 30.5, 73.2, 69.9)} {...pressHandlers('play')} onClick={(e) => { e.stopPropagation(); setShowPremiumModal(false); startGame(); }} />
           <div
