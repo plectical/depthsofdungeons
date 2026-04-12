@@ -39,6 +39,7 @@ export const NPC_DEFS: NPCDef[] = [
     color: '#88aaff',
     minFloor: 2,
     spawnChance: 0.3,
+    portraitAsset: 'story/story-hermit.png',
     appearanceDescription: 'An ancient, weathered figure with a long white beard, wearing tattered robes. Eyes that glow softly blue with mystical knowledge. A crescent moon symbol on his forehead. Hunched posture, holding a gnarled wooden staff.',
     dialogue: (): DialogueNode => {
       const wisdom = HERMIT_WISDOM[Math.floor(Math.random() * HERMIT_WISDOM.length)]!;
@@ -74,6 +75,7 @@ export const NPC_DEFS: NPCDef[] = [
     color: '#ffd700',
     minFloor: 3,
     spawnChance: 0.25,
+    portraitAsset: 'story/story-wandering-merchant.png',
     appearanceDescription: 'A shifty-looking goblin merchant with golden eyes and a wide grin. Wears a heavy cloak covered in pockets and pouches. Carries a massive backpack overflowing with mysterious trinkets and potions. Gold coins jingling from a belt.',
     dialogue: {
       text: "Psst! I have wares not found in any shop. Care to trade?",
@@ -107,6 +109,7 @@ export const NPC_DEFS: NPCDef[] = [
     minFloor: 5,
     spawnChance: 0.2,
     requiresGeneration: 1,
+    portraitAsset: 'story/story-ancestor-ghost.png',
     appearanceDescription: 'A translucent purple spirit in ancient warrior armor. Ethereal and glowing, with hollow eyes that burn with spectral light. Faded features but a kind expression. Wisps of ectoplasm trail from their form.',
     dialogue: (bloodline: BloodlineData): DialogueNode => {
       const lastAncestor = bloodline.ancestors[bloodline.ancestors.length - 1];
