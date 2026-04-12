@@ -22,6 +22,7 @@
   "author": "",
   "license": "SEE LICENSE IN LICENSE.txt",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

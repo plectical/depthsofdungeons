@@ -6,6 +6,7 @@ import { applyDialogueEffects } from './engine';
 import { safeEngineCall } from './errorReporting';
 import { cloneState } from './utils';
 import { generateNPCPortrait } from './story/seriesAI';
+import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 
 interface NPCDialogueProps {
   state: GameState;
@@ -22,19 +23,26 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
   const npc = state.npcs.find((n) => n.id === state.pendingNPC);
   const def = npc ? getNPCDef(npc.defId) : null;
 
-  // Generate portrait on mount if NPC has appearance description
+  // Load portrait: prefer CDN asset (story mode), then AI generation
   useEffect(() => {
-    if (!def?.appearanceDescription) return;
-    
-    // Check cache first
+    if (!def) return;
+
+    if (def.portraitAsset) {
+      RundotGameAPI.cdn.fetchAsset(def.portraitAsset)
+        .then((blob) => {
+          if (blob) setPortraitUrl(URL.createObjectURL(blob));
+        })
+        .catch(() => {});
+      return;
+    }
+
+    if (!def.appearanceDescription) return;
     const cacheKey = `npc_portrait_${def.id}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       setPortraitUrl(cached);
       return;
     }
-    
-    // Generate portrait in background
     generateNPCPortrait(def.id, def.name, def.appearanceDescription)
       .then((url) => {
         if (url) {
@@ -43,7 +51,7 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
         }
       })
       .catch(() => {});
-  }, [def?.id, def?.name, def?.appearanceDescription]);
+  }, [def?.id, def?.name, def?.appearanceDescription, def?.portraitAsset]);
 
   if (!npc || !def) return null;
 

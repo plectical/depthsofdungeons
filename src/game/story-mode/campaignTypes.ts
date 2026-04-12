@@ -75,6 +75,14 @@ export interface ChapterDef {
   rewards: ChapterReward[];
 }
 
+export interface NarrativeSlide {
+  text: string;
+  /** CDN asset path for scene art */
+  artAsset?: string;
+  /** Optional title shown above the text */
+  title?: string;
+}
+
 export interface StoryFloorDef {
   floorIndex: number;
   zone: ZoneId;
@@ -85,12 +93,10 @@ export interface StoryFloorDef {
   items: PrebakedItemSpawn[];
   /** Whether a checkpoint save is created when entering this floor */
   hasCheckpoint: boolean;
-  /** Narrative text shown when entering this floor */
-  narrativeIntro?: string;
-  /** Optional narrator text shown after clearing the floor */
-  narrativeOutro?: string;
-  /** CDN asset path for the floor intro scene art (e.g. 'story/mine-entrance.png') */
-  introArt?: string;
+  /** Narrative slides shown when entering this floor (replaces single narrativeIntro) */
+  introSlides?: NarrativeSlide[];
+  /** Ambient messages that appear in the message log as the player explores */
+  roomMessages?: string[];
 }
 
 // ── Pre-baked content types ──
@@ -164,6 +170,8 @@ export interface PrebakedItemSpawn {
   rarity?: ItemRarity;
   description: string;
   statBonus?: Partial<Stats>;
+  equipSlot?: 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand';
+  onHitEffect?: import('../types').ItemEffect;
   /** How many to place on this floor */
   count: number;
 }

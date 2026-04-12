@@ -250,6 +250,7 @@ export interface MercenaryDef {
   specialAbility: string;
   // AI-generated fields
   portraitUrl?: string;
+  portraitAsset?: string;
   backstory?: string;
   personality?: string;
   isGenerated?: boolean;
@@ -558,6 +559,7 @@ export interface NPCDef {
   requiresGeneration?: number;
   dialogue: DialogueNode | ((bloodline: BloodlineData) => DialogueNode);
   portraitUrl?: string; // AI-generated or static portrait
+  portraitAsset?: string; // CDN asset path for pre-baked portrait (story mode)
   appearanceDescription?: string; // For AI portrait generation
 }
 
@@ -600,6 +602,7 @@ export interface GameState {
   pendingNPC: string | null;
   xpMultiplier: number;
   _bloodlineRef?: BloodlineData;
+  _isStoryMode?: boolean;
   mercenaries: Entity[];
   mapMercenaries: MapMercenary[];
   pendingMercenary: string | null;
@@ -1018,6 +1021,10 @@ export interface InteractableElement {
   successEffect: EncounterReward;
   partialEffect?: EncounterReward;
   failureEffect?: EncounterPenalty;
+  successHint?: string;
+  failureHint?: string;
+  /** CDN asset path for pre-baked art (story mode) */
+  artAsset?: string;
 }
 
 // Floor content cache for progressive generation
@@ -1568,6 +1575,7 @@ export interface RoomEventDef {
   name: string;
   description: string;              // What the player sees
   artPrompt: string;                // For AI image generation
+  artAsset?: string;                // CDN asset path for pre-baked art (story mode)
   primarySkill: SkillName;
   alternateSkill?: SkillName;
   baseDifficulty: number;           // Target for skill check (7-15)

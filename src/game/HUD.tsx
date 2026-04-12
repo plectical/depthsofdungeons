@@ -12,6 +12,7 @@ interface HUDProps {
   generation?: number;
   isPremium?: boolean;
   echoes?: number;
+  isStoryMode?: boolean;
 }
 
 function CompactBar({ current, max, color, width = 8 }: { current: number; max: number; color: string; width?: number }) {
@@ -28,7 +29,7 @@ function CompactBar({ current, max, color, width = 8 }: { current: number; max: 
   );
 }
 
-export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
+export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDProps) {
   const { player, playerClass, floorNumber, score, hunger } = state;
   const classDef = getClassDef(playerClass);
   const eStats = getPlayerEffectiveStats(state);
@@ -54,6 +55,7 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
   const nextXp = player.level < XP_PER_LEVEL.length ? (XP_PER_LEVEL[player.level] ?? 9999) : 9999;
 
   const raceThumbUrl = useCdnImage(state.playerRace ? `races/${state.playerRace}.png` : '__noop__');
+  const storyPortraitUrl = useCdnImage(isStoryMode ? 'story/story-sellsword.png' : '__noop__');
 
   const generatedClassThumb = useCdnImage('generated-class-thumb.png');
   const portraits: Record<string, string | null> = {
@@ -96,14 +98,16 @@ export function HUD({ state, generation, isPremium, echoes }: HUDProps) {
   const hasDamaged = !!damagedSrc;
   const showPortrait = !!normalSrc || (playerClass === 'generated' && genClass);
 
-  let portraitSrc = normalSrc;
+  let portraitSrc = isStoryMode && storyPortraitUrl ? storyPortraitUrl : normalSrc;
   const raceDef = state.playerRace ? getRaceDef(state.playerRace) : undefined;
-  let portraitBorder = (state.playerRace && raceDef)
-    ? raceDef.color
-    : playerClass === 'generated' 
-      ? (genClass?.color ?? '#44ff88')
-      : (classBorders[playerClass] ?? '#ff6644');
-  if (hasDamaged && hpPct <= 0.5) {
+  let portraitBorder = isStoryMode
+    ? '#cc8844'
+    : (state.playerRace && raceDef)
+      ? raceDef.color
+      : playerClass === 'generated' 
+        ? (genClass?.color ?? '#44ff88')
+        : (classBorders[playerClass] ?? '#ff6644');
+  if (hasDamaged && hpPct <= 0.5 && !isStoryMode) {
     portraitSrc = damagedSrc;
     portraitBorder = '#ff3333';
   }

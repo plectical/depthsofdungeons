@@ -98,7 +98,7 @@ import { StoryHub } from './story-mode/StoryHub';
 import type { CampaignSave } from './story-mode/campaignTypes';
 import { createEmptyCampaignSave } from './story-mode/campaignTypes';
 import { loadCampaign, saveCampaign, deleteCampaign, saveCheckpoint } from './story-mode/campaignSave';
-import { newStoryFloor, loadCheckpoint as loadStoryCheckpoint } from './story-mode/storyEngine';
+import { newStoryFloor, loadCheckpoint as loadStoryCheckpoint, storyMovePlayer, storyWaitTurn, type StoryMoveResult } from './story-mode/storyEngine';
 import { getChapter } from './story-mode/chapters';
 import {
   ELDER_WELCOME, ELDER_HUNGER, ELDER_SHOP, ELDER_MERCENARY,
@@ -226,6 +226,9 @@ export function Game() {
   const [autoSellRarities, setAutoSellRarities] = useState<import('./types').ItemRarity[]>([]);
   const [autoSellConsumables, setAutoSellConsumables] = useState(false);
   const [showShop, setShowShop] = useState(false);
+  const [showShopkeeperIntro, setShowShopkeeperIntro] = useState(false);
+  const shopkeeperIntroShownRef = useRef(false);
+  const [shopkeeperPortraitUrl, setShopkeeperPortraitUrl] = useState<string | null>(null);
   const [showNPCDialogue, setShowNPCDialogue] = useState(false);
   const [showMercHire, setShowMercHire] = useState(false);
   const [showBloodline, setShowBloodline] = useState(false);
@@ -340,15 +343,43 @@ export function Game() {
   // Story Mode campaign state
   const [campaignSave, setCampaignSave] = useState<CampaignSave | null>(null);
   const [isStoryMode, setIsStoryMode] = useState(false);
+  const isStoryModeRef = useRef(false);
   const campaignSaveRef = useRef<CampaignSave | null>(null);
-  const [storyNarrative, setStoryNarrative] = useState<{ text: string; artAsset?: string; chapterName: string; floorNum: number } | null>(null);
-  const narrativeArtUrl = useCdnImage(storyNarrative?.artAsset ?? '');
+  const [storySlides, setStorySlides] = useState<{ slides: import('./story-mode/campaignTypes').NarrativeSlide[]; index: number } | null>(null);
+  const [slideArtUrls, setSlideArtUrls] = useState<Record<string, string>>({});
 
   // RUN TV — Impregnar class unlock via watching the show
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
   const [showRunTvPopup, setShowRunTvPopup] = useState(false);
   const runTvPopupImg = useCdnImage('runtv-impregnar-popup.png');
   const runTvPopupShownRef = useRef(false);
+
+  // Load shopkeeper portrait when intro shows
+  useEffect(() => {
+    if (!showShopkeeperIntro || shopkeeperPortraitUrl) return;
+    RundotGameAPI.cdn.fetchAsset('story/story-shopkeeper.png')
+      .then(blob => { if (blob) setShopkeeperPortraitUrl(URL.createObjectURL(blob)); })
+      .catch(() => {});
+  }, [showShopkeeperIntro, shopkeeperPortraitUrl]);
+
+  // Preload slide art URLs when narrative slides are set
+  useEffect(() => {
+    if (!storySlides) return;
+    const loadArt = async () => {
+      const urls: Record<string, string> = {};
+      for (const slide of storySlides.slides) {
+        if (slide.artAsset && !slideArtUrls[slide.artAsset]) {
+          try {
+            const blob = await RundotGameAPI.cdn.fetchAsset(slide.artAsset);
+            if (blob) urls[slide.artAsset] = URL.createObjectURL(blob);
+          } catch { /* art unavailable */ }
+        }
+      }
+      if (Object.keys(urls).length > 0) setSlideArtUrls(prev => ({ ...prev, ...urls }));
+    };
+    loadArt();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storySlides?.slides]);
 
   // Re-check globalStorage when the tab regains focus (player returns from watching)
   useEffect(() => {
@@ -467,7 +498,13 @@ export function Game() {
 
   // Generate skill check art when skill check modal opens
   useEffect(() => {
-    if (!showSkillCheck || !pendingEncounter) {
+    if (!showSkillCheck || !pendingEncounter) return;
+
+    // Story mode: load from CDN if artAsset is defined
+    if (pendingEncounter.artAsset && isStoryMode) {
+      RundotGameAPI.cdn.fetchAsset(pendingEncounter.artAsset)
+        .then((blob) => { if (blob) setSkillCheckArtUrl(URL.createObjectURL(blob)); })
+        .catch(() => {});
       return;
     }
     
@@ -484,7 +521,7 @@ export function Game() {
       .catch(err => {
         console.warn('[SkillCheck] Art generation failed:', err);
       });
-  }, [showSkillCheck, pendingEncounter]);
+  }, [showSkillCheck, pendingEncounter, isStoryMode]);
 
   // Load best floor + bloodline on mount, and connect to necropolis
   useEffect(() => {
@@ -1507,11 +1544,8 @@ export function Game() {
   // Auto-save: track last saved floor to avoid duplicate saves
   const lastSavedFloorRef = useRef(0);
 
-  const handleChange = useCallback((next: GameState) => {
-    // Story mode: disable hunger drain — keep it full
-    if (isStoryMode) {
-      next.hunger.current = next.hunger.max;
-    }
+  const handleChange = useCallback((nextInput: GameState) => {
+    const next = nextInput;
 
     // Combat VFX — detect new combat messages
     const newMsgs = next.messages.slice(prevMsgCountRef.current);
@@ -1549,26 +1583,9 @@ export function Game() {
       const floorChanged = next.floorNumber > lastSavedFloorRef.current;
       if (floorChanged) {
         lastSavedFloorRef.current = next.floorNumber;
-
-        // Story mode: save checkpoint on floor transition
-        if (isStoryMode && campaignSaveRef.current) {
-          const cs = campaignSaveRef.current;
-          cs.currentFloor = next.floorNumber;
-          cs.playerLevel = next.player.level;
-          cs.gold = next.player.inventory.filter(i => i.type === 'gold').reduce((sum, i) => sum + i.value, 0);
-          cs.skillPoints = next.skillPoints;
-          cs.unlockedNodes = [...next.unlockedNodes];
-          const chapter = getChapter(cs.currentChapter);
-          const floorDef = chapter?.floors.find(f => f.floorIndex === next.floorNumber);
-          if (floorDef?.hasCheckpoint) {
-            saveCheckpoint(cs, JSON.stringify(next));
-          }
-          saveCampaign(cs);
-        } else {
-          immediateSave();
-        }
+        immediateSave();
       } else {
-        if (!isStoryMode) debouncedSave();
+        debouncedSave();
       }
     }
 
@@ -1696,18 +1713,6 @@ export function Game() {
     }
 
     if (next.gameOver) {
-      // Story mode: reload from checkpoint instead of permadeath
-      if (isStoryMode && campaignSaveRef.current) {
-        setState(next);
-        setTimeout(async () => {
-          const checkpoint = loadStoryCheckpoint(campaignSaveRef.current!);
-          if (checkpoint) {
-            addMessage(checkpoint, 'You have fallen... but the story continues.', '#ff8800');
-            setState(checkpoint);
-          }
-        }, 1500);
-        return;
-      }
       setState(next);
       processDeathBloodline(next);
       setTimeout(() => {
@@ -1739,10 +1744,10 @@ export function Game() {
       const py = next.player.pos.y;
       const encounter = next.interactables.find(i => !i.interacted && i.pos.x === px && i.pos.y === py);
       if (encounter) {
+        encounter.interacted = true;
         setPendingEncounter(encounter);
         setShowSkillCheck(true);
-        setSkillCheckArtUrl(null); // Reset art, will generate in effect
-        // First skill check - show tutorial
+        setSkillCheckArtUrl(null);
         if (!autoPlay) tryShowElderTip(ELDER_SKILL_CHECK);
       }
     }
@@ -1794,6 +1799,76 @@ export function Game() {
       }, 250);
     }
   }, [bestFloor, processDeathBloodline, isPremium, necropolisUnlocked, autoPlay, activeElderTip, tryShowElderTip]);
+
+  // ── Story Mode state handler — clean, independent of roguelike handleChange ──
+  const storyHandleChange = useCallback((next: GameState, moveResult: StoryMoveResult) => {
+    // Combat VFX
+    const newMsgs = next.messages.slice(prevMsgCountRef.current);
+    prevMsgCountRef.current = next.messages.length;
+    if (newMsgs.length > 0) {
+      const hasHurt = newMsgs.some(m => m.color === '#ff5566' || m.color === '#ff3333');
+      const hasHit = newMsgs.some(m => m.color === '#44dd77' && /hit|damage|strike|smite|burn/i.test(m.text));
+      if (hasHurt) { setCombatEffect(null); requestAnimationFrame(() => setCombatEffect('hurt')); }
+      else if (hasHit) { setCombatEffect(null); requestAnimationFrame(() => setCombatEffect('hit')); }
+    }
+
+    // Floor transition: save checkpoint + show intro slides
+    if (moveResult.floorChanged && campaignSaveRef.current) {
+      const cs = campaignSaveRef.current;
+      cs.currentFloor = next.floorNumber;
+      cs.playerLevel = next.player.level;
+      cs.gold = next.player.inventory.filter(i => i.type === 'gold').reduce((sum, i) => sum + i.value, 0);
+      cs.skillPoints = next.skillPoints;
+      cs.unlockedNodes = [...next.unlockedNodes];
+      const chapter = getChapter(cs.currentChapter);
+      const floorDef = chapter?.floors.find(f => f.floorIndex === next.floorNumber);
+      if (floorDef?.hasCheckpoint) {
+        saveCheckpoint(cs, JSON.stringify(next));
+      }
+      saveCampaign(cs);
+      if (floorDef?.introSlides && floorDef.introSlides.length > 0) {
+        setStorySlides({ slides: floorDef.introSlides, index: 0 });
+      }
+    }
+
+    // Death: reload checkpoint
+    if (next.gameOver && campaignSaveRef.current) {
+      setState(next);
+      setTimeout(async () => {
+        const checkpoint = loadStoryCheckpoint(campaignSaveRef.current!);
+        if (checkpoint) {
+          checkpoint._isStoryMode = true;
+          addMessage(checkpoint, 'You have fallen... but the story continues.', '#ff8800');
+          setState(checkpoint);
+        }
+      }, 1500);
+      return;
+    }
+
+    // Interactable encounter check
+    if (next.interactables && next.interactables.length > 0) {
+      const px = next.player.pos.x;
+      const py = next.player.pos.y;
+      const encounter = next.interactables.find(i => !i.interacted && i.pos.x === px && i.pos.y === py);
+      if (encounter) {
+        encounter.interacted = true;
+        setPendingEncounter(encounter);
+        setShowSkillCheck(true);
+        setSkillCheckArtUrl(null);
+      }
+    }
+
+    // NPC dialogue
+    if (next.pendingNPC && !showNPCDialogue) {
+      setShowNPCDialogue(true);
+    }
+    // Mercenary hire
+    if (next.pendingMercenary) {
+      setShowMercHire(true);
+    }
+
+    setState(next);
+  }, []);
 
   // ── Quest + Echo Tree handlers ──
   const handleClaimQuest = useCallback((index: number) => {
@@ -2360,6 +2435,21 @@ export function Game() {
     
     const prepareArt = async () => {
       const event = state.pendingRoomEvent!.event;
+
+      // Story mode: load art from CDN if artAsset is defined
+      if (event.artAsset && isStoryMode) {
+        try {
+          const blob = await RundotGameAPI.cdn.fetchAsset(event.artAsset);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const next = cloneState(state);
+            if (next.pendingRoomEvent) next.pendingRoomEvent.artUrl = url;
+            setState(next);
+            setShowRoomEvent(true);
+            return;
+          }
+        } catch { /* fall through to AI gen */ }
+      }
       
       // Check cache first
       const cachedArt = getRoomEventArtFromCache(event.id);
@@ -2694,17 +2784,15 @@ export function Game() {
 
   const handleWait = useCallback(() => {
     if (!state || state.gameOver) return;
-    gpStart('wait:clone');
     const next = cloneState(state);
-    gpEnd('wait:clone');
-    gpStart('wait:turn');
-    const result = safeEngineCall('waitTurn', () => { waitTurn(next); return true; });
-    gpEnd('wait:turn');
-    if (result === null) return;
-    gpStart('wait:handleChange');
-    handleChange(next);
-    gpEnd('wait:handleChange');
-  }, [state, handleChange]);
+    if (isStoryModeRef.current) {
+      const ok = safeEngineCall('storyWaitTurn', () => { storyWaitTurn(next); return true; });
+      if (ok !== null) storyHandleChange(next, { moved: true, floorChanged: false });
+    } else {
+      const result = safeEngineCall('waitTurn', () => { waitTurn(next); return true; });
+      if (result !== null) handleChange(next);
+    }
+  }, [state, handleChange, storyHandleChange]);
 
   const handleRageStrike = useCallback(() => {
     if (!state || state.gameOver) return;
@@ -2787,66 +2875,52 @@ export function Game() {
   const handleDPad = useCallback(
     (dx: number, dy: number) => {
       if (!state || state.gameOver) return;
+
+      // Story mode: use story game loop (no AI encounter dialogue)
+      if (isStoryModeRef.current && campaignSaveRef.current) {
+        const next = cloneState(state);
+        const chapter = getChapter(campaignSaveRef.current.currentChapter);
+        if (!chapter) return;
+        const result = safeEngineCall('storyMove', () => storyMovePlayer(next, dx, dy, chapter, campaignSaveRef.current!));
+        if (result === null) return;
+        if (result.moved) storyHandleChange(next, result);
+        return;
+      }
       
-      // Check for enemy at target position before moving
+      // Roguelike mode: check for enemy encounter dialogue (AI-generated)
       const targetX = state.player.pos.x + dx;
       const targetY = state.player.pos.y + dy;
       const targetEnemy = state.monsters.find(m => 
         !m.isDead && m.pos.x === targetX && m.pos.y === targetY
       );
       
-      // Debug: log every move attempt
-      if (targetEnemy) {
-        console.log('[DPad] Moving toward enemy:', targetEnemy.name, 'at floor', state.floorNumber);
-      }
-      
-      // If there's an enemy and we haven't encountered them, show dialogue
-      // Works on ALL zones - ALL creatures get dialogue options
       if (targetEnemy && !state.encounteredEnemyIds?.includes(targetEnemy.id)) {
-        console.log('[DPad] Enemy encounter check:', targetEnemy.name);
-        
-        // Store the pending move and trigger async encounter generation
         pendingMoveRef.current = { dx, dy };
-        console.log('[DPad] Triggering encounter generation...');
-        
-        // Fire and forget - the async function will set state when ready
         (async () => {
           try {
             const showed = await checkEnemyEncounter(targetEnemy.id, targetEnemy.name, targetEnemy);
-            console.log('[DPad] Encounter check result:', showed);
             if (!showed) {
-              // Generation failed, proceed with normal attack
               pendingMoveRef.current = null;
               const next = cloneState(state);
               const moved = safeEngineCall('movePlayer', () => movePlayer(next, dx, dy));
               if (moved) handleChange(next);
             }
-          } catch (err) {
-            console.error('[DPad] Encounter check error:', err);
-            // On error, proceed with normal attack
+          } catch {
             pendingMoveRef.current = null;
             const next = cloneState(state);
             const moved = safeEngineCall('movePlayer', () => movePlayer(next, dx, dy));
             if (moved) handleChange(next);
           }
         })();
-        return; // Don't move yet, wait for dialogue
+        return;
       }
       
-      gpStart('dpad:clone');
       const next = cloneState(state);
-      gpEnd('dpad:clone');
-      gpStart('dpad:move');
       const moved = safeEngineCall('movePlayer', () => movePlayer(next, dx, dy));
-      gpEnd('dpad:move');
       if (moved === null) return;
-      if (moved) {
-        gpStart('dpad:handleChange');
-        handleChange(next);
-        gpEnd('dpad:handleChange');
-      }
+      if (moved) handleChange(next);
     },
-    [state, handleChange, checkEnemyEncounter],
+    [state, handleChange, storyHandleChange, checkEnemyEncounter],
   );
 
   useEffect(() => {
@@ -2881,42 +2955,12 @@ export function Game() {
           return;
       }
       if (dx !== 0 || dy !== 0) {
-        // Check for enemy at target position - show dialogue before combat
-        const targetX = state.player.pos.x + dx;
-        const targetY = state.player.pos.y + dy;
-        const targetEnemy = state.monsters.find(m => 
-          !m.isDead && m.pos.x === targetX && m.pos.y === targetY
-        );
-        
-        if (targetEnemy && !state.encounteredEnemyIds?.includes(targetEnemy.id)) {
-          console.log('[Keyboard] Enemy at target, triggering encounter:', targetEnemy.name);
-          (async () => {
-            try {
-              const showed = await checkEnemyEncounter(targetEnemy.id, targetEnemy.name, targetEnemy);
-              if (!showed) {
-                const next = cloneState(state);
-                const moved = safeEngineCall('movePlayer_keyboard', () => movePlayer(next, dx, dy));
-                if (moved) handleChange(next);
-              }
-            } catch (err) {
-              console.error('[Keyboard] Encounter check error:', err);
-              const next = cloneState(state);
-              const moved = safeEngineCall('movePlayer_keyboard', () => movePlayer(next, dx, dy));
-              if (moved) handleChange(next);
-            }
-          })();
-          return;
-        }
-        
-        const next = cloneState(state);
-        const moved = safeEngineCall('movePlayer_keyboard', () => movePlayer(next, dx, dy));
-        if (moved === null) return; // engine error — skip
-        if (moved) handleChange(next);
+        handleDPad(dx, dy);
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [screen, state, handleChange, handleWait, checkEnemyEncounter]);
+  }, [screen, state, handleDPad, handleWait]);
 
   // Secret key combo for content seeder (Ctrl+Shift+G)
   useEffect(() => {
@@ -3429,21 +3473,24 @@ export function Game() {
             if (!floorDef) return;
             const gs = newStoryFloor(chapter, floorDef, newSave);
             setState(gs);
-            setIsStoryMode(true);
+            setIsStoryMode(true); isStoryModeRef.current = true;
+            lastSavedFloorRef.current = gs.floorNumber;
             await saveCheckpoint(newSave, JSON.stringify(gs));
-            if (floorDef.narrativeIntro) {
-              setStoryNarrative({ text: floorDef.narrativeIntro, artAsset: floorDef.introArt, chapterName: chapter.name, floorNum: floorDef.floorIndex });
-            } else {
-              setScreen('game');
+            setScreen('game');
+            if (floorDef.introSlides && floorDef.introSlides.length > 0) {
+              setStorySlides({ slides: floorDef.introSlides, index: 0 });
             }
           }}
           onContinue={async (chapterId) => {
             if (!campaignSave) return;
+            campaignSaveRef.current = campaignSave;
             // Try loading checkpoint
             const checkpointState = loadStoryCheckpoint(campaignSave);
             if (checkpointState) {
+              checkpointState._isStoryMode = true;
               setState(checkpointState);
-              setIsStoryMode(true);
+              setIsStoryMode(true); isStoryModeRef.current = true;
+              lastSavedFloorRef.current = checkpointState.floorNumber;
               setScreen('game');
               return;
             }
@@ -3454,10 +3501,14 @@ export function Game() {
             if (!floorDef) return;
             const gs = newStoryFloor(chapter, floorDef, campaignSave);
             setState(gs);
-            setIsStoryMode(true);
+            setIsStoryMode(true); isStoryModeRef.current = true;
+            lastSavedFloorRef.current = gs.floorNumber;
             await saveCheckpoint(campaignSave, JSON.stringify(gs));
             await saveCampaign(campaignSave);
             setScreen('game');
+            if (floorDef.introSlides && floorDef.introSlides.length > 0) {
+              setStorySlides({ slides: floorDef.introSlides, index: 0 });
+            }
           }}
           onSelectChapter={async (chapterId) => {
             if (!campaignSave) return;
@@ -3470,14 +3521,18 @@ export function Game() {
             if (!floorDef) return;
             const gs = newStoryFloor(chapter, floorDef, campaignSave);
             setState(gs);
-            setIsStoryMode(true);
+            setIsStoryMode(true); isStoryModeRef.current = true;
+            lastSavedFloorRef.current = gs.floorNumber;
             await saveCheckpoint(campaignSave, JSON.stringify(gs));
             await saveCampaign(campaignSave);
             setCampaignSave({ ...campaignSave });
             campaignSaveRef.current = campaignSave;
             setScreen('game');
+            if (floorDef.introSlides && floorDef.introSlides.length > 0) {
+              setStorySlides({ slides: floorDef.introSlides, index: 0 });
+            }
           }}
-          onBack={() => { setScreen('title'); setIsStoryMode(false); setStoryNarrative(null); }}
+          onBack={() => { setScreen('title'); setIsStoryMode(false); isStoryModeRef.current = false; setStorySlides(null); }}
           onDeleteSave={async () => {
             await deleteCampaign();
             setCampaignSave(null);
@@ -3488,8 +3543,11 @@ export function Game() {
     );
   }
 
-  // ── Story Mode Narrative Intro Screen ──
-  if (storyNarrative) {
+  // ── Story Mode Narrative Slide Screen ──
+  if (storySlides) {
+    const slide = storySlides.slides[storySlides.index];
+    const artUrl = slide?.artAsset ? slideArtUrls[slide.artAsset] : null;
+    const isLast = storySlides.index >= storySlides.slides.length - 1;
     return (
       <div
         style={{
@@ -3497,33 +3555,49 @@ export function Game() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', padding: 20, cursor: 'pointer',
         }}
-        onClick={() => { setStoryNarrative(null); setScreen('game'); }}
+        onClick={() => {
+          if (isLast) {
+            setStorySlides(null);
+            setScreen('game');
+          } else {
+            setStorySlides({ ...storySlides, index: storySlides.index + 1 });
+          }
+        }}
       >
-        {narrativeArtUrl && (
-          <img src={narrativeArtUrl} alt="" style={{
+        {artUrl && (
+          <img src={artUrl} alt="" style={{
             width: '100%', maxWidth: 380, borderRadius: 8,
             border: '1px solid #33ff6633',
             marginBottom: 16, imageRendering: 'pixelated',
           }} />
         )}
-        <div style={{
-          color: '#cc8844', fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold',
-          marginBottom: 4, letterSpacing: 2,
-        }}>
-          {storyNarrative.chapterName} — Floor {storyNarrative.floorNum}
-        </div>
+        {slide?.title && (
+          <div style={{
+            color: '#cc8844', fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold',
+            marginBottom: 6, letterSpacing: 2, textAlign: 'center',
+          }}>
+            {slide.title}
+          </div>
+        )}
         <div style={{
           color: '#c49eff', fontFamily: 'monospace', fontSize: 12,
           lineHeight: '18px', maxWidth: 360, textAlign: 'center',
           marginBottom: 20, padding: '0 10px',
         }}>
-          {storyNarrative.text}
+          {slide?.text}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {storySlides.slides.map((_, i) => (
+            <div key={i} style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: i === storySlides.index ? '#c49eff' : '#333',
+            }} />
+          ))}
         </div>
         <div style={{
-          color: '#556655', fontFamily: 'monospace', fontSize: 10,
-          animation: 'pulse 2s ease-in-out infinite',
+          color: '#556655', fontFamily: 'monospace', fontSize: 10, marginTop: 12,
         }}>
-          Tap to continue...
+          {isLast ? 'Tap to begin...' : 'Tap to continue...'}
         </div>
       </div>
     );
@@ -5149,7 +5223,7 @@ export function Game() {
       }}
       onAnimationEnd={() => setCombatEffect(null)}
     >
-      <HUD state={state} generation={bloodline.generation} isPremium={isPremium} echoes={questEchoData.echoes} />
+      <HUD state={state} generation={bloodline.generation} isPremium={isPremium} echoes={questEchoData.echoes} isStoryMode={isStoryMode} />
       {bloodline.generation === 0 && !bloodline.tutorialComplete && (
         <TutorialBar completedSteps={tutorialSteps} />
       )}
@@ -5418,7 +5492,14 @@ export function Game() {
             </button>
           )}
           {isAtShop(state) && state.shop && state.shop.stock.length > 0 && (
-            <button style={shopBtnStyle} onClick={() => setShowShop(true)}>
+            <button style={shopBtnStyle} onClick={() => {
+              if (isStoryMode && !shopkeeperIntroShownRef.current) {
+                shopkeeperIntroShownRef.current = true;
+                setShowShopkeeperIntro(true);
+              } else {
+                setShowShop(true);
+              }
+            }}>
               {'[ Shop ]'}
             </button>
           )}
@@ -5428,26 +5509,23 @@ export function Game() {
           <button
             style={{ ...actionBtnStyle, color: '#ff4444', borderColor: '#ff444444' }}
             onClick={() => {
-              if (!state || state.gameOver) return;
+              if (!state) return;
               if (isStoryMode) {
-                if (confirm('Return to Story Hub? Progress since last checkpoint will be lost.')) {
-                  setAutoPlay(false);
-                  setScreen('storyHub');
-                }
-              } else {
-                if (confirm('End this run? Your character will die.')) {
-                  const next = cloneState(state);
-                  forfeitRun(next);
-                  setState(next);
-                  processDeathBloodline(next);
-                  setTimeout(() => {
-                    const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-                    trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, autoPlay));
-                    submitScore(next.score, duration);
-                    setScreen('gameover');
-                  }, 400);
-                }
+                setAutoPlay(false);
+                setScreen('storyHub');
+                return;
               }
+              if (state.gameOver) return;
+              const next = cloneState(state);
+              forfeitRun(next);
+              setState(next);
+              processDeathBloodline(next);
+              setTimeout(() => {
+                const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                trackPlayerDeath(buildDeathParams(next, duration, bloodlineRef.current.generation, autoPlay));
+                submitScore(next.score, duration);
+                setScreen('gameover');
+              }, 400);
             }}
           >
             {isStoryMode ? '[ Return to Hub ]' : '[ End Run ]'}
@@ -5553,6 +5631,44 @@ export function Game() {
           safeSetItem('autoSellConsumables', value ? '1' : '0');
         }}
       />}
+      {showShopkeeperIntro && (
+        <div style={{
+          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 12,
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 340, background: '#0a0a0a', border: '1px solid #33aa55',
+            borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 8px', background: 'linear-gradient(180deg, #0a0a15 0%, #000 100%)' }}>
+              {shopkeeperPortraitUrl && (
+                <img src={shopkeeperPortraitUrl} alt="Bogdan" style={{
+                  width: 120, height: 120, objectFit: 'cover', borderRadius: 8,
+                  border: '3px solid #ccaa4466', boxShadow: '0 0 15px #ccaa4444',
+                }} />
+              )}
+            </div>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid #2a2a4a' }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold', color: '#ccaa44' }}>Bogdan the Scavenger</span>
+            </div>
+            <div style={{ padding: '14px 16px', color: '#aaccaa', fontFamily: 'monospace', fontSize: 12, lineHeight: '18px' }}>
+              <span style={{ color: '#3a6a3a', fontSize: 14 }}>"</span>
+              Don't look so surprised. Where there's death, there's profit. I follow the adventurers down — the ones that don't come back leave behind the best gear.
+              {'\n\n'}Grimhollow's been good to me lately. Lot of dead sellswords. Lot of inventory. Their loss, your gain. I take gold, and I don't ask where you got it.
+              <span style={{ color: '#3a6a3a', fontSize: 14 }}>"</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 16px 14px' }}>
+              <button style={{
+                padding: '8px 24px', fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold',
+                background: '#000', color: '#33ff66', border: '1px solid #1a5a2a', cursor: 'pointer',
+                letterSpacing: 1, touchAction: 'none',
+              }} onClick={() => { setShowShopkeeperIntro(false); setShowShop(true); }}>
+                {'[ Browse Wares ]'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showShop && <Shop state={state} onChange={(next) => {
         questExtraRef.current.shopPurchases = (questExtraRef.current.shopPurchases ?? 0) + 1;
         handleChange(next);
@@ -5692,6 +5808,8 @@ export function Game() {
           target={pendingEncounter.target}
           description={pendingEncounter.description}
           imageUrl={skillCheckArtUrl}
+          successHint={pendingEncounter.successHint}
+          failureHint={pendingEncounter.failureHint}
           onComplete={handleSkillCheckComplete}
           onCancel={() => {
             setShowSkillCheck(false);

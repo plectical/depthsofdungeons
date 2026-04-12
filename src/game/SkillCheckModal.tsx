@@ -45,7 +45,11 @@ interface SkillCheckModalProps {
   onCancel?: () => void;
   description?: string;
   imageUrl?: string | null;
+  successHint?: string;
+  failureHint?: string;
 }
+
+// successHint/failureHint kept in interface for callers but not displayed pre-roll
 
 const DICE_FACES = ['[1]', '[2]', '[3]', '[4]', '[5]', '[6]'];
 const ROLL_DURATION = 1200;
@@ -75,7 +79,10 @@ export function SkillCheckModal({
   onCancel,
   description,
   imageUrl,
+  successHint: _successHint,
+  failureHint: _failureHint,
 }: SkillCheckModalProps) {
+  void _successHint; void _failureHint;
   const [phase, setPhase] = useState<'ready' | 'rolling' | 'result'>('ready');
   const [die1Display, setDie1Display] = useState(0);
   const [die2Display, setDie2Display] = useState(0);

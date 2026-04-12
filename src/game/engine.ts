@@ -1094,7 +1094,7 @@ export function getPlayerEffectiveStats(state: GameState) {
   return getPlayerStatsWithBoons(state);
 }
 
-function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
+export function attackEntity(state: GameState, attacker: Entity, defender: Entity) {
   const legExt = state as GameState & LegacyAbilityState;
 
   // ── Legacy Gear defensive abilities ──
@@ -2455,6 +2455,10 @@ export function useItem(state: GameState, itemIndex: number): boolean {
       state.player.inventory.splice(itemIndex, 1);
       return true;
     }
+    // Fallback: use item value as heal amount for custom/story potions
+    if (healAmt === 0 && item.value > 0) {
+      healAmt = item.value;
+    }
     if (healAmt > 0) {
       // Herbalist — potions heal 50% more
       if (hasChosenAbility(state, 'rng_herbalist')) {
@@ -2719,7 +2723,7 @@ export function autoSellByRarity(state: GameState, rarities: string[], includeCo
 
 // ─── Terrain Step Effects ───
 
-function applyTerrainStepEffects(state: GameState, entity: Entity) {
+export function applyTerrainStepEffects(state: GameState, entity: Entity) {
   const terrain = getTerrainAt(state.floor, entity.pos.x, entity.pos.y);
   if (!terrain) return;
 
@@ -3442,7 +3446,7 @@ function processMonsterTurn(state: GameState, monster: Entity) {
 
 // ─── Turn processing ───
 
-function processTurn(state: GameState) {
+export function processTurn(state: GameState) {
   gpStart('engine:processTurn');
   state.turn++;
   const pStats = getEffectiveStats(state.player);
@@ -4145,6 +4149,14 @@ function descend(state: GameState) {
   state.floorNumber++;
   state.runStats.floorsCleared++;
 
+  // Story mode autoplay: skip roguelike generation. The floor stays as-is
+  // and storyHandleChange will rebuild it on the next manual action.
+  if (state._isStoryMode) {
+    addMessage(state, `Descending to floor ${state.floorNumber}...`, MSG_COLOR.system);
+    gpEnd('engine:descend');
+    return;
+  }
+
   // Milestone Essence Shard bonus — every 5th floor
   if (state.floorNumber % 5 === 0) {
     state.runStats.essenceShardsEarned += 2;
@@ -4256,7 +4268,6 @@ function descend(state: GameState) {
     state.npcs = [];
   }
 
-  // Spawn narrative encounters (skill-gated interactables) - only in narrative_test zone
   if (state.zone === 'narrative_test') {
     spawnFloorEncounters(state, occupied);
   }
@@ -4278,7 +4289,6 @@ function descend(state: GameState) {
     addMessage(state, `A powerful presence lurks on this floor...`, MSG_COLOR.boss);
   }
 
-  // Trigger generated class boss encounter dialogue
   if (boss && state.playerClass === 'generated' && state.zone === 'narrative_test') {
     const gen = getActiveGeneratedClass();
     if (gen?.boss && boss.name === gen.boss.name) {

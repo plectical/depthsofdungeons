@@ -30,7 +30,7 @@ export function StoryHub({ save, onNewCampaign, onContinue, onSelectChapter, onB
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 320, width: '100%' }}>
-          {CLASS_DEFS.filter(c => c.id !== 'generated').map(cls => (
+          {CLASS_DEFS.filter(c => c.id !== 'generated' && c.id !== 'impregnar').map(cls => (
             <button
               key={cls.id}
               style={{
@@ -48,7 +48,10 @@ export function StoryHub({ save, onNewCampaign, onContinue, onSelectChapter, onB
 
         <button
           style={primaryButtonStyle}
-          onClick={() => onNewCampaign(selectedClass)}
+          onClick={async () => {
+            if (save) await onDeleteSave();
+            onNewCampaign(selectedClass);
+          }}
         >
           {'[ Begin Campaign ]'}
         </button>

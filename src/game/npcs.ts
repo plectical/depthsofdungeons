@@ -198,7 +198,7 @@ export function getNPCDef(defId: string): NPCDef | undefined {
       minFloor: 0,
       spawnChance: 1,
       dialogue: storyNpc.dialogue,
-      portraitUrl: undefined,
+      portraitAsset: storyNpc.portraitAsset,
     };
   }
   return undefined;

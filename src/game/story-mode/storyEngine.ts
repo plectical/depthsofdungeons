@@ -6,8 +6,8 @@
 
 import type { GameState, PlayerClass } from '../types';
 import type { ChapterDef, StoryFloorDef, CampaignSave, PrebakedMonsterSpawn } from './campaignTypes';
-import { addMessage, updateFOV } from '../engine';
-import { generateFloor } from '../dungeon';
+import { addMessage, updateFOV, attackEntity, processTurn, applyTerrainStepEffects, hasChosenAbility } from '../engine';
+import { generateFloor, isWalkableTile, getTile, getTerrainAt } from '../dungeon';
 import { createPlayer } from '../entities';
 import { uid, resetIdCounter } from '../utils';
 import { CLASS_DEFS } from '../constants';
@@ -144,6 +144,9 @@ export function newStoryFloor(
       interacted: false,
       successEffect: enc.successReward,
       failureEffect: enc.failurePenalty ? { type: enc.failurePenalty.type as 'damage', value: enc.failurePenalty.value } : undefined,
+      successHint: enc.successDescription,
+      failureHint: enc.failureDescription,
+      artAsset: enc.artAsset,
     };
   });
 
@@ -152,6 +155,9 @@ export function newStoryFloor(
     const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
+
+    const successEff = evt.criticalSuccess?.effects?.[0] || evt.success?.effects?.[0];
+    const failEff = evt.failure?.effects?.[0] || evt.criticalFailure?.effects?.[0];
     return {
       id: evt.id,
       pos,
@@ -161,7 +167,15 @@ export function newStoryFloor(
       target: evt.baseDifficulty,
       description: evt.description,
       interacted: false,
-      successEffect: { type: 'heal' as const, value: 10 },
+      successEffect: successEff?.type === 'heal'
+        ? { type: 'heal' as const, value: successEff.value ?? 10 }
+        : { type: 'heal' as const, value: 10 },
+      failureEffect: failEff?.type === 'damage'
+        ? { type: 'damage' as const, value: failEff.value ?? 5 }
+        : undefined,
+      successHint: evt.success?.description || evt.criticalSuccess?.description,
+      failureHint: evt.failure?.description || evt.criticalFailure?.description,
+      artAsset: evt.artAsset,
     };
   });
 
@@ -219,12 +233,16 @@ export function newStoryFloor(
   // Register story NPCs so the dialogue system can find them
   registerStoryNpcs(floorDef.npcs);
 
-  // Show narrative intro if defined
-  if (floorDef.narrativeIntro) {
-    addMessage(state, floorDef.narrativeIntro, '#c49eff');
+  addMessage(state, `Chapter: ${chapter.name} — Floor ${floorNumber}`, '#ffcc44');
+
+  // Add ambient room messages to set the mood
+  if (floorDef.roomMessages) {
+    for (const msg of floorDef.roomMessages) {
+      addMessage(state, msg, '#8866aa');
+    }
   }
 
-  addMessage(state, `Chapter: ${chapter.name} — Floor ${floorNumber}`, '#ffcc44');
+  state._isStoryMode = true;
 
   // Reveal tiles around the player
   updateFOV(state);
@@ -307,6 +325,8 @@ function spawnPrebakedItems(
           rarity: def.rarity,
           description: def.description,
           statBonus: def.statBonus,
+          equipSlot: def.equipSlot,
+          onHitEffect: def.onHitEffect,
         },
       });
     }
@@ -314,7 +334,8 @@ function spawnPrebakedItems(
   return items;
 }
 
-import { Tile } from '../types';
+import { Tile, type Entity } from '../types';
+import { MSG_COLOR, RARITY_DEFS } from '../constants';
 
 function findOpenTile(
   room: { x: number; y: number; w: number; h: number },
@@ -334,4 +355,212 @@ function findOpenTile(
     }
   }
   return { x: room.x + 1, y: room.y + 1 };
+}
+
+// ════════════════════════════════════════════════════════════════
+// Story Mode Game Loop — independent of roguelike engine
+// ════════════════════════════════════════════════════════════════
+
+export interface StoryMoveResult {
+  moved: boolean;
+  floorChanged: boolean;
+}
+
+/**
+ * Story mode movement. Mirrors movePlayer from the roguelike engine but calls
+ * storyDescend() on stairs instead of the roguelike descend().
+ */
+export function storyMovePlayer(
+  state: GameState,
+  dx: number,
+  dy: number,
+  chapter: ChapterDef,
+  save: CampaignSave,
+): StoryMoveResult {
+  const noMove: StoryMoveResult = { moved: false, floorChanged: false };
+  if (state.gameOver) return noMove;
+
+  if (state.player.statusEffects?.some(e => e.type === 'stun' || e.type === 'freeze')) {
+    processTurn(state);
+    return { moved: true, floorChanged: false };
+  }
+
+  const nx = state.player.pos.x + dx;
+  const ny = state.player.pos.y + dy;
+
+  if (nx < 0 || nx >= state.floor.width || ny < 0 || ny >= state.floor.height) return noMove;
+
+  const tile = getTile(state.floor, nx, ny);
+
+  // Mercenary
+  const mapMerc = state.mapMercenaries?.find(m => !m.hired && m.pos.x === nx && m.pos.y === ny);
+  if (mapMerc) {
+    state.pendingMercenary = mapMerc.id;
+    addMessage(state, 'A mercenary offers their services...', MSG_COLOR.merc);
+    return { moved: true, floorChanged: false };
+  }
+
+  // NPC
+  const npc = state.npcs.find(n => !n.talked && n.pos.x === nx && n.pos.y === ny);
+  if (npc) {
+    state.pendingNPC = npc.id;
+    addMessage(state, 'You encounter someone...', MSG_COLOR.system);
+    return { moved: true, floorChanged: false };
+  }
+
+  // Monster
+  const monster = state.monsters.find(m => !m.isDead && m.pos.x === nx && m.pos.y === ny);
+  if (monster) {
+    if (monster.isBefriended || monster.isHostile === false) {
+      const oldPos = { ...state.player.pos };
+      state.player.pos.x = nx;
+      state.player.pos.y = ny;
+      monster.pos.x = oldPos.x;
+      monster.pos.y = oldPos.y;
+      processTurn(state);
+      return { moved: true, floorChanged: false };
+    }
+    if (hasChosenAbility(state, 'rng_swift_strike')) {
+      if (!monster.statusEffects) monster.statusEffects = [];
+      if (!monster.statusEffects.some(e => e.type === 'stun')) {
+        monster.statusEffects.push({ type: 'stun', turnsRemaining: 1 });
+      }
+    }
+    attackEntity(state, state.player, monster as Entity);
+    processTurn(state);
+    return { moved: true, floorChanged: false };
+  }
+
+  if (!isWalkableTile(tile)) return noMove;
+
+  // Attack of opportunity
+  if (!hasChosenAbility(state, 'rog_shadow_step')) {
+    const px = state.player.pos.x;
+    const py = state.player.pos.y;
+    for (const m of state.monsters) {
+      if (m.isDead) continue;
+      const oldDist = Math.max(Math.abs(m.pos.x - px), Math.abs(m.pos.y - py));
+      if (oldDist !== 1) continue;
+      const newDist = Math.max(Math.abs(m.pos.x - nx), Math.abs(m.pos.y - ny));
+      if (newDist <= oldDist) continue;
+      if (m.statusEffects?.some(e => e.type === 'stun' || e.type === 'freeze')) continue;
+      addMessage(state, `${m.name} strikes as you retreat!`, MSG_COLOR.bad);
+      attackEntity(state, m as Entity, state.player);
+      if (state.gameOver) return { moved: true, floorChanged: false };
+    }
+  }
+
+  state.player.pos.x = nx;
+  state.player.pos.y = ny;
+
+  // Terrain effects
+  applyTerrainStepEffects(state, state.player);
+  const _terrain = getTerrainAt(state.floor, nx, ny);
+  if (_terrain) {
+    state.runStats.terrainSteps[_terrain] = (state.runStats.terrainSteps[_terrain] ?? 0) + 1;
+  }
+
+  // Item pickup
+  const itemsHere = state.items.filter(i => i.pos.x === nx && i.pos.y === ny);
+  for (const mi of itemsHere) {
+    if (mi.item.type === 'gold') {
+      state.score += mi.item.value;
+      state.runStats.goldEarned += mi.item.value;
+      addMessage(state, `Picked up ${mi.item.value} gold!`, MSG_COLOR.loot);
+    } else {
+      if (state.player.inventory.length < 20) {
+        state.player.inventory.push(mi.item);
+        state.runStats.itemsFound++;
+        const pickupColor = mi.item.rarity && mi.item.rarity !== 'common' ? RARITY_DEFS[mi.item.rarity].color : MSG_COLOR.loot;
+        addMessage(state, `Picked up ${mi.item.name}`, pickupColor);
+      } else {
+        addMessage(state, `Inventory full! Can't pick up ${mi.item.name}`, MSG_COLOR.bad);
+        continue;
+      }
+    }
+    state.items = state.items.filter(i => i.id !== mi.id);
+  }
+
+  // Shop
+  if (state.shop && nx === state.shop.pos.x && ny === state.shop.pos.y && state.shop.stock.length > 0) {
+    addMessage(state, 'A shopkeeper! Browse their wares.', MSG_COLOR.system);
+  }
+
+  // Stairs — story mode descent
+  if (tile === Tile.StairsDown) {
+    storyDescend(state, chapter, save);
+    return { moved: true, floorChanged: true };
+  }
+
+  processTurn(state);
+  return { moved: true, floorChanged: false };
+}
+
+/**
+ * Story mode floor descent. Replaces the entire floor with the next story floor,
+ * carrying over player state. No roguelike content is ever generated.
+ */
+function storyDescend(state: GameState, chapter: ChapterDef, save: CampaignSave): void {
+  state.floorNumber++;
+  state.runStats.floorsCleared++;
+
+  const floorDef = chapter.floors.find(f => f.floorIndex === state.floorNumber);
+  if (!floorDef) {
+    addMessage(state, 'You have reached the end of this chapter.', '#ffcc44');
+    return;
+  }
+
+  // Save player state before rebuilding
+  const playerSnapshot = {
+    stats: { ...state.player.stats },
+    level: state.player.level,
+    xp: state.player.xp,
+    inventory: [...state.player.inventory],
+    equipment: { ...state.player.equipment },
+    statusEffects: state.player.statusEffects ? [...state.player.statusEffects] : [],
+  };
+  const savedScore = state.score;
+  const savedRunStats = { ...state.runStats };
+  const savedBosses = [...state.bossesDefeatedThisRun];
+  const savedMercs = state.mercenaries.map(m => ({ ...m }));
+  const savedSkills = state.skills ? { ...state.skills } : undefined;
+  const savedSkillPoints = state.skillPoints;
+  const savedNodes = [...state.unlockedNodes];
+
+  // Update campaign save
+  save.currentFloor = state.floorNumber;
+  save.playerLevel = playerSnapshot.level;
+  save.skillPoints = savedSkillPoints;
+  save.unlockedNodes = savedNodes;
+
+  // Build the new floor
+  const newState = newStoryFloor(chapter, floorDef, save);
+
+  // Carry over player state
+  newState.player.stats = playerSnapshot.stats;
+  newState.player.level = playerSnapshot.level;
+  newState.player.xp = playerSnapshot.xp;
+  newState.player.inventory = playerSnapshot.inventory;
+  newState.player.equipment = playerSnapshot.equipment;
+  newState.player.statusEffects = playerSnapshot.statusEffects;
+  newState.score = savedScore;
+  newState.runStats = savedRunStats;
+  newState.bossesDefeatedThisRun = savedBosses;
+  newState.mercenaries = savedMercs;
+  if (savedSkills) newState.skills = savedSkills;
+  newState.skillPoints = savedSkillPoints;
+  newState.unlockedNodes = savedNodes;
+
+  // Copy the new state back onto the existing state object (in-place mutation)
+  Object.assign(state, newState);
+}
+
+/**
+ * Story mode wait turn. Player waits, monsters act.
+ */
+export function storyWaitTurn(state: GameState): boolean {
+  if (state.gameOver) return false;
+  addMessage(state, 'You wait...', MSG_COLOR.info);
+  processTurn(state);
+  return true;
 }

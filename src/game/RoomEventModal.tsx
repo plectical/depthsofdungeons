@@ -136,8 +136,10 @@ export function RoomEventModal({
         skillValue={skillValue}
         gearBonus={gearBonus}
         target={event.baseDifficulty}
-        description={event.name}
+        description={event.description}
         imageUrl={skillCheckArtUrl}
+        successHint={event.success?.description || event.criticalSuccess?.description}
+        failureHint={event.failure?.description || event.criticalFailure?.description}
         onComplete={handleSkillCheckComplete}
       />
     );

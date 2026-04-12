@@ -35,6 +35,7 @@ export function useCdnImage(assetPath: string): string | null {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!assetPath) return;
     let revoke: string | null = null;
     let cancelled = false;
 

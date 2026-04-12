@@ -7,6 +7,21 @@ import { trackMercenaryHired } from './analytics';
 import { cloneState } from './utils';
 import { getContentCache } from './story/progressiveLoader';
 import { getMercenariesForFloor } from './story/contentCache';
+import { useCdnImage } from './useCdnImage';
+
+function findMercDef(state: GameState): MercenaryDef | undefined {
+  const mercId = state.pendingMercenary;
+  if (!mercId) return undefined;
+  const mapMerc = state.mapMercenaries.find(m => m.id === mercId);
+  if (!mapMerc) return undefined;
+  let def = MERCENARY_DEFS.find(d => d.id === mapMerc.defId);
+  if (!def) {
+    const cache = getContentCache();
+    const generatedMercs = getMercenariesForFloor(cache, state.floorNumber);
+    def = generatedMercs.find(d => d.id === mapMerc.defId);
+  }
+  return def;
+}
 
 interface Props {
   state: GameState;
@@ -15,24 +30,12 @@ interface Props {
 }
 
 export function MercenaryHire({ state, onChange, onClose }: Props) {
-  const mercId = state.pendingMercenary;
-  if (!mercId) return null;
+  const def = findMercDef(state);
+  const portraitUrl = useCdnImage(def?.portraitAsset || '');
 
-  const mapMerc = state.mapMercenaries.find(m => m.id === mercId);
-  if (!mapMerc) return null;
+  if (!def || !state.pendingMercenary) return null;
 
-  // Look for mercenary definition in both generated cache and default defs
-  let def: MercenaryDef | undefined = MERCENARY_DEFS.find(d => d.id === mapMerc.defId);
-  
-  // Check AI-generated mercenaries if not found in defaults
-  if (!def) {
-    const cache = getContentCache();
-    const generatedMercs = getMercenariesForFloor(cache, state.floorNumber);
-    def = generatedMercs.find(d => d.id === mapMerc.defId);
-  }
-  
-  if (!def) return null;
-
+  const mercId = state.pendingMercenary!;
   const canAfford = state.score >= def.hireCost;
   const partyFull = state.mercenaries.filter(m => !m.isDead).length >= 2;
 
@@ -61,9 +64,9 @@ export function MercenaryHire({ state, onChange, onClose }: Props) {
     <div style={overlayStyle}>
       <div style={panelStyle}>
         <div style={headerStyle}>
-          {def.portraitUrl ? (
+          {(portraitUrl || def.portraitUrl) ? (
             <img 
-              src={def.portraitUrl} 
+              src={portraitUrl || def.portraitUrl} 
               alt={def.name}
               style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4, border: `2px solid ${def.color}`, boxShadow: '0 0 10px rgba(0,0,0,0.5)' }}
             />
