@@ -347,7 +347,10 @@ export function Game() {
   const campaignSaveRef = useRef<CampaignSave | null>(null);
   const [storySlides, setStorySlides] = useState<{ slides: import('./story-mode/campaignTypes').NarrativeSlide[]; index: number } | null>(null);
   const [slideArtUrls, setSlideArtUrls] = useState<Record<string, string>>({});
-  const [storyChapterComplete, setStoryChapterComplete] = useState<{ chapterName: string; defeatDialogue: string; rewards: import('./story-mode/campaignTypes').ChapterReward[] } | null>(null);
+  const [storyChapterComplete, setStoryChapterComplete] = useState<{ chapterName: string; defeatDialogue: string; rewards: import('./story-mode/campaignTypes').ChapterReward[]; victoryArtAsset?: string; loreEntries?: import('./story-mode/campaignTypes').LoreEntry[] } | null>(null);
+  const [storyMiniBossVictory, setStoryMiniBossVictory] = useState<import('./story-mode/campaignTypes').MiniBossVictory | null>(null);
+  const [storyMiniBossArtUrl, setStoryMiniBossArtUrl] = useState<string | null>(null);
+  const [storyLoreViewer, setStoryLoreViewer] = useState<{ entry: import('./story-mode/campaignTypes').LoreEntry; index: number } | null>(null);
   const storyDefeatedBossesRef = useRef<Set<string>>(new Set());
 
   // RUN TV — Impregnar class unlock via watching the show
@@ -382,6 +385,17 @@ export function Game() {
     loadArt();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storySlides?.slides]);
+
+  // Preload chapter completion victory art
+  useEffect(() => {
+    if (!storyChapterComplete?.victoryArtAsset) return;
+    const asset = storyChapterComplete.victoryArtAsset;
+    if (slideArtUrls[asset]) return;
+    RundotGameAPI.cdn.fetchAsset(asset)
+      .then(blob => { if (blob) setSlideArtUrls(prev => ({ ...prev, [asset]: URL.createObjectURL(blob) })); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyChapterComplete?.victoryArtAsset]);
 
   // Re-check globalStorage when the tab regains focus (player returns from watching)
   useEffect(() => {
@@ -1865,16 +1879,38 @@ export function Game() {
       const cs = campaignSaveRef.current;
       const chapter = getChapter(cs.currentChapter);
       if (chapter) {
-        const floorDef = chapter.floors.find(f => f.floorIndex === next.floorNumber);
-        // Check for mini-boss defeat messages (e.g. The Butcher)
-        if (floorDef) {
-          for (const mDef of floorDef.monsters) {
-            if (mDef.defeatMessage && !storyDefeatedBossesRef.current.has(mDef.name)) {
-              const killed = next.monsters.find(m => m.name === mDef.name && m.isDead);
-              if (killed) {
-                storyDefeatedBossesRef.current.add(mDef.name);
-                addMessage(next, mDef.defeatMessage, '#ffcc44');
+        // Mini-boss victories (e.g. The Butcher)
+        if (chapter.miniBossVictories) {
+          for (const mbv of chapter.miniBossVictories) {
+            if (storyDefeatedBossesRef.current.has(mbv.monsterName)) continue;
+            const killed = next.monsters.find(m => m.name === mbv.monsterName && m.isDead);
+            if (killed) {
+              storyDefeatedBossesRef.current.add(mbv.monsterName);
+              // Give the special item
+              if (mbv.itemDrop && next.player.inventory.length < 20) {
+                next.player.inventory.push({
+                  id: `mbv_${Date.now()}`,
+                  name: mbv.itemDrop.name,
+                  type: mbv.itemDrop.type as any,
+                  char: mbv.itemDrop.char,
+                  color: mbv.itemDrop.color,
+                  value: mbv.itemDrop.value,
+                  rarity: mbv.itemDrop.rarity,
+                  description: mbv.itemDrop.description,
+                  statBonus: mbv.itemDrop.statBonus,
+                  equipSlot: mbv.itemDrop.equipSlot,
+                });
               }
+              // Unlock lore
+              if (mbv.loreUnlock) {
+                cs.storyFlags[`lore_${mbv.loreUnlock}`] = 'unlocked';
+                saveCampaign(cs);
+              }
+              // Load art and show victory screen
+              RundotGameAPI.cdn.fetchAsset(mbv.artAsset)
+                .then(blob => setStoryMiniBossArtUrl(URL.createObjectURL(blob)))
+                .catch(() => setStoryMiniBossArtUrl(null));
+              setTimeout(() => setStoryMiniBossVictory(mbv), 600);
             }
           }
         }
@@ -1883,6 +1919,30 @@ export function Game() {
           const chapterBossKilled = next.monsters.find(m => m.name === chapter.boss!.name && m.isDead);
           if (chapterBossKilled) {
             storyDefeatedBossesRef.current.add(chapter.boss.name);
+            // Give boss special item
+            if (chapter.bossItemDrop && next.player.inventory.length < 20) {
+              next.player.inventory.push({
+                id: `boss_${chapter.boss.name}`,
+                name: chapter.bossItemDrop.name,
+                type: chapter.bossItemDrop.type as any,
+                char: chapter.bossItemDrop.char,
+                color: chapter.bossItemDrop.color,
+                value: chapter.bossItemDrop.value,
+                rarity: chapter.bossItemDrop.rarity,
+                description: chapter.bossItemDrop.description,
+                statBonus: chapter.bossItemDrop.statBonus,
+                equipSlot: chapter.bossItemDrop.equipSlot,
+              });
+              addMessage(next, `The ${chapter.boss.name} drops: ${chapter.bossItemDrop.name}!`, '#aa44ff');
+            }
+            // Unlock Deepfolk lore
+            if (chapter.loreEntries) {
+              for (const le of chapter.loreEntries) {
+                if (!le.id.startsWith('lore_harmon')) {
+                  cs.storyFlags[`lore_${le.id}`] = 'unlocked';
+                }
+              }
+            }
             // Apply rewards
             for (const reward of chapter.rewards) {
               if (reward.type === 'gold' && typeof reward.value === 'number') {
@@ -1901,12 +1961,13 @@ export function Game() {
               }
             }
             saveCampaign(cs);
-            // Show chapter completion after a brief delay
             setTimeout(() => {
               setStoryChapterComplete({
                 chapterName: chapter.name,
                 defeatDialogue: chapter.boss!.defeatDialogue,
                 rewards: chapter.rewards,
+                victoryArtAsset: chapter.victoryArtAsset,
+                loreEntries: chapter.loreEntries,
               });
             }, 800);
           }
@@ -3600,6 +3661,22 @@ export function Game() {
             setCampaignSave(null);
             campaignSaveRef.current = null;
           }}
+          onViewLore={(entry) => {
+            const loadLoreArt = async () => {
+              const urls: Record<string, string> = { ...slideArtUrls };
+              for (const s of entry.slides) {
+                if (s.artAsset && !urls[s.artAsset]) {
+                  try {
+                    const blob = await RundotGameAPI.cdn.fetchAsset(s.artAsset);
+                    urls[s.artAsset] = URL.createObjectURL(blob);
+                  } catch { /* fallback */ }
+                }
+              }
+              setSlideArtUrls(urls);
+            };
+            loadLoreArt();
+            setStoryLoreViewer({ entry, index: 0 });
+          }}
         />
       </div>
     );
@@ -3665,6 +3742,123 @@ export function Game() {
     );
   }
 
+  // ── Story Mode Mini-Boss Victory Screen ──
+  if (storyMiniBossVictory) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', background: '#0a0a0a',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', padding: 20, overflow: 'auto',
+      }}>
+        <div style={{
+          color: '#cc2222', fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
+          marginBottom: 8, letterSpacing: 2, textAlign: 'center', textShadow: '0 0 12px #cc222266',
+        }}>
+          {storyMiniBossVictory.monsterName.toUpperCase()} DEFEATED
+        </div>
+        {storyMiniBossArtUrl && (
+          <img src={storyMiniBossArtUrl} alt="" style={{
+            width: '100%', maxWidth: 340, borderRadius: 8,
+            border: '1px solid #cc222233', marginBottom: 12, imageRendering: 'pixelated',
+          }} />
+        )}
+        <div style={{
+          color: '#c49eff', fontFamily: 'monospace', fontSize: 11, lineHeight: '17px',
+          maxWidth: 340, textAlign: 'center', marginBottom: 16, padding: '0 8px',
+          whiteSpace: 'pre-line',
+        }}>
+          {storyMiniBossVictory.narrative}
+        </div>
+        {storyMiniBossVictory.itemDrop && (
+          <div style={{
+            border: '1px solid #ffd70044', background: '#0a0a00', padding: 10,
+            maxWidth: 300, width: '100%', marginBottom: 12, textAlign: 'center',
+          }}>
+            <div style={{ color: '#ffd700', fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+              ITEM ACQUIRED
+            </div>
+            <div style={{ color: storyMiniBossVictory.itemDrop.color, fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' }}>
+              {storyMiniBossVictory.itemDrop.char} {storyMiniBossVictory.itemDrop.name}
+            </div>
+            <div style={{ color: '#8888aa', fontFamily: 'monospace', fontSize: 10, marginTop: 4, fontStyle: 'italic' }}>
+              {storyMiniBossVictory.itemDrop.description}
+            </div>
+          </div>
+        )}
+        {storyMiniBossVictory.loreUnlock && (
+          <div style={{ color: '#44ff88', fontFamily: 'monospace', fontSize: 10, marginBottom: 12 }}>
+            📖 New lore unlocked — viewable from Story Hub
+          </div>
+        )}
+        <button
+          style={{
+            background: '#1a0a0a', border: '1px solid #cc4444', color: '#cc4444',
+            fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', padding: '8px 20px',
+            cursor: 'pointer', borderRadius: 4,
+          }}
+          onClick={() => {
+            setStoryMiniBossVictory(null);
+            if (storyMiniBossArtUrl) { URL.revokeObjectURL(storyMiniBossArtUrl); setStoryMiniBossArtUrl(null); }
+          }}
+        >
+          [ Continue ]
+        </button>
+      </div>
+    );
+  }
+
+  // ── Story Mode Lore Viewer ──
+  if (storyLoreViewer) {
+    const slide = storyLoreViewer.entry.slides[storyLoreViewer.index];
+    const loreArtUrl = slide?.artAsset ? slideArtUrls[slide.artAsset] : null;
+    const isLast = storyLoreViewer.index >= storyLoreViewer.entry.slides.length - 1;
+    return (
+      <div
+        style={{
+          width: '100%', height: '100%', background: '#0a0a0a',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', padding: 20, cursor: 'pointer',
+        }}
+        onClick={() => {
+          if (isLast) {
+            setStoryLoreViewer(null);
+          } else {
+            setStoryLoreViewer({ ...storyLoreViewer, index: storyLoreViewer.index + 1 });
+          }
+        }}
+      >
+        <div style={{ color: '#cc8844', fontFamily: 'monospace', fontSize: 10, marginBottom: 8, letterSpacing: 2 }}>
+          {storyLoreViewer.entry.title}
+        </div>
+        {loreArtUrl && (
+          <img src={loreArtUrl} alt="" style={{
+            width: '100%', maxWidth: 360, borderRadius: 8,
+            border: '1px solid #cc884433', marginBottom: 12, imageRendering: 'pixelated',
+          }} />
+        )}
+        {slide?.title && (
+          <div style={{ color: '#ffd700', fontFamily: 'monospace', fontSize: 13, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
+            {slide.title}
+          </div>
+        )}
+        <div style={{
+          color: '#c49eff', fontFamily: 'monospace', fontSize: 11, lineHeight: '17px',
+          maxWidth: 340, textAlign: 'center', marginBottom: 16, padding: '0 8px', whiteSpace: 'pre-line',
+        }}>
+          {slide?.text}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {storyLoreViewer.entry.slides.map((_, i) => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i === storyLoreViewer.index ? '#cc8844' : '#333' }} />
+          ))}
+        </div>
+        <div style={{ color: '#556655', fontFamily: 'monospace', fontSize: 10, marginTop: 10 }}>
+          {isLast ? 'Tap to close' : 'Tap to continue...'}
+        </div>
+      </div>
+    );
+  }
+
   // ── Story Mode Chapter Completion Screen ──
   if (storyChapterComplete) {
     return (
@@ -3680,14 +3874,20 @@ export function Game() {
           CHAPTER COMPLETE
         </div>
         <div style={{
-          color: '#cc8844', fontFamily: 'monospace', fontSize: 14, marginBottom: 16,
+          color: '#cc8844', fontFamily: 'monospace', fontSize: 14, marginBottom: 12,
           textAlign: 'center',
         }}>
           {storyChapterComplete.chapterName}
         </div>
+        {storyChapterComplete.victoryArtAsset && slideArtUrls[storyChapterComplete.victoryArtAsset] && (
+          <img src={slideArtUrls[storyChapterComplete.victoryArtAsset]} alt="" style={{
+            width: '100%', maxWidth: 340, borderRadius: 8,
+            border: '1px solid #aa44ff33', marginBottom: 12, imageRendering: 'pixelated',
+          }} />
+        )}
         <div style={{
           color: '#c49eff', fontFamily: 'monospace', fontSize: 11, lineHeight: '17px',
-          maxWidth: 360, textAlign: 'center', marginBottom: 20, padding: '0 10px',
+          maxWidth: 360, textAlign: 'center', marginBottom: 16, padding: '0 10px',
           whiteSpace: 'pre-line',
         }}>
           {storyChapterComplete.defeatDialogue}
@@ -3709,6 +3909,39 @@ export function Game() {
             </div>
           ))}
         </div>
+        {storyChapterComplete.loreEntries && storyChapterComplete.loreEntries.length > 0 && (
+          <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+            <div style={{ color: '#cc8844', fontFamily: 'monospace', fontSize: 10, marginBottom: 2 }}>UNLOCKED LORE</div>
+            {storyChapterComplete.loreEntries.map(le => (
+              <button
+                key={le.id}
+                style={{
+                  background: '#0a0a14', border: '1px solid #cc884444', color: '#cc8844',
+                  fontFamily: 'monospace', fontSize: 11, padding: '5px 14px', cursor: 'pointer', borderRadius: 3,
+                }}
+                onClick={() => {
+                  // Pre-load art for lore slides
+                  const loadLoreArt = async () => {
+                    const urls: Record<string, string> = { ...slideArtUrls };
+                    for (const s of le.slides) {
+                      if (s.artAsset && !urls[s.artAsset]) {
+                        try {
+                          const blob = await RundotGameAPI.cdn.fetchAsset(s.artAsset);
+                          urls[s.artAsset] = URL.createObjectURL(blob);
+                        } catch { /* fallback */ }
+                      }
+                    }
+                    setSlideArtUrls(urls);
+                  };
+                  loadLoreArt();
+                  setStoryLoreViewer({ entry: le, index: 0 });
+                }}
+              >
+                📖 {le.title}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           style={{
             background: '#0a1a2a', border: '1px solid #cc8844', color: '#cc8844',

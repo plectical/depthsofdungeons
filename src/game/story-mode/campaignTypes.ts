@@ -73,6 +73,14 @@ export interface ChapterDef {
   /** Chapter IDs that must be completed first */
   requiredChapters: string[];
   rewards: ChapterReward[];
+  /** Art shown on the chapter completion screen */
+  victoryArtAsset?: string;
+  /** Special item dropped by the chapter boss */
+  bossItemDrop?: PrebakedItemSpawn;
+  /** Mini-boss victory events (special screen + loot on kill) */
+  miniBossVictories?: MiniBossVictory[];
+  /** Lore entries unlocked by completing this chapter or defeating mini-bosses */
+  loreEntries?: LoreEntry[];
 }
 
 export interface NarrativeSlide {
@@ -193,6 +201,20 @@ export interface StoryBossDef {
   defeatDialogue: string;
   /** CDN asset path for boss portrait */
   portraitAsset?: string;
+}
+
+export interface LoreEntry {
+  id: string;
+  title: string;
+  slides: NarrativeSlide[];
+}
+
+export interface MiniBossVictory {
+  monsterName: string;
+  artAsset: string;
+  narrative: string;
+  loreUnlock?: string;
+  itemDrop: PrebakedItemSpawn;
 }
 
 export interface ChapterReward {

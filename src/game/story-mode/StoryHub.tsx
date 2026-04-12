@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { CampaignSave } from './campaignTypes';
+import type { CampaignSave, LoreEntry } from './campaignTypes';
 import { ALL_CHAPTERS } from './chapters';
 import type { PlayerClass } from '../types';
 import { CLASS_DEFS } from '../constants';
@@ -12,9 +12,10 @@ interface StoryHubProps {
   onSelectChapter: (chapterId: string) => void;
   onBack: () => void;
   onDeleteSave: () => void;
+  onViewLore?: (entry: LoreEntry) => void;
 }
 
-export function StoryHub({ save, onNewCampaign, onContinue, onSelectChapter, onBack, onDeleteSave }: StoryHubProps) {
+export function StoryHub({ save, onNewCampaign, onContinue, onSelectChapter, onBack, onDeleteSave, onViewLore }: StoryHubProps) {
   const [showNewGame, setShowNewGame] = useState(false);
   const [selectedClass, setSelectedClass] = useState<PlayerClass>('warrior');
 
@@ -130,6 +131,40 @@ export function StoryHub({ save, onNewCampaign, onContinue, onSelectChapter, onB
           );
         })}
       </div>
+
+      {/* Unlocked Lore */}
+      {save && (() => {
+        const unlockedLore: LoreEntry[] = [];
+        for (const ch of ALL_CHAPTERS) {
+          if (!ch.loreEntries) continue;
+          for (const le of ch.loreEntries) {
+            if (save.storyFlags[`lore_${le.id}`] === 'unlocked') {
+              unlockedLore.push(le);
+            }
+          }
+        }
+        if (unlockedLore.length === 0) return null;
+        return (
+          <>
+            <div style={{ color: '#cc8844', fontFamily: 'monospace', fontSize: 11, marginTop: 12, marginBottom: 6 }}>
+              LORE
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 320, width: '100%' }}>
+              {unlockedLore.map(le => (
+                <button
+                  key={le.id}
+                  style={{ ...chapterCardStyle, border: '1px solid #cc884444', cursor: 'pointer' }}
+                  onClick={() => onViewLore?.(le)}
+                >
+                  <span style={{ color: '#cc8844', fontFamily: 'monospace', fontSize: 11 }}>
+                    📖 {le.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>

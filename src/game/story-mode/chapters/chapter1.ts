@@ -644,4 +644,71 @@ export const CHAPTER_1: ChapterDef = {
     { type: 'skill_points', value: 3, description: '3 skill points' },
     { type: 'unlock_chapter', value: 'ch2_deeper_still', description: 'Chapter 2: Deeper Still' },
   ],
+  victoryArtAsset: 'story/story-sleeper-defeat.png',
+  bossItemDrop: {
+    name: 'Sleeper\'s Eye', type: 'amulet', char: '"', color: '#aa44ff',
+    value: 50, rarity: 'rare',
+    description: 'A crystallized eye torn from the Sleeper\'s corpse. It still watches. It still dreams. +3 Atk, +3 Def, +15 Max HP.',
+    statBonus: { attack: 3, defense: 3, maxHp: 15 },
+    equipSlot: 'amulet', count: 1,
+  },
+  miniBossVictories: [
+    {
+      monsterName: 'The Butcher',
+      artAsset: 'story/story-butcher-defeat.png',
+      narrative: 'The Butcher — what was once Big Harmon — collapses with a sound like crumbling stone. The pickaxe clatters from his grip. For a moment, his eyes clear. "...brother?" he whispers. Then he is still.\n\nWhatever dark force animated him releases its hold. The scraping sound that haunted Shaft 7 falls silent at last.\n\nIn his clenched fist, you find a small gold locket. Inside: a portrait of two brothers, smiling. One massive, one small. The engraving reads: "H & C — Brothers of the Deep."',
+      loreUnlock: 'lore_harmon',
+      itemDrop: {
+        name: 'Harmon\'s Locket', type: 'ring', char: '=', color: '#ffd700',
+        value: 30, rarity: 'rare',
+        description: 'A gold locket containing a portrait of two brothers. It hums with residual warmth — as if grateful to be held by human hands again. +2 Atk, +2 Def, +5 Max HP.',
+        statBonus: { attack: 2, defense: 2, maxHp: 5 },
+        equipSlot: 'ring', count: 1,
+      },
+    },
+  ],
+  loreEntries: [
+    {
+      id: 'lore_harmon',
+      title: 'The Ballad of Big Harmon',
+      slides: [
+        {
+          title: 'Brothers of the Deep',
+          text: 'Harmon and Cobb were inseparable. Harmon — the eldest — stood nearly seven feet tall, broad as a mine cart, with hands that could crack stone. Cobb was small, clever, quick with a joke. They worked Shaft 7 together for twelve years. Harmon hauled the ore; Cobb spotted the veins. The other miners said they were the best team in Grimhollow.',
+          artAsset: 'story/story-harmon-brothers.png',
+        },
+        {
+          title: 'The Disappearance',
+          text: 'When Cobb vanished, Harmon refused to believe he\'d deserted. He searched the tunnels for three days without sleeping. On the fourth day, he found Cobb\'s helmet — sitting upright in the center of Shaft 7, placed with deliberate care. No blood. No body. Just the helmet.\n\nHarmon brought it home. He didn\'t speak for a week. Then he packed his pickaxe and went back down. "I\'ll bring him home," he told Gristle. "Or I won\'t come back at all."',
+          artAsset: 'story/story-harmon-descent.png',
+        },
+        {
+          title: 'The Butcher',
+          text: 'Harmon came back once. He sat in the canteen and stared at the wall for six hours. When asked what he\'d found, he said one word: "Breathing." Then he went back down.\n\nThe miners heard him after that. At night, in the quiet hours between shifts — the slow, rhythmic scrape of a pickaxe on stone. Scrape. Scrape. Scrape. Getting closer, then retreating. Never stopping.\n\nThey called him the Butcher. But in his locket, two brothers still smiled.',
+          artAsset: 'story/story-butcher-defeat.png',
+        },
+      ],
+    },
+    {
+      id: 'lore_deepfolk',
+      title: 'The Descent of the Deepfolk',
+      slides: [
+        {
+          title: 'The Builders Below',
+          text: 'Long before humans broke ground on Grimhollow Mountain, another civilization built downward. The Deepfolk — tall, thin, with smooth features that defied human anatomy — carved their cities into the living rock with tools that left no marks. Their architecture bent space: rooms larger inside than out, corridors that curved in impossible directions.\n\nThey did not build for shelter. They built toward something. Deeper and deeper, following a sound only they could hear.',
+          artAsset: 'story/story-deepfolk-builders.png',
+        },
+        {
+          title: 'The Dreaming God',
+          text: 'At the deepest point of their descent, the Deepfolk found it: a vast crystalline formation pulsing with energy older than the mountain itself. Inside the crystal, something slept. Something that dreamed.\n\nThe Deepfolk built a cathedral around it. They worshipped it. They fed it their memories, their fears, their sense of self — until the distinction between worshipper and worshipped dissolved. They became the Sleeper\'s dream, and the Sleeper became their god.\n\nThey were never seen on the surface again.',
+          artAsset: 'story/story-deepfolk-worship.png',
+        },
+        {
+          title: 'The Awakening',
+          text: 'For millennia, the Sleeper dreamed in peace. Then the miners came. Their pickaxes cracked the crystal. Their lanterns pierced the dark. The Sleeper stirred — and in its stirring, the old protections failed.\n\nThe Deepfolk remnants — neither alive nor dead, sustained only by the dream — began to walk again. The miners who went too deep were claimed. Some were changed. Some simply disappeared.\n\nNow the Sleeper is gone, shattered by a sellsword\'s blade. But the passage leads deeper still. And in the silence left behind, something else has begun to stir.',
+          artAsset: 'story/story-sleeper-defeat.png',
+        },
+      ],
+    },
+  ],
 };
