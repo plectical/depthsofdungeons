@@ -364,6 +364,8 @@ function findOpenTile(
 export interface StoryMoveResult {
   moved: boolean;
   floorChanged: boolean;
+  /** Names of monsters killed this move (captured before dead-filter) */
+  killedNames?: string[];
 }
 
 /**
@@ -381,8 +383,9 @@ export function storyMovePlayer(
   if (state.gameOver) return noMove;
 
   if (state.player.statusEffects?.some(e => e.type === 'stun' || e.type === 'freeze')) {
+    const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
     processTurn(state);
-    return { moved: true, floorChanged: false };
+    return { moved: true, floorChanged: false, killedNames: killedBefore.length > 0 ? killedBefore : undefined };
   }
 
   const nx = state.player.pos.x + dx;
@@ -427,8 +430,9 @@ export function storyMovePlayer(
       }
     }
     attackEntity(state, state.player, monster as Entity);
+    const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
     processTurn(state);
-    return { moved: true, floorChanged: false };
+    return { moved: true, floorChanged: false, killedNames: killedBefore };
   }
 
   if (!isWalkableTile(tile)) return noMove;
@@ -492,8 +496,9 @@ export function storyMovePlayer(
     return { moved: true, floorChanged: true };
   }
 
+  const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
   processTurn(state);
-  return { moved: true, floorChanged: false };
+  return { moved: true, floorChanged: false, killedNames: killedBefore.length > 0 ? killedBefore : undefined };
 }
 
 /**
@@ -558,9 +563,10 @@ function storyDescend(state: GameState, chapter: ChapterDef, save: CampaignSave)
 /**
  * Story mode wait turn. Player waits, monsters act.
  */
-export function storyWaitTurn(state: GameState): boolean {
-  if (state.gameOver) return false;
+export function storyWaitTurn(state: GameState): string[] {
+  if (state.gameOver) return [];
   addMessage(state, 'You wait...', MSG_COLOR.info);
+  const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
   processTurn(state);
-  return true;
+  return killedBefore;
 }

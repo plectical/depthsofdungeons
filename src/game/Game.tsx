@@ -1883,7 +1883,7 @@ export function Game() {
         if (chapter.miniBossVictories) {
           for (const mbv of chapter.miniBossVictories) {
             if (storyDefeatedBossesRef.current.has(mbv.monsterName)) continue;
-            const killed = next.monsters.find(m => m.name === mbv.monsterName && m.isDead);
+            const killed = moveResult.killedNames?.includes(mbv.monsterName);
             if (killed) {
               storyDefeatedBossesRef.current.add(mbv.monsterName);
               // Give the special item
@@ -1916,7 +1916,7 @@ export function Game() {
         }
         // Chapter boss defeat — trigger completion
         if (chapter.boss && !storyDefeatedBossesRef.current.has(chapter.boss.name)) {
-          const chapterBossKilled = next.monsters.find(m => m.name === chapter.boss!.name && m.isDead);
+          const chapterBossKilled = moveResult.killedNames?.includes(chapter.boss.name);
           if (chapterBossKilled) {
             storyDefeatedBossesRef.current.add(chapter.boss.name);
             // Give boss special item
@@ -2903,8 +2903,8 @@ export function Game() {
     if (!state || state.gameOver) return;
     const next = cloneState(state);
     if (isStoryModeRef.current) {
-      const ok = safeEngineCall('storyWaitTurn', () => { storyWaitTurn(next); return true; });
-      if (ok !== null) storyHandleChange(next, { moved: true, floorChanged: false });
+      const killedNames = safeEngineCall('storyWaitTurn', () => storyWaitTurn(next));
+      if (killedNames !== null) storyHandleChange(next, { moved: true, floorChanged: false, killedNames: killedNames.length > 0 ? killedNames : undefined });
     } else {
       const result = safeEngineCall('waitTurn', () => { waitTurn(next); return true; });
       if (result !== null) handleChange(next);
