@@ -2987,6 +2987,12 @@ export function Game() {
       return;
     }
 
+    // Story mode: autoplay is disabled — it skips skill checks, NPCs, and story beats
+    if (isStoryModeRef.current) {
+      setAutoPlay(false);
+      return;
+    }
+
     const blob = new Blob(
       [`setInterval(()=>postMessage('tick'),200)`],
       { type: 'application/javascript' },
@@ -5551,7 +5557,7 @@ export function Game() {
             {isStoryMode ? '[ Return to Hub ]' : '[ End Run ]'}
           </button>
           <div style={{ display: 'flex', gap: 2 }}>
-            <button
+            {!isStoryMode && <button
               style={autoPlay ? autoBtnActiveStyle : actionBtnStyle}
               onClick={() => {
                 setAutoPlay((v) => {
@@ -5575,8 +5581,8 @@ export function Game() {
               }}
             >
               {autoPlay ? '[ Stop ]' : (autoPlayMode === 'full' ? '[ Auto ]' : '[ Explore ]')}
-            </button>
-            <button
+            </button>}
+            {!isStoryMode && <button
               style={{
                 ...actionBtnStyle,
                 fontSize: 9,
@@ -5592,7 +5598,7 @@ export function Game() {
               })}
             >
               {autoPlayMode === 'full' ? 'FULL' : 'EXP'}
-            </button>
+            </button>}
             {/* Debug-only buttons */}
             {debugMode && (
               <>
