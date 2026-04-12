@@ -159,6 +159,8 @@ export interface PrebakedMonsterSpawn {
   element?: Element;
   /** How many of this monster to spawn */
   count: number;
+  /** Message shown in the log when this monster is killed (mini-boss flavor) */
+  defeatMessage?: string;
 }
 
 export interface PrebakedItemSpawn {

@@ -375,7 +375,7 @@ export const CHAPTER_1: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'The Butcher', char: 'B', color: '#cc2222', stats: { hp: 30, maxHp: 30, attack: 7, defense: 3, speed: 4 }, xpValue: 30, lootChance: 0.8, count: 1 },
+        { name: 'The Butcher', char: 'B', color: '#cc2222', stats: { hp: 30, maxHp: 30, attack: 7, defense: 3, speed: 4 }, xpValue: 30, lootChance: 0.8, count: 1, isBoss: true, defeatMessage: 'The Butcher — what was once Big Harmon — collapses with a sound like crumbling stone. The pickaxe clatters from his grip. For a moment, his eyes clear. "...brother?" he whispers. Then he is still. Whatever dark force animated him releases its hold. The scraping sound that haunted Shaft 7 falls silent at last.' },
         { name: 'Tunnel Crawler', char: 'c', color: '#669966', stats: { hp: 14, maxHp: 14, attack: 4, defense: 1, speed: 8 }, xpValue: 6, lootChance: 0.25, count: 2 },
         { name: 'Drowned Skeleton', char: 's', color: '#ddddaa', stats: { hp: 10, maxHp: 10, attack: 3, defense: 2, speed: 6 }, xpValue: 5, lootChance: 0.3, count: 2 },
       ],

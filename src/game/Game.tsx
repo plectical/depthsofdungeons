@@ -347,6 +347,8 @@ export function Game() {
   const campaignSaveRef = useRef<CampaignSave | null>(null);
   const [storySlides, setStorySlides] = useState<{ slides: import('./story-mode/campaignTypes').NarrativeSlide[]; index: number } | null>(null);
   const [slideArtUrls, setSlideArtUrls] = useState<Record<string, string>>({});
+  const [storyChapterComplete, setStoryChapterComplete] = useState<{ chapterName: string; defeatDialogue: string; rewards: import('./story-mode/campaignTypes').ChapterReward[] } | null>(null);
+  const storyDefeatedBossesRef = useRef<Set<string>>(new Set());
 
   // RUN TV — Impregnar class unlock via watching the show
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
@@ -1855,6 +1857,60 @@ export function Game() {
         setPendingEncounter(encounter);
         setShowSkillCheck(true);
         setSkillCheckArtUrl(null);
+      }
+    }
+
+    // Boss/mini-boss defeat detection
+    if (campaignSaveRef.current) {
+      const cs = campaignSaveRef.current;
+      const chapter = getChapter(cs.currentChapter);
+      if (chapter) {
+        const floorDef = chapter.floors.find(f => f.floorIndex === next.floorNumber);
+        // Check for mini-boss defeat messages (e.g. The Butcher)
+        if (floorDef) {
+          for (const mDef of floorDef.monsters) {
+            if (mDef.defeatMessage && !storyDefeatedBossesRef.current.has(mDef.name)) {
+              const killed = next.monsters.find(m => m.name === mDef.name && m.isDead);
+              if (killed) {
+                storyDefeatedBossesRef.current.add(mDef.name);
+                addMessage(next, mDef.defeatMessage, '#ffcc44');
+              }
+            }
+          }
+        }
+        // Chapter boss defeat — trigger completion
+        if (chapter.boss && !storyDefeatedBossesRef.current.has(chapter.boss.name)) {
+          const chapterBossKilled = next.monsters.find(m => m.name === chapter.boss!.name && m.isDead);
+          if (chapterBossKilled) {
+            storyDefeatedBossesRef.current.add(chapter.boss.name);
+            // Apply rewards
+            for (const reward of chapter.rewards) {
+              if (reward.type === 'gold' && typeof reward.value === 'number') {
+                next.score += reward.value;
+                addMessage(next, `Reward: ${reward.description}`, '#ffd700');
+              }
+              if (reward.type === 'skill_points' && typeof reward.value === 'number') {
+                next.skillPoints += reward.value;
+                addMessage(next, `Reward: ${reward.description}`, '#cc88ff');
+              }
+              if (reward.type === 'unlock_chapter' && typeof reward.value === 'string') {
+                if (!cs.completedChapters.includes(cs.currentChapter)) {
+                  cs.completedChapters.push(cs.currentChapter);
+                }
+                addMessage(next, `Unlocked: ${reward.description}`, '#44ff88');
+              }
+            }
+            saveCampaign(cs);
+            // Show chapter completion after a brief delay
+            setTimeout(() => {
+              setStoryChapterComplete({
+                chapterName: chapter.name,
+                defeatDialogue: chapter.boss!.defeatDialogue,
+                rewards: chapter.rewards,
+              });
+            }, 800);
+          }
+        }
       }
     }
 
@@ -3605,6 +3661,73 @@ export function Game() {
         }}>
           {isLast ? 'Tap to begin...' : 'Tap to continue...'}
         </div>
+      </div>
+    );
+  }
+
+  // ── Story Mode Chapter Completion Screen ──
+  if (storyChapterComplete) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', background: '#0a0a0a',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', padding: 20, overflow: 'auto',
+      }}>
+        <div style={{
+          color: '#ffd700', fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold',
+          marginBottom: 8, letterSpacing: 2, textAlign: 'center', textShadow: '0 0 12px #ffd70066',
+        }}>
+          CHAPTER COMPLETE
+        </div>
+        <div style={{
+          color: '#cc8844', fontFamily: 'monospace', fontSize: 14, marginBottom: 16,
+          textAlign: 'center',
+        }}>
+          {storyChapterComplete.chapterName}
+        </div>
+        <div style={{
+          color: '#c49eff', fontFamily: 'monospace', fontSize: 11, lineHeight: '17px',
+          maxWidth: 360, textAlign: 'center', marginBottom: 20, padding: '0 10px',
+          whiteSpace: 'pre-line',
+        }}>
+          {storyChapterComplete.defeatDialogue}
+        </div>
+        <div style={{
+          border: '1px solid #2a4a2a', background: '#050a05', padding: 12,
+          maxWidth: 320, width: '100%', marginBottom: 16,
+        }}>
+          <div style={{ color: '#44ff88', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' }}>
+            REWARDS
+          </div>
+          {storyChapterComplete.rewards.map((r, i) => (
+            <div key={i} style={{
+              color: r.type === 'gold' ? '#ffd700' : r.type === 'skill_points' ? '#cc88ff' : '#44ff88',
+              fontFamily: 'monospace', fontSize: 11, padding: '3px 0',
+              textAlign: 'center',
+            }}>
+              {r.type === 'gold' ? '💰' : r.type === 'skill_points' ? '⭐' : '📖'} {r.description}
+            </div>
+          ))}
+        </div>
+        <button
+          style={{
+            background: '#0a1a2a', border: '1px solid #cc8844', color: '#cc8844',
+            fontFamily: 'monospace', fontSize: 13, fontWeight: 'bold', padding: '8px 24px',
+            cursor: 'pointer', borderRadius: 4, letterSpacing: 1,
+          }}
+          onClick={async () => {
+            setStoryChapterComplete(null);
+            storyDefeatedBossesRef.current.clear();
+            if (campaignSaveRef.current) {
+              const existing = await loadCampaign();
+              setCampaignSave(existing);
+              campaignSaveRef.current = existing;
+            }
+            setScreen('storyHub');
+          }}
+        >
+          [ Continue ]
+        </button>
       </div>
     );
   }
