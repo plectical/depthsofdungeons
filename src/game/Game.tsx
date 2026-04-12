@@ -3636,12 +3636,12 @@ export function Game() {
           onSelectChapter={async (chapterId) => {
             if (!campaignSave) return;
             campaignSave.currentChapter = chapterId;
-            campaignSave.currentFloor = 1;
             campaignSave.checkpointState = null;
             const chapter = getChapter(chapterId);
             if (!chapter) return;
             const floorDef = chapter.floors[0];
             if (!floorDef) return;
+            campaignSave.currentFloor = floorDef.floorIndex;
             const gs = newStoryFloor(chapter, floorDef, campaignSave);
             setState(gs);
             setIsStoryMode(true); isStoryModeRef.current = true;

@@ -184,8 +184,8 @@ export const CHAPTER_2: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'Stone Watcher', char: 'W', color: '#668888', stats: { hp: 16, maxHp: 16, attack: 4, defense: 3, speed: 6 }, xpValue: 8, lootChance: 0.3, count: 3 },
-        { name: 'Gloom Beetle', char: 'b', color: '#446666', stats: { hp: 10, maxHp: 10, attack: 3, defense: 1, speed: 11 }, xpValue: 5, lootChance: 0.2, count: 4 },
+        { name: 'Stone Watcher', char: 'Ω', color: '#668888', stats: { hp: 16, maxHp: 16, attack: 4, defense: 3, speed: 6 }, xpValue: 8, lootChance: 0.3, count: 3 },
+        { name: 'Gloom Beetle', char: '⊛', color: '#446666', stats: { hp: 10, maxHp: 10, attack: 3, defense: 1, speed: 11 }, xpValue: 5, lootChance: 0.2, count: 4 },
       ],
       items: [
         { name: 'Deepfolk Glaive', type: 'weapon', char: '/', color: '#44aaaa', value: 30, rarity: 'uncommon', description: 'A polearm carved from a single crystal. The blade resharpens itself.', statBonus: { attack: 4 }, equipSlot: 'weapon', count: 1 },
@@ -383,9 +383,9 @@ export const CHAPTER_2: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'The Amalgam', char: 'A', color: '#cc4444', stats: { hp: 45, maxHp: 45, attack: 9, defense: 4, speed: 3 }, xpValue: 40, lootChance: 0.9, count: 1, isBoss: true, defeatMessage: 'The Amalgam collapses — and as it falls, the fused bodies begin to separate. Thirty faces, frozen in silent screams, slowly relax into something like peace. Mining helmets roll across the floor. Pickaxes clatter. For a moment, you can see them — each individual miner, distinct, human — before the organic tissue dissolves into dust.\n\nCobb\'s face is among them. He mouths two words: "Thank you."' },
-        { name: 'Wall Tendril', char: 't', color: '#993333', stats: { hp: 12, maxHp: 12, attack: 5, defense: 1, speed: 9 }, xpValue: 6, lootChance: 0.15, count: 3 },
-        { name: 'Absorbed Miner', char: 'm', color: '#aa8866', stats: { hp: 14, maxHp: 14, attack: 4, defense: 2, speed: 7 }, xpValue: 7, lootChance: 0.3, count: 3 },
+        { name: 'The Amalgam', char: 'Ψ', color: '#cc4444', stats: { hp: 45, maxHp: 45, attack: 9, defense: 4, speed: 3 }, xpValue: 40, lootChance: 0.9, count: 1, isBoss: true, defeatMessage: 'The Amalgam collapses — and as it falls, the fused bodies begin to separate. Thirty faces, frozen in silent screams, slowly relax into something like peace. Mining helmets roll across the floor. Pickaxes clatter. For a moment, you can see them — each individual miner, distinct, human — before the organic tissue dissolves into dust.\n\nCobb\'s face is among them. He mouths two words: "Thank you."' },
+        { name: 'Wall Tendril', char: '≋', color: '#993333', stats: { hp: 12, maxHp: 12, attack: 5, defense: 1, speed: 9 }, xpValue: 6, lootChance: 0.15, count: 3 },
+        { name: 'Absorbed Miner', char: '☠', color: '#aa8866', stats: { hp: 14, maxHp: 14, attack: 4, defense: 2, speed: 7 }, xpValue: 7, lootChance: 0.3, count: 3 },
       ],
       items: [
         { name: 'Cobb\'s Crystal Pick', type: 'weapon', char: '/', color: '#44dddd', value: 35, rarity: 'uncommon', description: 'Cobb\'s mining pickaxe with a Deepfolk crystal embedded in the handle. The crystal burns organic Deepfolk tissue on contact.', statBonus: { attack: 4, speed: 1 }, equipSlot: 'weapon', onHitEffect: { type: 'poison', damage: 3, turns: 2 }, count: 1 },
@@ -550,9 +550,9 @@ export const CHAPTER_2: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'Memory Phantom', char: 'P', color: '#aa88cc', stats: { hp: 14, maxHp: 14, attack: 6, defense: 1, speed: 12 }, xpValue: 9, lootChance: 0.25, count: 3 },
-        { name: 'Temporal Wraith', char: 'T', color: '#88aacc', stats: { hp: 18, maxHp: 18, attack: 5, defense: 2, speed: 10 }, xpValue: 10, lootChance: 0.35, count: 2 },
-        { name: 'Crystal Guardian', char: 'G', color: '#44aaaa', stats: { hp: 22, maxHp: 22, attack: 6, defense: 4, speed: 6 }, xpValue: 12, lootChance: 0.4, count: 2 },
+        { name: 'Memory Phantom', char: '◇', color: '#aa88cc', stats: { hp: 14, maxHp: 14, attack: 6, defense: 1, speed: 12 }, xpValue: 9, lootChance: 0.25, count: 3 },
+        { name: 'Temporal Wraith', char: '∞', color: '#88aacc', stats: { hp: 18, maxHp: 18, attack: 5, defense: 2, speed: 10 }, xpValue: 10, lootChance: 0.35, count: 2 },
+        { name: 'Crystal Guardian', char: '⬡', color: '#44aaaa', stats: { hp: 22, maxHp: 22, attack: 6, defense: 4, speed: 6 }, xpValue: 12, lootChance: 0.4, count: 2 },
       ],
       items: [
         { name: 'Deepfolk Crystal Blade', type: 'weapon', char: '/', color: '#44dddd', value: 45, rarity: 'rare', description: 'A sword forged from living crystal. It resonates with Deepfolk architecture — and wounds it. The blade sings when swung.', statBonus: { attack: 5, speed: 1 }, equipSlot: 'weapon', onHitEffect: { type: 'bleed', damage: 3, turns: 2 }, count: 1 },
@@ -590,7 +590,7 @@ export const CHAPTER_2: ChapterDef = {
       npcs: [],
       roomEvents: [],
       monsters: [
-        { name: 'Living Column', char: 'C', color: '#44aaaa', stats: { hp: 18, maxHp: 18, attack: 5, defense: 3, speed: 7 }, xpValue: 8, lootChance: 0.1, count: 4 },
+        { name: 'Living Column', char: 'Π', color: '#44aaaa', stats: { hp: 18, maxHp: 18, attack: 5, defense: 3, speed: 7 }, xpValue: 8, lootChance: 0.1, count: 4 },
       ],
       items: [
         { name: 'Temporal Salve', type: 'potion', char: '!', color: '#88aacc', value: 22, description: 'A potion that briefly reverses time for your wounds. Heals 22 HP.', count: 4 },
@@ -603,7 +603,7 @@ export const CHAPTER_2: ChapterDef = {
   boss: {
     name: 'The Architect',
     title: 'Custodian of the Deep City',
-    char: 'A',
+    char: 'Φ',
     color: '#44aaaa',
     stats: { hp: 100, maxHp: 100, attack: 10, defense: 5, speed: 6 },
     xpValue: 70,
