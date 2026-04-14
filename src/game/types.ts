@@ -536,12 +536,15 @@ export type DialogueEffect =
   | { type: 'hunger'; amount: number }
   | { type: 'npcChoice'; eventId: string; choiceId: string }
   | { type: 'message'; text: string; color: string }
-  | { type: 'boon'; boon: CharacterBoon };
+  | { type: 'boon'; boon: CharacterBoon }
+  | { type: 'setFlag'; key: string; value: string };
 
 export interface DialogueChoice {
   label: string;
   responseText: string;
   effects: DialogueEffect[];
+  /** Only show this choice if the given story flag is set */
+  requiresFlag?: { key: string; value: string };
 }
 
 export interface DialogueNode {
@@ -603,6 +606,22 @@ export interface GameState {
   xpMultiplier: number;
   _bloodlineRef?: BloodlineData;
   _isStoryMode?: boolean;
+  /** Story mode flags set during this run (synced to CampaignSave.storyFlags) */
+  _storyFlags?: Record<string, string>;
+  /** Dino Serum: turns remaining in dinosaur form (0 = human) */
+  dinoTransformTurns?: number;
+  /** Dino Serum: permanent transformation (took too many serums) */
+  dinoPermanent?: boolean;
+  /** General transform system: active transform ID */
+  _activeTransformId?: string | null;
+  /** General transform system: turns remaining (0 = not active or permanent) */
+  _transformTurns?: number;
+  /** General transform system: permanent flag */
+  _transformPermanent?: boolean;
+  /** General transform system: uses per transform type in this run */
+  _transformUses?: Record<string, number>;
+  /** Tracks cumulative serum uses within the current run (synced to CampaignSave.dinoSerumUses) */
+  _campaignDinoUses?: number;
   mercenaries: Entity[];
   mapMercenaries: MapMercenary[];
   pendingMercenary: string | null;
@@ -1025,6 +1044,10 @@ export interface InteractableElement {
   failureHint?: string;
   /** CDN asset path for pre-baked art (story mode) */
   artAsset?: string;
+  /** If true, this is an atmospheric popup (no skill check, just image + text) */
+  isAtmospheric?: boolean;
+  /** Title for atmospheric popup */
+  atmosphericTitle?: string;
 }
 
 // Floor content cache for progressive generation

@@ -8,7 +8,7 @@ import type { GameState, PlayerClass } from '../types';
 import type { ChapterDef, StoryFloorDef, CampaignSave, PrebakedMonsterSpawn } from './campaignTypes';
 import { addMessage, updateFOV, attackEntity, processTurn, applyTerrainStepEffects, hasChosenAbility } from '../engine';
 import { generateFloor, isWalkableTile, getTile, getTerrainAt } from '../dungeon';
-import { createPlayer } from '../entities';
+import { createPlayer, spawnShop, spawnMercenaries } from '../entities';
 import { uid, resetIdCounter } from '../utils';
 import { CLASS_DEFS } from '../constants';
 import { getRaceDef } from '../races';
@@ -16,6 +16,7 @@ import { createEmptyRunStats, createDefaultBloodline } from '../traits';
 import { HUNGER_MAX } from '../constants';
 import { initializeCharacterSkills } from '../story';
 import { registerStoryNpcs } from './storyNpcRegistry';
+import { getTransformDef } from './transformations';
 
 function getClassDef(id: PlayerClass) {
   return CLASS_DEFS.find(c => c.id === id) ?? CLASS_DEFS[0]!;
@@ -53,6 +54,15 @@ export function newStoryFloor(
   player.chosenAbilities = [];
   player.level = save.playerLevel;
 
+  // Apply cumulative level-up stat bonuses for saved level
+  const levelsGained = save.playerLevel - 1;
+  if (levelsGained > 0) {
+    player.stats.maxHp += classDef.levelBonusHp * levelsGained;
+    player.stats.hp += classDef.levelBonusHp * levelsGained;
+    player.stats.attack += classDef.levelBonusAtk * levelsGained;
+    player.stats.defense += classDef.levelBonusDef * levelsGained;
+  }
+
   // Apply race modifiers
   const raceDef = save.playerRace ? getRaceDef(save.playerRace) : undefined;
   if (raceDef) {
@@ -89,7 +99,7 @@ export function newStoryFloor(
       char: chapter.boss.char,
       color: chapter.boss.color,
       stats: { ...chapter.boss.stats },
-      xp: 0,
+      xp: chapter.boss.xpValue,
       level: 1,
       inventory: [],
       equipment: {},
@@ -111,8 +121,14 @@ export function newStoryFloor(
   let nextContentRoom = 0;
   const getNextRoom = () => contentRooms[nextContentRoom++ % contentRooms.length]!;
 
+  // Filter NPCs by requiresFlag before spawning
+  const eligibleNpcs = floorDef.npcs.filter((npc) => {
+    if (!npc.requiresFlag) return true;
+    return save.storyFlags[npc.requiresFlag.key] === npc.requiresFlag.value;
+  });
+
   // Spawn pre-baked NPCs in early rooms so they're found quickly
-  const npcs = floorDef.npcs.map((npc) => {
+  const npcs = eligibleNpcs.map((npc) => {
     const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
@@ -124,8 +140,22 @@ export function newStoryFloor(
     };
   });
 
+  // Filter encounters and room events by requiresFlag
+  const eligibleEncounters = floorDef.encounters.filter((enc) => {
+    if (!enc.requiresFlag) return true;
+    return save.storyFlags[enc.requiresFlag.key] === enc.requiresFlag.value;
+  });
+  const eligibleRoomEvents = floorDef.roomEvents.filter((evt) => {
+    if (!evt.requiresFlag) return true;
+    return save.storyFlags[evt.requiresFlag.key] === evt.requiresFlag.value;
+  });
+  const eligibleAtmoEvents = (floorDef.atmosphericEvents ?? []).filter((atmo) => {
+    if (!atmo.requiresFlag) return true;
+    return save.storyFlags[atmo.requiresFlag.key] === atmo.requiresFlag.value;
+  });
+
   // Place encounters as interactable elements (visible as ! on the map)
-  const interactables: import('../types').InteractableElement[] = floorDef.encounters.map((enc) => {
+  const interactables: import('../types').InteractableElement[] = eligibleEncounters.map((enc) => {
     const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
@@ -151,7 +181,7 @@ export function newStoryFloor(
   });
 
   // Room events — also placed as interactables so they're visible and triggerable
-  const roomEventInteractables: import('../types').InteractableElement[] = floorDef.roomEvents.map((evt) => {
+  const roomEventInteractables: import('../types').InteractableElement[] = eligibleRoomEvents.map((evt) => {
     const room = getNextRoom();
     const pos = findOpenTile(room, floor, occupied);
     occupied.add(`${pos.x},${pos.y}`);
@@ -181,6 +211,32 @@ export function newStoryFloor(
 
   interactables.push(...roomEventInteractables);
 
+  // Place atmospheric events (image + text popups, no skill check)
+  if (eligibleAtmoEvents.length > 0) {
+    for (const atmo of eligibleAtmoEvents) {
+      const room = getNextRoom();
+      const pos = findOpenTile(room, floor, occupied);
+      occupied.add(`${pos.x},${pos.y}`);
+      interactables.push({
+        id: atmo.id,
+        pos,
+        type: 'ancient_puzzle' as import('../types').InteractableElement['type'],
+        primarySkill: 'awareness' as import('../types').SkillName,
+        target: 0,
+        description: atmo.text,
+        interacted: false,
+        successEffect: { type: 'heal' as const, value: 0 },
+        artAsset: atmo.artAsset,
+        isAtmospheric: true,
+        atmosphericTitle: atmo.title,
+      });
+    }
+  }
+
+  // Spawn a shop and wandering mercenaries on each story floor
+  const shop = spawnShop(floor, floorNumber, occupied, zone, 0);
+  const mapMercs = spawnMercenaries(floor, floorNumber, occupied, zone);
+
   const state: GameState = {
     player,
     playerClass: save.playerClass,
@@ -193,15 +249,15 @@ export function newStoryFloor(
     turn: 0,
     messages: [],
     gameOver: false,
-    score: 0,
+    score: save.gold,
     hunger: { current: HUNGER_MAX, max: HUNGER_MAX },
-    shop: null,
+    shop,
     runStats: createEmptyRunStats(),
     npcs,
     pendingNPC: null,
     xpMultiplier: 1.0,
     mercenaries: [],
-    mapMercenaries: [],
+    mapMercenaries: mapMercs,
     pendingMercenary: null,
     bossesDefeatedThisRun: [],
     skillPoints: save.skillPoints,
@@ -210,20 +266,6 @@ export function newStoryFloor(
     hiddenElements: [],
   };
 
-  // Add gold from save
-  if (save.gold > 0) {
-    const goldItem = {
-      id: uid(),
-      name: 'Gold',
-      type: 'gold' as const,
-      char: '$',
-      color: '#ffd700',
-      value: save.gold,
-      description: '',
-    };
-    player.inventory.push(goldItem);
-  }
-
   // Set empty bloodline so engine code that reads _bloodlineRef doesn't crash
   state._bloodlineRef = createDefaultBloodline();
 
@@ -231,7 +273,7 @@ export function newStoryFloor(
   state.skills = initializeCharacterSkills(save.playerClass, undefined);
 
   // Register story NPCs so the dialogue system can find them
-  registerStoryNpcs(floorDef.npcs);
+  registerStoryNpcs(eligibleNpcs);
 
   addMessage(state, `Chapter: ${chapter.name} — Floor ${floorNumber}`, '#ffcc44');
 
@@ -243,6 +285,15 @@ export function newStoryFloor(
   }
 
   state._isStoryMode = true;
+  state._storyFlags = { ...save.storyFlags };
+  state._campaignDinoUses = save.dinoSerumUses ?? 0;
+  state._transformUses = { ...(save.transformUses ?? {}) };
+  state._activeTransformId = save.activeTransform ?? null;
+  state._transformPermanent = !!save.activeTransform;
+  if (state._campaignDinoUses >= 6) {
+    state.dinoPermanent = true;
+    state.player.char = 'D';
+  }
 
   // Reveal tiles around the player
   updateFOV(state);
@@ -284,7 +335,7 @@ function spawnPrebakedMonsters(
         char: def.char,
         color: def.color,
         stats: { ...def.stats },
-        xp: 0,
+        xp: def.xpValue,
         level: 1,
         inventory: [],
         equipment: {},
@@ -366,6 +417,8 @@ export interface StoryMoveResult {
   floorChanged: boolean;
   /** Names of monsters killed this move (captured before dead-filter) */
   killedNames?: string[];
+  /** True when the player tries to descend past the last floor (chapter is over) */
+  chapterEndReached?: boolean;
 }
 
 /**
@@ -430,9 +483,11 @@ export function storyMovePlayer(
       }
     }
     attackEntity(state, state.player, monster as Entity);
-    const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
+    const killedByAttack = state.monsters.filter(m => m.isDead).map(m => m.name);
     processTurn(state);
-    return { moved: true, floorChanged: false, killedNames: killedBefore };
+    const killedByTurn = state.monsters.filter(m => m.isDead).map(m => m.name);
+    const allKilled = [...new Set([...killedByAttack, ...killedByTurn])];
+    return { moved: true, floorChanged: false, killedNames: allKilled.length > 0 ? allKilled : undefined };
   }
 
   if (!isWalkableTile(tile)) return noMove;
@@ -492,13 +547,30 @@ export function storyMovePlayer(
 
   // Stairs — story mode descent
   if (tile === Tile.StairsDown) {
+    const nextFloorDef = chapter.floors.find(f => f.floorIndex === state.floorNumber + 1);
+    if (!nextFloorDef) {
+      if (chapter.boss) {
+        const bossAlive = state.monsters.some(m => m.name === chapter.boss!.name && !m.isDead);
+        if (bossAlive) {
+          addMessage(state, `You cannot leave — ${chapter.boss.name} still lurks in these halls.`, '#ff5566');
+          state.player.pos.x -= dx;
+          state.player.pos.y -= dy;
+          return { moved: false, floorChanged: false };
+        } else {
+          addMessage(state, 'The chapter is complete.', '#ffcc44');
+        }
+      }
+      return { moved: true, floorChanged: false, chapterEndReached: true };
+    }
     storyDescend(state, chapter, save);
     return { moved: true, floorChanged: true };
   }
 
   const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
   processTurn(state);
-  return { moved: true, floorChanged: false, killedNames: killedBefore.length > 0 ? killedBefore : undefined };
+  const killedAfter = state.monsters.filter(m => m.isDead).map(m => m.name);
+  const allKilled = [...new Set([...killedBefore, ...killedAfter])];
+  return { moved: true, floorChanged: false, killedNames: allKilled.length > 0 ? allKilled : undefined };
 }
 
 /**
@@ -531,12 +603,25 @@ function storyDescend(state: GameState, chapter: ChapterDef, save: CampaignSave)
   const savedSkills = state.skills ? { ...state.skills } : undefined;
   const savedSkillPoints = state.skillPoints;
   const savedNodes = [...state.unlockedNodes];
+  const savedDinoUses = state._campaignDinoUses ?? 0;
+  const savedDinoPermanent = state.dinoPermanent;
+  const savedDinoTurns = state.dinoTransformTurns ?? 0;
+  const savedFlags = state._storyFlags ? { ...state._storyFlags } : {};
+  const savedTransformUses = state._transformUses ? { ...state._transformUses } : {};
+  const savedActiveTransform = state._activeTransformId ?? null;
+  const savedTransformPermanent = state._transformPermanent ?? false;
+  const savedTransformTurns = state._transformTurns ?? 0;
 
   // Update campaign save
   save.currentFloor = state.floorNumber;
   save.playerLevel = playerSnapshot.level;
   save.skillPoints = savedSkillPoints;
   save.unlockedNodes = savedNodes;
+  save.dinoSerumUses = savedDinoUses;
+  save.gold = savedScore;
+  save.storyFlags = { ...save.storyFlags, ...savedFlags };
+  save.transformUses = { ...(save.transformUses ?? {}), ...savedTransformUses };
+  save.activeTransform = savedTransformPermanent ? savedActiveTransform : null;
 
   // Build the new floor
   const newState = newStoryFloor(chapter, floorDef, save);
@@ -555,6 +640,19 @@ function storyDescend(state: GameState, chapter: ChapterDef, save: CampaignSave)
   if (savedSkills) newState.skills = savedSkills;
   newState.skillPoints = savedSkillPoints;
   newState.unlockedNodes = savedNodes;
+  newState._campaignDinoUses = savedDinoUses;
+  newState.dinoPermanent = savedDinoPermanent;
+  newState.dinoTransformTurns = savedDinoTurns;
+  newState._storyFlags = savedFlags;
+  newState._transformUses = savedTransformUses;
+  newState._activeTransformId = savedActiveTransform;
+  newState._transformPermanent = savedTransformPermanent;
+  newState._transformTurns = savedTransformTurns;
+  if (savedDinoPermanent) newState.player.char = 'D';
+  if (savedTransformPermanent && savedActiveTransform) {
+    const tDef = getTransformDef(savedActiveTransform);
+    if (tDef) newState.player.char = tDef.char;
+  }
 
   // Copy the new state back onto the existing state object (in-place mutation)
   Object.assign(state, newState);
@@ -568,5 +666,6 @@ export function storyWaitTurn(state: GameState): string[] {
   addMessage(state, 'You wait...', MSG_COLOR.info);
   const killedBefore = state.monsters.filter(m => m.isDead).map(m => m.name);
   processTurn(state);
-  return killedBefore;
+  const killedAfter = state.monsters.filter(m => m.isDead).map(m => m.name);
+  return [...new Set([...killedBefore, ...killedAfter])];
 }

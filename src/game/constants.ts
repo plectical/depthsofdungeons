@@ -361,6 +361,9 @@ export const POTION_TEMPLATES: Omit<Item, 'id'>[] = [
   { name: 'Potion of Rage', type: 'potion', char: '!', color: '#ff2200', value: 30, description: '+5 attack for 10 turns' },
   { name: 'Full Heal Potion', type: 'potion', char: '!', color: '#ff55ff', value: 50, description: 'Fully restores HP' },
   { name: 'Antidote', type: 'potion', char: '!', color: '#33cc66', value: 10, description: 'Cures poison and bleed' },
+  { name: 'Dream Shard', type: 'potion', char: '\u25C8', color: '#aa55ff', value: 25, description: 'A sliver of crystallized dream. Grants shadow form.' },
+  { name: 'Wall Essence', type: 'potion', char: '\u25C9', color: '#ff4488', value: 25, description: 'Harvested from the living walls. Grants amalgam form.' },
+  { name: 'Dino Serum', type: 'potion', char: '!', color: '#44ff88', value: 25, description: 'Alchemical serum brewed from ancient lizard blood.' },
 ];
 
 export const SCROLL_TEMPLATES: Omit<Item, 'id'>[] = [

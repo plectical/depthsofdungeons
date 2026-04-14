@@ -710,3 +710,57 @@ export async function trackQuestRunSummary(params: {
     generation: params.generation,
   });
 }
+
+// ── Story Mode Analytics ──
+
+export async function trackStoryModeStart(params: { chapter: string; playerClass: string; isNewCampaign: boolean }) {
+  await trackEvent('story_mode_start', params);
+}
+
+export async function trackStoryChapterComplete(params: { chapter: string; playerClass: string; playerLevel: number; goldEarned: number }) {
+  await trackEvent('story_chapter_complete', params);
+}
+
+export async function trackStoryFloorReached(params: { chapter: string; floor: number; playerClass: string; playerLevel: number }) {
+  await trackEvent('story_floor_reached', params);
+}
+
+export async function trackStoryNpcMet(params: { npcId: string; npcName: string; chapter: string; floor: number; choiceMade?: string }) {
+  await trackEvent('story_npc_met', params);
+}
+
+export async function trackStoryFlagSet(params: { key: string; value: string; chapter: string; floor: number }) {
+  await trackEvent('story_flag_set', params);
+}
+
+export async function trackStoryTransformUsed(params: { transformId: string; totalUses: number; isPermanent: boolean; chapter: string; floor: number }) {
+  await trackEvent('story_transform_used', params);
+}
+
+export async function trackStoryShopPurchase(params: { itemName: string; cost: number; chapter: string; floor: number }) {
+  await trackEvent('story_shop_purchase', params);
+}
+
+export async function trackStoryMercHired(params: { mercName: string; cost: number; chapter: string; floor: number }) {
+  await trackEvent('story_merc_hired', params);
+}
+
+export async function trackStoryBossKill(params: { bossName: string; chapter: string; floor: number; playerLevel: number; playerClass: string }) {
+  await trackEvent('story_boss_kill', params);
+}
+
+export async function trackStoryDeath(params: { chapter: string; floor: number; playerLevel: number; playerClass: string; causeOfDeath: string }) {
+  await trackEvent('story_death', params);
+}
+
+export async function trackStorySkillCheck(params: { encounterId: string; skill: string; outcome: string; chapter: string; floor: number }) {
+  await trackEvent('story_skill_check', params);
+}
+
+export async function trackStoryJournalOpened() {
+  await trackEvent('story_journal_opened', {});
+}
+
+export async function trackStoryLoreViewed(params: { loreId: string; chapter: string }) {
+  await trackEvent('story_lore_viewed', params);
+}

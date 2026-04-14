@@ -55,7 +55,18 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
   const nextXp = player.level < XP_PER_LEVEL.length ? (XP_PER_LEVEL[player.level] ?? 9999) : 9999;
 
   const raceThumbUrl = useCdnImage(state.playerRace ? `races/${state.playerRace}.png` : '__noop__');
+  const isDinoForm = !!(state.dinoTransformTurns && state.dinoTransformTurns > 0) || !!state.dinoPermanent;
+  const isGeneralTransform = !!(state._activeTransformId && ((state._transformTurns ?? 0) > 0 || state._transformPermanent));
+  const generalTransformPortrait = isGeneralTransform && state._activeTransformId === 'flesh_wall'
+    ? 'story/story-ch2-flesh-wall-form.png'
+    : isGeneralTransform && state._activeTransformId === 'shadow'
+    ? 'story/story-ch1-shadow-form.png'
+    : '__noop__';
+  const generalTransformColor = isGeneralTransform && state._activeTransformId === 'flesh_wall'
+    ? '#cc4466' : isGeneralTransform && state._activeTransformId === 'shadow' ? '#8844cc' : '#44ff88';
   const storyPortraitUrl = useCdnImage(isStoryMode ? 'story/story-sellsword.png' : '__noop__');
+  const dinoPortraitUrl = useCdnImage(isStoryMode && isDinoForm ? 'story/story-ch3-dino-warrior.png' : '__noop__');
+  const generalTransformUrl = useCdnImage(isStoryMode ? generalTransformPortrait : '__noop__');
 
   const generatedClassThumb = useCdnImage('generated-class-thumb.png');
   const portraits: Record<string, string | null> = {
@@ -98,10 +109,14 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
   const hasDamaged = !!damagedSrc;
   const showPortrait = !!normalSrc || (playerClass === 'generated' && genClass);
 
-  let portraitSrc = isStoryMode && storyPortraitUrl ? storyPortraitUrl : normalSrc;
+  let portraitSrc = isStoryMode && isGeneralTransform && generalTransformUrl
+    ? generalTransformUrl
+    : isStoryMode && isDinoForm && dinoPortraitUrl
+    ? dinoPortraitUrl
+    : isStoryMode && storyPortraitUrl ? storyPortraitUrl : normalSrc;
   const raceDef = state.playerRace ? getRaceDef(state.playerRace) : undefined;
   let portraitBorder = isStoryMode
-    ? '#cc8844'
+    ? (isGeneralTransform ? generalTransformColor : isDinoForm ? '#44ff88' : '#cc8844')
     : (state.playerRace && raceDef)
       ? raceDef.color
       : playerClass === 'generated' 
@@ -284,16 +299,21 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
               </div>
             );
           })()}
-          {/* Row 3: Food / XP */}
+          {/* Row 3: Food */}
           <div style={rowStyle}>
             <span style={{ ...compactLabelStyle, color: hungerColor }}>Food</span>
-            <CompactBar current={hunger.current} max={hunger.max} color={hungerColor} width={showPortrait ? 7 : 10} />
+            <CompactBar current={hunger.current} max={hunger.max} color={hungerColor} width={showPortrait ? 10 : 14} />
             <span style={{ ...compactStatStyle, color: hungerColor }}>
               {Math.floor(hunger.current)}/{hunger.max}
             </span>
-            <span style={{ color: '#0a3a0a', margin: '0 2px' }}>|</span>
+          </div>
+          {/* Row 3b: XP */}
+          <div style={rowStyle}>
             <span style={{ ...compactLabelStyle, color: '#22aa44' }}>XP</span>
-            <CompactBar current={player.xp} max={nextXp} color={'#22aa44'} width={showPortrait ? 4 : 6} />
+            <CompactBar current={player.xp} max={nextXp} color={'#22aa44'} width={showPortrait ? 10 : 14} />
+            <span style={{ ...compactStatStyle, color: '#22aa44' }}>
+              {player.xp}/{nextXp}
+            </span>
           </div>
           {/* Row 4: Combat stats / Gold */}
           <div style={rowStyle}>
@@ -321,6 +341,23 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
           </div>
         </div>
       </div>
+      {/* Transformation indicator */}
+      {isDinoForm && (
+        <div style={{ ...rowStyle, borderTop: '1px solid #44ff8833', paddingTop: 2, marginTop: 1 }}>
+          <span style={{ ...compactStatStyle, color: state.dinoPermanent ? '#ff4444' : '#44ff88', fontWeight: 'bold', textShadow: `0 0 6px ${state.dinoPermanent ? '#ff444488' : '#44ff8888'}` }}>
+            {state.dinoPermanent ? '\u{1F996} PERMANENT DINO FORM' : `\u{1F996} DINO FORM (${state.dinoTransformTurns} turns)`}
+          </span>
+        </div>
+      )}
+      {isGeneralTransform && !isDinoForm && (
+        <div style={{ ...rowStyle, borderTop: `1px solid ${generalTransformColor}33`, paddingTop: 2, marginTop: 1 }}>
+          <span style={{ ...compactStatStyle, color: state._transformPermanent ? '#ff4444' : generalTransformColor, fontWeight: 'bold', textShadow: `0 0 6px ${state._transformPermanent ? '#ff444488' : generalTransformColor + '88'}` }}>
+            {state._transformPermanent
+              ? `PERMANENT ${(state._activeTransformId ?? '').toUpperCase().replace('_', ' ')} FORM`
+              : `${(state._activeTransformId ?? '').toUpperCase().replace('_', ' ')} FORM (${state._transformTurns} turns)`}
+          </span>
+        </div>
+      )}
       {/* Status effects row */}
       {player.statusEffects && player.statusEffects.length > 0 && (
         <div style={rowStyle}>
@@ -482,8 +519,8 @@ const portraitContainerStyle: CSSProperties = {
 };
 
 const hudPortraitStyle: CSSProperties = {
-  width: 72,
-  height: 72,
+  width: 96,
+  height: 96,
   borderRadius: 4,
   border: '2px solid #ff6644',
   boxShadow: '0 0 8px #ff664444, inset 0 0 4px #00000088',

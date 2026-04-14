@@ -1,4 +1,5 @@
 import { Tile, type GameState, type Entity, type EquipSlot, type PlayerClass, type BloodlineData, type DialogueEffect, type BossAbility, type ZoneId, type TerrainType, type MonsterAbility, type ClassDef } from './types';
+import { getTransformDef } from './story-mode/transformations';
 import { getRaceDef } from './races';
 import { generateFloor, isWalkableTile, getTile, getTerrainAt } from './dungeon';
 import { createPlayer, spawnMonsters, spawnItems, randomItem, spawnShop, findItemTemplate, spawnBoss, spawnMercenaries } from './entities';
@@ -23,7 +24,7 @@ import { getNecropolisState } from './necropolisService';
 import { getZoneDef, ZONE_BOSSES, ZONE_BOSS_LOOT } from './zones';
 import { getAttackElement, getDefenseElement, getElementalMultiplier, getElementalMessage, ELEMENT_INFO } from './elements';
 import { getSkillNode, canUnlockNode, getEnemyTags } from './skillTree';
-import { trackSkillUnlocked, trackRangedAttack, trackConsumableUsed } from './analytics';
+import { trackSkillUnlocked, trackRangedAttack, trackConsumableUsed, trackStoryTransformUsed } from './analytics';
 import type { EchoBonuses } from './echoTree';
 import { SHARD_DROP_CHANCE, BOSS_SHARD_MIN, BOSS_SHARD_MAX, ensureLegacyData, getGearForClass, getCumulativeStats, createLegacyItem, getUnlockedAbilities, LEGACY_ABILITY_DESCRIPTIONS } from './legacyGear';
 import { initializeStoryState, initializeCharacterSkills, onFloorEnter, createEmptyCache, spawnFloorEncounters, getBoonBonus, updateBoonDurations } from './story';
@@ -2352,15 +2353,13 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
         }
       }
 
-      // Essence Shard drops — rare currency for Legacy Gear
-      if (attacker.isPlayer) {
+      // Essence Shard drops — rare currency for Legacy Gear (roguelike only)
+      if (attacker.isPlayer && !state._isStoryMode) {
         if (defender.isBoss) {
-          // Bosses always drop 1-3 shards
           const shards = BOSS_SHARD_MIN + Math.floor(Math.random() * (BOSS_SHARD_MAX - BOSS_SHARD_MIN + 1));
           state.runStats.essenceShardsEarned += shards;
           addMessage(state, `+${shards} Essence Shard${shards > 1 ? 's' : ''}!`, '#c49eff');
         } else if (Math.random() < SHARD_DROP_CHANCE) {
-          // Regular enemies have a ~1.5% chance to drop 1 shard
           state.runStats.essenceShardsEarned += 1;
           addMessage(state, '+1 Essence Shard!', '#c49eff');
         }
@@ -2434,6 +2433,133 @@ function gainXP(state: GameState, amount: number) {
 export function useItem(state: GameState, itemIndex: number): boolean {
   const item = state.player.inventory[itemIndex];
   if (!item) return false;
+
+  // Block consumable use while in dino form (can't hold bottles with claws)
+  if (state.dinoTransformTurns && state.dinoTransformTurns > 0 && !state.dinoPermanent &&
+      (item.type === 'potion' || item.type === 'scroll' || item.type === 'food')) {
+    if (item.name !== 'Dino Serum') {
+      addMessage(state, 'Your claws can\'t hold that! Wait for the transformation to wear off.', MSG_COLOR.bad);
+      return false;
+    }
+  }
+  if (state.dinoPermanent && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food') && item.name !== 'Dino Serum') {
+    addMessage(state, 'Your permanent dino form can\'t use consumables.', MSG_COLOR.bad);
+    return false;
+  }
+  // Block consumable use for general transforms that restrict it
+  if (state._activeTransformId && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food')) {
+    const _tConsumables: Record<string, string> = { 'Wall Essence': 'flesh_wall', 'Dream Shard': 'shadow' };
+    const isTransformItem = !!_tConsumables[item.name];
+    if (!isTransformItem) {
+      const tDef = getTransformDef(state._activeTransformId);
+      if (tDef && !tDef.canUseConsumables) {
+        addMessage(state, `Your ${tDef.name.toLowerCase()} can't use that!`, MSG_COLOR.bad);
+        return false;
+      }
+    }
+  }
+
+  if (item.name === 'Dino Serum') {
+    if (state.dinoPermanent) {
+      addMessage(state, 'You are already permanently transformed.', MSG_COLOR.info);
+      return false;
+    }
+    state.player.inventory.splice(itemIndex, 1);
+    const alreadyTransformed = (state.dinoTransformTurns ?? 0) > 0;
+    const totalUses = (state._campaignDinoUses ?? 0) + 1;
+    state._campaignDinoUses = totalUses;
+
+    if (totalUses >= 6) {
+      state.dinoPermanent = true;
+      state.dinoTransformTurns = 0;
+      state.player.stats.attack += 8;
+      state.player.stats.defense += 4;
+      state.player.stats.speed = Math.max(1, state.player.stats.speed - 3);
+      state.player.stats.maxHp += 20;
+      state.player.stats.hp += 20;
+      state.player.char = 'D';
+      addMessage(state, 'The serum floods your veins. Your body twists, bones crack and reform. There is no going back.', '#ff4444');
+      addMessage(state, 'PERMANENT TRANSFORMATION — You are forever changed.', '#ff2222');
+    } else {
+      const duration = totalUses >= 4 ? 12 : 8;
+      if (alreadyTransformed) {
+        state.dinoTransformTurns = (state.dinoTransformTurns ?? 0) + duration;
+        addMessage(state, `Extended dino form! ${state.dinoTransformTurns} turns remaining.`, '#44ff88');
+      } else {
+        state.dinoTransformTurns = duration;
+        state.player.stats.attack += 8;
+        state.player.stats.defense += 4;
+        state.player.stats.speed = Math.max(1, state.player.stats.speed - 3);
+        state.player.stats.maxHp += 20;
+        state.player.stats.hp += 20;
+        state.player.char = 'D';
+        addMessage(state, `Dino transformation! +8 ATK, +4 DEF, +20 HP for ${duration} turns.`, '#44ff88');
+      }
+      if (totalUses >= 4) {
+        addMessage(state, 'WARNING: The serum is taking hold. Your body resists returning to normal...', '#ffaa00');
+      }
+    }
+    return true;
+  }
+
+  // General transformation consumables (Wall Essence, Dream Shard)
+  const _transformConsumables: Record<string, string> = { 'Wall Essence': 'flesh_wall', 'Dream Shard': 'shadow' };
+  const _transformId = _transformConsumables[item.name];
+  if (_transformId) {
+    const tDef = getTransformDef(_transformId);
+    if (!tDef) { return false; }
+    if (state._transformPermanent && state._activeTransformId === _transformId) {
+      addMessage(state, 'You are already permanently transformed.', MSG_COLOR.info);
+      return false;
+    }
+    if (state._transformPermanent || state.dinoPermanent) {
+      addMessage(state, 'Your body is already permanently altered. It cannot change further.', MSG_COLOR.bad);
+      return false;
+    }
+    state.player.inventory.splice(itemIndex, 1);
+    if (!state._transformUses) state._transformUses = {};
+    const totalUses = (state._transformUses[_transformId] ?? 0) + 1;
+    state._transformUses[_transformId] = totalUses;
+
+    if (totalUses >= tDef.permanentThreshold) {
+      state._transformPermanent = true;
+      state._activeTransformId = _transformId;
+      state._transformTurns = 0;
+      state.player.stats.attack += tDef.statMods.attack ?? 0;
+      state.player.stats.defense += tDef.statMods.defense ?? 0;
+      state.player.stats.speed = Math.max(1, state.player.stats.speed + (tDef.statMods.speed ?? 0));
+      state.player.stats.maxHp += tDef.statMods.maxHp ?? 0;
+      state.player.stats.hp += tDef.statMods.hp ?? 0;
+      state.player.char = tDef.char;
+      addMessage(state, tDef.permanentMessage, '#ff4444');
+      addMessage(state, `PERMANENT ${tDef.name.toUpperCase()} — You are forever changed.`, '#ff2222');
+      trackStoryTransformUsed({ transformId: _transformId, totalUses, isPermanent: true, chapter: '', floor: state.floorNumber });
+    } else {
+      const alreadyInForm = (state._transformTurns ?? 0) > 0 && state._activeTransformId === _transformId;
+      const duration = (tDef.extendedThreshold && totalUses >= tDef.extendedThreshold)
+        ? (tDef.extendedDuration ?? tDef.turnDuration) : tDef.turnDuration;
+      if (alreadyInForm) {
+        state._transformTurns = (state._transformTurns ?? 0) + duration;
+        addMessage(state, `Extended ${tDef.name}! ${state._transformTurns} turns remaining.`, tDef.color);
+      } else {
+        state._activeTransformId = _transformId;
+        state._transformTurns = duration;
+        state.player.stats.attack += tDef.statMods.attack ?? 0;
+        state.player.stats.defense += tDef.statMods.defense ?? 0;
+        state.player.stats.speed = Math.max(1, state.player.stats.speed + (tDef.statMods.speed ?? 0));
+        state.player.stats.maxHp += tDef.statMods.maxHp ?? 0;
+        state.player.stats.hp += tDef.statMods.hp ?? 0;
+        state.player.char = tDef.char;
+        const atkMod = tDef.statMods.attack ?? 0;
+        const defMod = tDef.statMods.defense ?? 0;
+        addMessage(state, `${tDef.name}! +${atkMod} ATK, +${defMod} DEF for ${duration} turns.`, tDef.color);
+      }
+      if (tDef.extendedThreshold && totalUses >= tDef.extendedThreshold) {
+        addMessage(state, tDef.warningMessage, '#ffaa00');
+      }
+    }
+    return true;
+  }
 
   if (item.type === 'potion') {
     state.runStats.potionsUsed++;
@@ -3449,6 +3575,45 @@ function processMonsterTurn(state: GameState, monster: Entity) {
 export function processTurn(state: GameState) {
   gpStart('engine:processTurn');
   state.turn++;
+
+  // Dino transformation tick-down
+  if (state.dinoTransformTurns && state.dinoTransformTurns > 0 && !state.dinoPermanent) {
+    state.dinoTransformTurns--;
+    if (state.dinoTransformTurns <= 0) {
+      state.dinoTransformTurns = 0;
+      state.player.stats.attack -= 8;
+      state.player.stats.defense -= 4;
+      state.player.stats.speed += 3;
+      state.player.stats.maxHp -= 20;
+      state.player.stats.hp = Math.min(state.player.stats.hp, state.player.stats.maxHp);
+      state.player.char = '@';
+      addMessage(state, 'The transformation fades. You return to human form.', '#cc8844');
+    } else if (state.dinoTransformTurns <= 3) {
+      addMessage(state, `Dino form fading... ${state.dinoTransformTurns} turns left.`, '#ffaa44');
+    }
+  }
+
+  // General transformation tick-down
+  if (state._transformTurns && state._transformTurns > 0 && !state._transformPermanent && state._activeTransformId) {
+    state._transformTurns--;
+    if (state._transformTurns <= 0) {
+      const tDef = getTransformDef(state._activeTransformId);
+      if (tDef) {
+        state.player.stats.attack -= tDef.statMods.attack ?? 0;
+        state.player.stats.defense -= tDef.statMods.defense ?? 0;
+        state.player.stats.speed -= tDef.statMods.speed ?? 0;
+        state.player.stats.maxHp -= tDef.statMods.maxHp ?? 0;
+        state.player.stats.hp = Math.min(state.player.stats.hp, state.player.stats.maxHp);
+      }
+      state.player.char = '@';
+      state._activeTransformId = null;
+      state._transformTurns = 0;
+      addMessage(state, 'The transformation fades. You return to human form.', '#cc8844');
+    } else if (state._transformTurns <= 3) {
+      addMessage(state, `Transformation fading... ${state._transformTurns} turns left.`, '#ffaa44');
+    }
+  }
+
   const pStats = getEffectiveStats(state.player);
 
   // ── Process player status effects ──
@@ -3910,19 +4075,24 @@ export function processTurn(state: GameState) {
 
   // Hunger drain — reduced on early floors so first-timers don't starve while learning
   let hungerRate = HUNGER_PER_TURN;
+  if (state._isStoryMode) hungerRate *= 0.25;
   if (state.floorNumber <= 2) hungerRate *= 0.5;
   if (state.premiumActive) hungerRate *= 0.5;
   if (hasPassive(state, 'Iron Will')) hungerRate *= 0.7;
   state.hunger.current = Math.round(Math.max(0, state.hunger.current - hungerRate) * 10) / 10;
 
   if (state.hunger.current <= STARVING_THRESHOLD) {
-    state.player.stats.hp -= STARVING_DAMAGE;
-    addMessage(state, 'You are starving!', MSG_COLOR.bad);
-    if (state.player.stats.hp <= 0) {
-      state.player.isDead = true;
-      addMessage(state, 'You starved to death!', MSG_COLOR.bad);
-      state.gameOver = true;
-      return;
+    if (state._isStoryMode) {
+      if (state.turn % 15 === 0) addMessage(state, 'You are famished. Find food to regain strength.', '#e8a844');
+    } else {
+      state.player.stats.hp -= STARVING_DAMAGE;
+      addMessage(state, 'You are starving!', MSG_COLOR.bad);
+      if (state.player.stats.hp <= 0) {
+        state.player.isDead = true;
+        addMessage(state, 'You starved to death!', MSG_COLOR.bad);
+        state.gameOver = true;
+        return;
+      }
     }
   } else if (state.hunger.current <= HUNGER_WARNING && state.turn % 10 === 0) {
     addMessage(state, 'You are getting hungry...', '#e8a844');
@@ -4380,6 +4550,10 @@ export function applyDialogueEffects(
         break;
       case 'message':
         addMessage(state, effect.text, effect.color);
+        break;
+      case 'setFlag':
+        if (!state._storyFlags) state._storyFlags = {};
+        state._storyFlags[effect.key] = effect.value;
         break;
     }
   }

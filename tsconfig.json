@@ -26,5 +26,6 @@
     "exactOptionalPropertyTypes": false
   },
   "include": ["src"],
+  "exclude": ["src/game/__tests__"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

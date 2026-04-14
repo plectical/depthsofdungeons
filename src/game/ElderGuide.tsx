@@ -60,7 +60,7 @@ const overlayStyle: CSSProperties = {
   alignItems: 'flex-end',
   justifyContent: 'center',
   zIndex: 200,
-  padding: '0 8px 24px 8px',
+  padding: '0 8px 60px 8px',
   cursor: 'pointer',
 };
 

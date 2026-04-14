@@ -54,6 +54,8 @@ export interface RenderCell {
   glowAlpha?: number;  // glow center alpha (default 0.2)
   hpBar?: { pct: number; color: string }; // optional HP bar for monsters
   fontScale?: number; // scale factor for font size (1.0 = normal, >1 = bigger/bolder)
+  isBossCell?: boolean; // boss cells get pulsing FX
+  bossGlowColor?: string; // outer glow color for bosses
 }
 
 // Pre-compute merged terrain defs once (not per cell)
@@ -90,9 +92,9 @@ export function renderView(state: GameState, viewW: number, viewH: number): Rend
   for (const m of monsters) { if (!m.isDead) monsterMap.set(posKey(m.pos.x, m.pos.y), m); }
   const mercMap = new Map<number, NonNullable<typeof mercenaries>[number]>();
   if (mercenaries) for (const m of mercenaries) { if (!m.isDead) mercMap.set(posKey(m.pos.x, m.pos.y), m); }
-  // Interactable elements (skill-gated encounters)
+  // Interactable elements (skill-gated encounters) — atmospheric events are invisible (trigger on room entry)
   const interactableMap = new Map<number, NonNullable<typeof state.interactables>[number]>();
-  if (state.interactables) for (const i of state.interactables) { if (!i.interacted) interactableMap.set(posKey(i.pos.x, i.pos.y), i); }
+  if (state.interactables) for (const i of state.interactables) { if (!i.interacted && !i.isAtmospheric) interactableMap.set(posKey(i.pos.x, i.pos.y), i); }
   // Hidden elements (discovered ones show as interactables)
   const hiddenMap = new Map<number, NonNullable<typeof state.hiddenElements>[number]>();
   if (state.hiddenElements) for (const h of state.hiddenElements) { if (h.discovered && !h.reward) hiddenMap.set(posKey(h.pos.x, h.pos.y), h); }
@@ -129,6 +131,8 @@ export function renderView(state: GameState, viewW: number, viewH: number): Rend
       let glowAlpha: number | undefined;
       let hpBar: { pct: number; color: string } | undefined;
       let fontScale: number | undefined;
+      let isBossCell: boolean | undefined;
+      let bossGlowColor: string | undefined;
 
       // Apply zone palette to walls and floors
       if (tile === Tile.Wall) {
@@ -283,9 +287,11 @@ export function renderView(state: GameState, viewW: number, viewH: number): Rend
           const threatRatio = monsterPower / Math.max(1, playerPower);
           // Bosses always max scale; regular enemies scale from 1.0 to 1.35
           if (monster.isBoss) {
-            fontScale = 1.35;
+            fontScale = 1.4;
             glow = '#ff2266';
-            glowAlpha = 0.15;
+            glowAlpha = 0.25;
+            isBossCell = true;
+            bossGlowColor = monster.color;
           } else if (threatRatio > 1.5) {
             fontScale = 1.25;
           } else if (threatRatio > 1.0) {
@@ -338,7 +344,7 @@ export function renderView(state: GameState, viewW: number, viewH: number): Rend
         bg = dimColor(bg, EXPLORED_DIM);
       }
 
-      row[vx] = { char, color, bg, glow, glowRadius, glowAlpha, hpBar, fontScale };
+      row[vx] = { char, color, bg, glow, glowRadius, glowAlpha, hpBar, fontScale, isBossCell, bossGlowColor };
     }
   }
 

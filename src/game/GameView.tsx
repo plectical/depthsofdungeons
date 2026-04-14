@@ -104,6 +104,7 @@ export function GameView({ state, onChange, onEnemyEncounter }: GameViewProps) {
   const prevProjectilesRef = useRef<number>(0);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const dprRef = useRef<number>(1);
+  const [bossPulseTick, setBossPulseTick] = useState(0);
 
   useEffect(() => {
     const measure = () => {
@@ -139,6 +140,14 @@ export function GameView({ state, onChange, onEnemyEncounter }: GameViewProps) {
     prevFingerprintRef.current = 0;
   }, [viewSize]);
 
+  // Boss pulse animation — force periodic redraws when bosses are visible
+  const hasBoss = state.monsters.some(m => m.isBoss && !m.isDead);
+  useEffect(() => {
+    if (!hasBoss) return;
+    const interval = setInterval(() => setBossPulseTick(t => t + 1), 100);
+    return () => clearInterval(interval);
+  }, [hasBoss]);
+
   // Render — only redraws canvas when the visual output actually changes
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -153,8 +162,9 @@ export function GameView({ state, onChange, onEnemyEncounter }: GameViewProps) {
     const fp = gridFingerprint(grid, viewSize.h, viewSize.w);
     gpEnd('render:fingerprint');
 
-    // Skip redraw if nothing visual changed
-    if (fp === prevFingerprintRef.current && projCount === 0 && prevProjectilesRef.current === 0) {
+    // Skip redraw if nothing visual changed (but always redraw for boss pulse)
+    const hasBossVisible = grid.some(row => row?.some(c => c?.isBossCell));
+    if (!hasBossVisible && fp === prevFingerprintRef.current && projCount === 0 && prevProjectilesRef.current === 0) {
       return;
     }
     prevFingerprintRef.current = fp;
@@ -192,6 +202,26 @@ export function GameView({ state, onChange, onEnemyEncounter }: GameViewProps) {
         const alphaMul = cell.glowAlpha ?? 0.15;
         ctx.fillStyle = hexToRgba(cell.glow, alphaMul);
         ctx.fillRect(vx * CELL_W - 2, vy * CELL_H - 2, CELL_W + 4, CELL_H + 4);
+      }
+    }
+
+    // Pass 2b: Boss pulsing glow FX — animated outer ring
+    const pulseTime = Date.now() / 600;
+    const pulseAlpha = 0.08 + 0.12 * Math.abs(Math.sin(pulseTime));
+    for (let vy = 0; vy < viewSize.h; vy++) {
+      for (let vx = 0; vx < viewSize.w; vx++) {
+        const cell = grid[vy]?.[vx];
+        if (!cell?.isBossCell) continue;
+        const bossColor = cell.bossGlowColor ?? '#ff2266';
+        const cx = vx * CELL_W + CELL_W / 2;
+        const cy = vy * CELL_H + CELL_H / 2;
+        const outerR = CELL_W * 1.8;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, outerR);
+        grad.addColorStop(0, hexToRgba(bossColor, pulseAlpha * 1.5));
+        grad.addColorStop(0.4, hexToRgba(bossColor, pulseAlpha * 0.8));
+        grad.addColorStop(1, hexToRgba(bossColor, 0));
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - outerR, cy - outerR, outerR * 2, outerR * 2);
       }
     }
 
@@ -259,7 +289,7 @@ export function GameView({ state, onChange, onEnemyEncounter }: GameViewProps) {
       }
     }
     gpEnd('render:draw');
-  }, [state, viewSize]);
+  }, [state, viewSize, bossPulseTick]);
 
   const handleTap = useCallback(
     async (e: React.MouseEvent | React.TouchEvent) => {

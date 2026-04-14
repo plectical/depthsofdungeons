@@ -38,7 +38,7 @@ import { ZONE_DEFS, isZoneUnlocked } from './zones';
 import type { QuestEchoData, RunQuestTracker } from './types';
 import { createDefaultQuestEchoData, fillQuestSlots, updateQuestProgress, mergeRunIntoCounters, claimQuest, patchQuestEchoData, getQuestTemplate } from './quests';
 import { computeEchoBonuses, canUnlockEchoNode, getEchoNode, getEchoNodePathName, getEchoNodeCount } from './echoTree';
-import { setEchoUnlockedNodes } from './entities';
+import { setEchoUnlockedNodes, findItemTemplate } from './entities';
 import { QuestLog } from './QuestLog';
 import { EchoTreeView } from './EchoTreeView';
 import { Journal } from './Journal';
@@ -84,6 +84,9 @@ import {
   trackQuestClaimed, trackEchoNodeUnlocked, trackQuestLogOpened,
   trackEchoTreeOpened, trackQuestRunSummary, trackQuestCompleted,
   trackPlayerIdentity, trackGameModeStart,
+  trackStoryModeStart, trackStoryFloorReached,
+  trackStoryBossKill, trackStoryDeath,
+  trackStoryJournalOpened,
 } from './analytics';
 import { updateErrorContext, reportError, safeEngineCall } from './errorReporting';
 import { safeSetItem, safeGetItem, safeGetProfile } from './safeStorage';
@@ -193,7 +196,6 @@ export function Game() {
   const titleBgUrl = useCdnImage('title-bg.jpg');
   const elderGuideUrl = useCdnImage('guide.jpg');
   const premiumBannerUrl = useCdnImage('premium-banner.jpg');
-  const moreMenuBgUrl = useCdnImage('more-menu-bg.jpg');
   const moreContentBgUrl = useCdnImage('more-content-bg.jpg');
   // const classSelectBgUrl = useCdnImage('class-select-bg.jpg'); // Replaced by grid layout
   const classPortraits: Record<string, string | null> = {
@@ -270,7 +272,7 @@ export function Game() {
   const [necropolisUnlocked, setNecropolisUnlocked] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   // DEBUG: secret debug mode — tap subtitle 5 times to toggle
-  const [debugMode, setDebugMode] = useState(false);
+  const [debugMode, setDebugMode] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
   const debugTapRef = useRef<number[]>([]);
   const necroTapRef = useRef<number[]>([]);
   const [selectedClass, setSelectedClass] = useState<PlayerClass>('warrior');
@@ -352,6 +354,7 @@ export function Game() {
   const [storyMiniBossArtUrl, setStoryMiniBossArtUrl] = useState<string | null>(null);
   const [storyLoreViewer, setStoryLoreViewer] = useState<{ entry: import('./story-mode/campaignTypes').LoreEntry; index: number } | null>(null);
   const storyDefeatedBossesRef = useRef<Set<string>>(new Set());
+  const storyVisitedRoomsRef = useRef<Set<number>>(new Set());
 
   // RUN TV — Impregnar class unlock via watching the show
   const [hasWatchedDodShow, setHasWatchedDodShow] = useState(false);
@@ -1830,12 +1833,15 @@ export function Game() {
 
     // Floor transition: save checkpoint + show intro slides
     if (moveResult.floorChanged && campaignSaveRef.current) {
+      storyVisitedRoomsRef.current.clear();
       const cs = campaignSaveRef.current;
       cs.currentFloor = next.floorNumber;
       cs.playerLevel = next.player.level;
-      cs.gold = next.player.inventory.filter(i => i.type === 'gold').reduce((sum, i) => sum + i.value, 0);
+      trackStoryFloorReached({ chapter: cs.currentChapter, floor: next.floorNumber, playerClass: cs.playerClass, playerLevel: next.player.level });
+      cs.gold = next.score;
       cs.skillPoints = next.skillPoints;
       cs.unlockedNodes = [...next.unlockedNodes];
+      if (next._storyFlags) Object.assign(cs.storyFlags, next._storyFlags);
       const chapter = getChapter(cs.currentChapter);
       const floorDef = chapter?.floors.find(f => f.floorIndex === next.floorNumber);
       if (floorDef?.hasCheckpoint) {
@@ -1849,8 +1855,11 @@ export function Game() {
 
     // Death: reload checkpoint
     if (next.gameOver && campaignSaveRef.current) {
+      const cs = campaignSaveRef.current;
+      trackStoryDeath({ chapter: cs.currentChapter, floor: next.floorNumber, playerLevel: next.player.level, playerClass: cs.playerClass, causeOfDeath: 'combat' });
       setState(next);
       setTimeout(async () => {
+        storyVisitedRoomsRef.current.clear();
         const checkpoint = loadStoryCheckpoint(campaignSaveRef.current!);
         if (checkpoint) {
           checkpoint._isStoryMode = true;
@@ -1868,9 +1877,92 @@ export function Game() {
       const encounter = next.interactables.find(i => !i.interacted && i.pos.x === px && i.pos.y === py);
       if (encounter) {
         encounter.interacted = true;
-        setPendingEncounter(encounter);
-        setShowSkillCheck(true);
-        setSkillCheckArtUrl(null);
+        if (encounter.isAtmospheric) {
+          setStorySlides({
+            slides: [{
+              title: encounter.atmosphericTitle,
+              text: encounter.description,
+              artAsset: encounter.artAsset,
+            }],
+            index: 0,
+          });
+        } else {
+          setPendingEncounter(encounter);
+          setShowSkillCheck(true);
+          setSkillCheckArtUrl(null);
+        }
+      }
+      // Room-based atmospheric trigger: fire when player enters a room
+      // containing an untriggered atmospheric event (no exact-tile needed)
+      if (next._isStoryMode) {
+        const rooms = next.floor.rooms;
+        const currentRoomIdx = rooms.findIndex(r =>
+          px >= r.x && px < r.x + r.w && py >= r.y && py < r.y + r.h
+        );
+        if (currentRoomIdx >= 0 && !storyVisitedRoomsRef.current.has(currentRoomIdx)) {
+          storyVisitedRoomsRef.current.add(currentRoomIdx);
+          const room = rooms[currentRoomIdx]!;
+          const atmo = next.interactables.find(i =>
+            !i.interacted && i.isAtmospheric &&
+            i.pos.x >= room.x && i.pos.x < room.x + room.w &&
+            i.pos.y >= room.y && i.pos.y < room.y + room.h
+          );
+          if (atmo) {
+            atmo.interacted = true;
+            setStorySlides({
+              slides: [{
+                title: atmo.atmosphericTitle,
+                text: atmo.description,
+                artAsset: atmo.artAsset,
+              }],
+              index: 0,
+            });
+          }
+        }
+      }
+    }
+
+    // Auto-open shop when stepping on shopkeeper in story mode
+    if (isAtShop(next) && next.shop && next.shop.stock.length > 0) {
+      if (!shopkeeperIntroShownRef.current) {
+        shopkeeperIntroShownRef.current = true;
+        setShowShopkeeperIntro(true);
+      } else {
+        setShowShop(true);
+      }
+    }
+
+    // Chapter end — show completion screen when player reaches stairs after boss is dead
+    if (moveResult.chapterEndReached && campaignSaveRef.current) {
+      const cs = campaignSaveRef.current;
+      const chapter = getChapter(cs.currentChapter);
+      const bossDefeated = chapter?.boss && (
+        storyDefeatedBossesRef.current.has(chapter.boss.name) ||
+        !next.monsters.some(m => !m.isDead && m.name === chapter.boss!.name)
+      );
+      if (chapter?.boss && bossDefeated) {
+        if (!cs.completedChapters.includes(cs.currentChapter)) {
+          cs.completedChapters.push(cs.currentChapter);
+        }
+        saveCampaign(cs);
+        setTimeout(() => {
+          setStoryChapterComplete({
+            chapterName: chapter.name,
+            defeatDialogue: chapter.boss!.defeatDialogue,
+            rewards: chapter.rewards,
+            victoryArtAsset: chapter.victoryArtAsset,
+            loreEntries: chapter.loreEntries,
+          });
+        }, 300);
+      }
+    }
+
+    // Core Crystal mechanic — destroying the crystal weakens the linked boss
+    if (moveResult.killedNames?.includes('Core Crystal')) {
+      const architect = next.monsters.find(m => !m.isDead && m.isBoss);
+      if (architect) {
+        architect.stats.defense = Math.max(2, Math.floor(architect.stats.defense / 4));
+        architect.stats.attack = Math.max(6, Math.floor(architect.stats.attack * 0.6));
       }
     }
 
@@ -1919,6 +2011,7 @@ export function Game() {
           const chapterBossKilled = moveResult.killedNames?.includes(chapter.boss.name);
           if (chapterBossKilled) {
             storyDefeatedBossesRef.current.add(chapter.boss.name);
+            trackStoryBossKill({ bossName: chapter.boss.name, chapter: cs.currentChapter, floor: next.floorNumber, playerLevel: next.player.level, playerClass: cs.playerClass });
             // Give boss special item
             if (chapter.bossItemDrop && next.player.inventory.length < 20) {
               next.player.inventory.push({
@@ -1960,16 +2053,16 @@ export function Game() {
                 addMessage(next, `Unlocked: ${reward.description}`, '#44ff88');
               }
             }
+            // Persist gear, skills, gold to campaign save for cross-chapter carry-over
+            cs.skillPoints = next.skillPoints;
+            cs.unlockedNodes = [...next.unlockedNodes];
+            cs.playerLevel = next.player.level;
+            cs.gold = next.score;
+            cs.inventoryJson = JSON.stringify(next.player.inventory);
+            cs.equipmentJson = JSON.stringify(next.player.equipment);
+            cs.dinoSerumUses = next._campaignDinoUses ?? 0;
             saveCampaign(cs);
-            setTimeout(() => {
-              setStoryChapterComplete({
-                chapterName: chapter.name,
-                defeatDialogue: chapter.boss!.defeatDialogue,
-                rewards: chapter.rewards,
-                victoryArtAsset: chapter.victoryArtAsset,
-                loreEntries: chapter.loreEntries,
-              });
-            }, 800);
+            addMessage(next, 'The way forward is clear. Explore and loot, then head to the exit when ready.', '#ffcc44');
           }
         }
       }
@@ -2814,9 +2907,17 @@ export function Game() {
             next.player.stats.hp = Math.min(next.player.stats.maxHp, next.player.stats.hp + healAmt);
             next.messages.push({ text: `+${healAmt} HP!`, color: '#44dd77', turn: next.turn });
             break;
-          case 'item':
-            next.messages.push({ text: `Found: ${effect.value}!`, color: '#88ccff', turn: next.turn });
+          case 'item': {
+            const itemName = typeof effect.value === 'string' ? effect.value : '';
+            const template = findItemTemplate(itemName);
+            if (template && next.player.inventory.length < 20) {
+              next.player.inventory.push({ ...template, id: `enc_${Date.now()}` });
+              next.messages.push({ text: `Found: ${itemName}!`, color: '#88ccff', turn: next.turn });
+            } else {
+              next.messages.push({ text: `Found: ${itemName}! (inventory full)`, color: '#cc8844', turn: next.turn });
+            }
             break;
+          }
           case 'info':
             next.messages.push({ text: `Gained knowledge: ${effect.value}`, color: '#cc88ff', turn: next.turn });
             break;
@@ -3090,6 +3191,58 @@ export function Game() {
     window.addEventListener('keydown', handleSeederKey);
     return () => window.removeEventListener('keydown', handleSeederKey);
   }, []);
+
+  // Dev testing helpers — exposed on window when ?debug is in URL
+  useEffect(() => {
+    if (!debugMode) return;
+    const w = window as any;
+    w.__storyState = () => {
+      if (!state) return console.log('[Dev] No game state');
+      const atmos = state.interactables?.filter(i => i.isAtmospheric) ?? [];
+      const encounters = state.interactables?.filter(i => !i.isAtmospheric) ?? [];
+      console.log('[Dev] Floor:', state.floorNumber, '| Rooms:', state.floor.rooms.length);
+      console.log('[Dev] Player:', state.player.pos, '| HP:', state.player.stats.hp + '/' + state.player.stats.maxHp);
+      console.log('[Dev] Atmospheric events:', atmos.length, '(untriggered:', atmos.filter(a => !a.interacted).length + ')');
+      atmos.forEach(a => console.log('  ', a.id, a.atmosphericTitle, 'at', a.pos, a.interacted ? '(done)' : '(pending)'));
+      console.log('[Dev] Encounters:', encounters.length, '(untriggered:', encounters.filter(e => !e.interacted).length + ')');
+      encounters.forEach(e => console.log('  ', e.id, 'at', e.pos, e.interacted ? '(done)' : '(pending)'));
+      console.log('[Dev] Monsters alive:', state.monsters.filter(m => !m.isDead).length);
+      console.log('[Dev] NPCs:', state.npcs?.length ?? 0);
+      console.log('[Dev] Items on floor:', state.items.length);
+      console.log('[Dev] Story mode:', state._isStoryMode);
+      console.log('[Dev] Visited rooms:', [...storyVisitedRoomsRef.current]);
+    };
+    w.__storyGodMode = () => {
+      if (!state) return;
+      const next = structuredClone(state);
+      next.player.stats.hp = 999;
+      next.player.stats.maxHp = 999;
+      next.player.stats.attack = 50;
+      next.player.stats.defense = 50;
+      setState(next);
+      console.log('[Dev] God mode enabled: 999 HP, 50 ATK, 50 DEF');
+    };
+    w.__storyKillAll = () => {
+      if (!state) return;
+      const next = structuredClone(state);
+      next.monsters.forEach(m => { m.isDead = true; m.stats.hp = 0; });
+      setState(next);
+      console.log('[Dev] All monsters killed');
+    };
+    w.__storyRevealMap = () => {
+      if (!state) return;
+      const next = structuredClone(state);
+      for (let y = 0; y < next.floor.height; y++) {
+        for (let x = 0; x < next.floor.width; x++) {
+          if (next.floor.visible[y]) next.floor.visible[y]![x] = true;
+          if (next.floor.explored[y]) next.floor.explored[y]![x] = true;
+        }
+      }
+      setState(next);
+      console.log('[Dev] Full map revealed');
+    };
+    return () => { delete w.__storyState; delete w.__storyGodMode; delete w.__storyKillAll; delete w.__storyRevealMap; };
+  });
 
   // Auto-play loop — uses a Web Worker timer for consistent tick rate
   useEffect(() => {
@@ -3599,6 +3752,7 @@ export function Game() {
             setIsStoryMode(true); isStoryModeRef.current = true;
             lastSavedFloorRef.current = gs.floorNumber;
             await saveCheckpoint(newSave, JSON.stringify(gs));
+            trackStoryModeStart({ chapter: newSave.currentChapter, playerClass: playerClass as string, isNewCampaign: true });
             setScreen('game');
             if (floorDef.introSlides && floorDef.introSlides.length > 0) {
               setStorySlides({ slides: floorDef.introSlides, index: 0 });
@@ -3695,12 +3849,11 @@ export function Game() {
           justifyContent: 'center', padding: 20, cursor: 'pointer',
         }}
         onClick={() => {
-          if (isLast) {
-            setStorySlides(null);
-            setScreen('game');
-          } else {
-            setStorySlides({ ...storySlides, index: storySlides.index + 1 });
-          }
+          setStorySlides(prev => {
+            if (!prev) return prev;
+            if (prev.index >= prev.slides.length - 1) return null;
+            return { ...prev, index: prev.index + 1 };
+          });
         }}
       >
         {artUrl && (
@@ -3820,11 +3973,11 @@ export function Game() {
           justifyContent: 'center', padding: 20, cursor: 'pointer',
         }}
         onClick={() => {
-          if (isLast) {
-            setStoryLoreViewer(null);
-          } else {
-            setStoryLoreViewer({ ...storyLoreViewer, index: storyLoreViewer.index + 1 });
-          }
+          setStoryLoreViewer(prev => {
+            if (!prev) return prev;
+            if (prev.index >= prev.entry.slides.length - 1) return null;
+            return { ...prev, index: prev.index + 1 };
+          });
         }}
       >
         <div style={{ color: '#cc8844', fontFamily: 'monospace', fontSize: 10, marginBottom: 8, letterSpacing: 2 }}>
@@ -3951,6 +4104,7 @@ export function Game() {
           onClick={async () => {
             setStoryChapterComplete(null);
             storyDefeatedBossesRef.current.clear();
+            storyVisitedRoomsRef.current.clear();
             if (campaignSaveRef.current) {
               const existing = await loadCampaign();
               setCampaignSave(existing);
@@ -3966,21 +4120,6 @@ export function Game() {
   }
 
   if (screen === 'title') {
-    /* ── Invisible hit-zone style helper (positioned over the baked-in image buttons) ── */
-    const hitZone = (id: string, top: number, left: number, bottom: number, right: number): CSSProperties => ({
-      position: 'absolute',
-      top: `${top}%`,
-      left: `${left}%`,
-      width: `${right - left}%`,
-      height: `${bottom - top}%`,
-      cursor: 'pointer',
-      background: pressedZone === id ? 'rgba(255,255,255,0.25)' : 'transparent',
-      border: 'none',
-      padding: 0,
-      zIndex: 2,
-      borderRadius: 6,
-      transition: 'background 0.05s',
-    });
     const pressHandlers = (id: string) => ({
       onTouchStart: () => setPressedZone(id),
       onTouchEnd: () => setPressedZone(null),
@@ -3990,262 +4129,181 @@ export function Game() {
       onMouseLeave: () => setPressedZone(null),
     });
 
+    const menuBtn = (label: string, color: string, border: string, glow: string, id: string, onClick: () => void, wide = false): JSX.Element => (
+      <button
+        style={{
+          flex: wide ? '1 1 100%' : '1 1 45%',
+          padding: '12px 0', fontSize: wide ? 20 : 15, fontWeight: 'bold', fontFamily: 'monospace',
+          letterSpacing: 3, border: `2px solid ${border}`, borderRadius: 0, cursor: 'pointer',
+          background: pressedZone === id ? `${border}33` : '#0a0a12',
+          color, textShadow: `0 0 10px ${glow}, 0 2px 4px #000`,
+          boxShadow: `0 0 12px ${glow}44, inset 0 0 20px ${glow}11`,
+          transition: 'background 0.1s, box-shadow 0.1s',
+        }}
+        {...pressHandlers(id)}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+      >
+        {label}
+      </button>
+    );
+
     return (
-      <div style={titleScreenStyle} onClick={onUserInteraction}>
+      <div style={{ ...titleScreenStyle, background: '#04060a' }} onClick={onUserInteraction}>
         <button style={musicToggleStyle} onClick={(e) => { e.stopPropagation(); toggleMute(); }}>
-          {muted ? '♪ OFF' : '♪ ON'}
+          {muted ? '\u266A OFF' : '\u266A ON'}
         </button>
-        {/* Image container — the image drives the layout, scroll if taller than screen */}
-        <div style={{ position: 'relative', width: '100%' }}>
-          {titleBgUrl && <img
-            src={titleBgUrl}
-            alt=""
-            style={{ width: '100%', height: 'auto', display: 'block' }}
-          />}
+        {/* Hidden debug tap target */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 60, height: 30, zIndex: 10 }} onClick={handleDebugTap} />
 
-          {/* Hidden debug tap target */}
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '15%', height: '5%', zIndex: 3 }} onClick={handleDebugTap} />
-          {debugMode && (
-            <div style={{ position: 'absolute', top: '5%', left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-              <div style={{ color: '#ff4444', fontFamily: 'monospace', fontSize: 9 }}>[DEBUG]</div>
-              <button
-                style={{ background: '#331111', border: '1px solid #ff4444', color: '#ff4444', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer', marginTop: 2 }}
-                onClick={() => {
-                  // Full reset - same as RESET ALL
-                  const fresh = createDefaultBloodline();
-                  saveBloodline(fresh);
-                  bloodlineRef.current = fresh;
-                  RundotGameAPI.appStorage.removeItem('autosave').catch(() => {});
-                  RundotGameAPI.appStorage.removeItem('autosave_backup').catch(() => {});
-                  RundotGameAPI.appStorage.removeItem('runHistory').catch(() => {});
-                  RundotGameAPI.appStorage.removeItem('addToHomeShown').catch(() => {});
-                  RundotGameAPI.appStorage.removeItem('bestFloor').catch(() => {});
-                  RundotGameAPI.appStorage.removeItem('questEchoData').catch(() => {});
-                  setHasAutoSave(false);
-                  setBestFloor(1);
-                  setTutorialSteps([]);
-                  setQuestEchoData(createDefaultQuestEchoData());
-                  questEchoRef.current = createDefaultQuestEchoData();
-                  for (const key of ALL_ELDER_KEYS) {
-                    RundotGameAPI.appStorage.removeItem(key).catch(() => {});
-                  }
-                  elderSeenRef.current.clear();
-                  setAddToHomeUnlocked(false);
-                  setShowAddToHome(false);
-                  setShowAddToHomeConfirm(false);
-                  setIsRegistered(false);
-                  setShowPaladinUnlock(false);
-                  setShowPaladinUnlockConfirm(false);
-                  setNecropolisUnlocked(false);
-                  setHasWatchedDodShow(false);
-                  runTvPopupShownRef.current = false;
-                  try { RundotGameAPI.globalStorage.removeItem('watched_dod_show').catch(() => {}); } catch {}
-                  // Now trigger first-time auto-start flow
-                  setDebugMode(false);
-                  autoStartRef.current = true;
-                  setSelectedClass('warrior');
-                  setIsLoaded(false);
-                  setTimeout(() => setIsLoaded(true), 100);
-                }}
-              >
-                [ Test First-Time Flow ]
-              </button>
-              <button
-                style={{ background: '#0a1a2a', border: '1px solid #cc8844', color: '#cc8844', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
-                onClick={async () => {
-                  setDebugMode(false);
-                  const existing = await loadCampaign();
-                  setCampaignSave(existing);
-                  campaignSaveRef.current = existing;
-                  setScreen('storyHub');
-                }}
-              >
-                [ Story Mode ]
-              </button>
-              <button
-                style={{ background: '#1a0400', border: '1px solid #ff2200', color: '#ff2200', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
-                onClick={() => {
-                  const bl = bloodlineRef.current;
-                  const needed = ['The Nameless One|paladin'];
-                  for (const entry of needed) {
-                    if (!bl.bossKillLog.includes(entry)) bl.bossKillLog.push(entry);
-                  }
-                  const qe = questEchoRef.current;
-                  if (!qe.unlockedEchoNodes.includes('exp_zone_hell')) {
-                    qe.unlockedEchoNodes.push('exp_zone_hell');
-                  }
-                  setBloodline({ ...bl });
-                  alert('Hell unlocked! Tap Enter the Dungeon to play.');
-                }}
-              >
-                [ Unlock Hell ]
-              </button>
-              <button
-                style={{ background: '#140828', border: '1px solid #ff44ff', color: '#ff44ff', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
-                onClick={() => {
-                  setDebugMode(false);
-                  setSelectedClass('warrior');
-                  beginGame('narrative_test');
-                }}
-              >
-                [ Narrative Depths (AI Test) ]
-              </button>
-              <button
-                style={{ background: '#002244', border: '1px solid #44aaff', color: '#44aaff', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
-                onClick={() => {
-                  setDebugMode(false);
-                  setScreen('generativeClassSelect');
-                }}
-              >
-                [ Gen Class (AI) ]
-              </button>
-              <a
-                href="project.tar.gz"
-                download="project.tar.gz"
-                style={{ background: '#0a1a33', border: '1px solid #4488ff', color: '#4488ff', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer', textDecoration: 'none', display: 'inline-block' }}
-              >
-                [ Download Project ]
-              </a>
-              <button
-                style={{ background: '#002200', border: '1px solid #44ff88', color: '#44ff88', fontFamily: 'monospace', fontSize: 10, padding: '4px 8px', cursor: 'pointer' }}
-                onClick={async () => {
-                  const classes: PlayerClass[] = ['warrior', 'rogue', 'mage', 'ranger', 'paladin', 'necromancer', 'impregnar'];
-                  const links: string[] = [];
-                  for (const cls of classes) {
-                    try {
-                      const { shareUrl } = await RundotGameAPI.social.shareLinkAsync({
-                        shareParams: { source: 'runtv', tvClass: cls },
-                        metadata: {
-                          title: `Play Depths of Dungeon as ${cls.charAt(0).toUpperCase() + cls.slice(1)}!`,
-                          description: 'Start your run with this class from RUN TV',
-                        },
-                      });
-                      links.push(`${cls}: ${shareUrl}`);
-                    } catch (e) {
-                      links.push(`${cls}: FAILED - ${e}`);
-                    }
-                  }
-                  const text = links.join('\n');
-                  try { await navigator.clipboard.writeText(text); } catch {}
-                  alert('TV Links copied to clipboard:\n\n' + text);
-                }}
-              >
-                [ Gen TV Links ]
-              </button>
-            </div>
-          )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100%', padding: '20px 16px', gap: 0 }}>
+          {/* ASCII Title Art */}
+          <pre style={{ color: '#33ff66', fontFamily: 'monospace', fontSize: 9, lineHeight: 1.1, textAlign: 'center', textShadow: '0 0 15px #33ff6688', margin: '0 0 4px', whiteSpace: 'pre', userSelect: 'none' }}>{
+`  ____  _____ ____ _____ _   _ ____  
+ |  _ \\| ____|  _ \\_   _| | | / ___| 
+ | | | |  _| | |_) || | | |_| \\___ \\ 
+ | |_| | |___|  __/ | | |  _  |___) |
+ |____/|_____|_|    |_| |_| |_|____/ `}</pre>
+          <pre style={{ color: '#44aa55', fontFamily: 'monospace', fontSize: 7, lineHeight: 1.1, textAlign: 'center', textShadow: '0 0 8px #44aa5566', margin: '0 0 2px', whiteSpace: 'pre', userSelect: 'none' }}>{
+`           ___ ___                        
+     ___  |  _|   |                       
+    / _ \\ | |_    |                       
+   | (_) ||  _|   |                       
+    \\___/ |_|  ___|                       `}</pre>
+          <pre style={{ color: '#33ff66', fontFamily: 'monospace', fontSize: 9, lineHeight: 1.1, textAlign: 'center', textShadow: '0 0 15px #33ff6688', margin: '0 0 6px', whiteSpace: 'pre', userSelect: 'none' }}>{
+`  ____  _   _ _   _  ____ _____ ___  _   _ 
+ |  _ \\| | | | \\ | |/ ___| ____/ _ \\| \\ | |
+ | | | | | | |  \\| | |  _|  _|| | | |  \\| |
+ | |_| | |_| | |\\  | |_| | |__| |_| | |\\  |
+ |____/ \\___/|_| \\_|\\____|_____\\___/|_| \\_|`}</pre>
 
-          {/* ── Floating info banners over image ── */}
-          {bloodline.generation > 0 && (
-            <div style={{ position: 'absolute', top: hasAutoSave ? '62%' : '60%', left: '50%', transform: 'translateX(-50%)', color: '#c49eff', fontFamily: 'monospace', fontSize: 11, opacity: 0.85, textShadow: '0 1px 4px #000', whiteSpace: 'nowrap', zIndex: 3 }}>
-              Generation {bloodline.generation} | {bloodline.unlockedTraits.length} traits unlocked
-            </div>
-          )}
+          <div style={{ color: '#226633', fontFamily: 'monospace', fontSize: 10, letterSpacing: 4, textAlign: 'center', marginBottom: 12, textShadow: '0 0 6px #22663344' }}>
+            {'~~ ASCII CRAWLER ~~'}
+          </div>
+
+          {/* Decorative dungeon line */}
+          <div style={{ color: '#1a3a1a', fontFamily: 'monospace', fontSize: 10, textAlign: 'center', marginBottom: 16, userSelect: 'none' }}>
+            {'######  .::.  ######  .::.  ######'}
+          </div>
+
+          {/* Status info */}
           {hasAutoSave && (
-            <div style={{ position: 'absolute', top: '58%', left: '50%', transform: 'translateX(-50%)', color: '#ffd700', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', textShadow: '0 1px 4px #000, 0 0 8px #000', whiteSpace: 'nowrap', zIndex: 3, background: 'rgba(0,0,0,0.6)', padding: '2px 10px', borderRadius: 4 }}>
-              You have a saved game that will continue.
+            <div style={{ color: '#ffd700', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', marginBottom: 4, textShadow: '0 0 8px #ffd70044' }}>
+              {'> Saved game will continue <'}
             </div>
           )}
-          {isPremium && (
-            <div style={{ position: 'absolute', top: '84.7%', left: '36.5%', width: '30.2%', height: '6.8%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, pointerEvents: 'none' }}>
-              <div style={{ color: '#ffd700', fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', textShadow: '0 1px 6px #000', opacity: 0.8 }}>&#x2B50; Premium Active</div>
-            </div>
-          )}
-          {purchaseStatus && (
-            <div style={{ position: 'absolute', top: '93%', left: '50%', transform: 'translateX(-50%)', color: '#ff6', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', textShadow: '0 1px 4px #000', zIndex: 3 }}>
-              {purchaseStatus}
+          {bloodline.generation > 0 && (
+            <div style={{ color: '#c49eff', fontFamily: 'monospace', fontSize: 10, textAlign: 'center', marginBottom: 8, opacity: 0.8 }}>
+              Gen {bloodline.generation} | {bloodline.unlockedTraits.length} traits
             </div>
           )}
 
-          {/* ── Story Mode button — visible overlay ── */}
-          <button
-            style={{
-              position: 'absolute', top: '63%', left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(10,20,40,0.85)', border: '1px solid #cc8844', color: '#cc8844',
-              fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', padding: '5px 18px',
-              cursor: 'pointer', zIndex: 4, borderRadius: 4, letterSpacing: 1,
-              textShadow: '0 1px 4px #000', boxShadow: '0 0 8px rgba(204,136,68,0.3)',
-            }}
-            onClick={async (e) => {
-              e.stopPropagation();
+          {/* Main action buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%', maxWidth: 340, justifyContent: 'center', marginBottom: 12 }}>
+            {menuBtn('STORY', '#ffcc66', '#cc8844', '#cc884488', 'story', async () => {
               const existing = await loadCampaign();
               setCampaignSave(existing);
               campaignSaveRef.current = existing;
               setScreen('storyHub');
-            }}
-          >
-            ⚔ Story Mode
-          </button>
+            }, true)}
+            {menuBtn('ENDLESS', '#33ff66', '#228833', '#33ff6688', 'endless', () => { setShowPremiumModal(false); startGame(); }, true)}
+          </div>
 
-          {/* ── Invisible hit zones mapped to baked-in image buttons ── */}
-          <div style={hitZone('play', 66.3, 30.5, 73.2, 69.9)} {...pressHandlers('play')} onClick={(e) => { e.stopPropagation(); setShowPremiumModal(false); startGame(); }} />
-          <div
-            style={hitZone('necro', 75.4, 11.2, 82.3, 48.7)}
-            {...pressHandlers('necro')}
-            onClick={(e) => {
-              e.stopPropagation();
+          {/* Secondary buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, width: '100%', maxWidth: 340, justifyContent: 'center', marginBottom: 10 }}>
+            {menuBtn('NECROPOLIS', '#cc88ff', '#6622aa', '#6622aa88', 'necro', () => {
               if (necropolisUnlocked) { setShowNecropolis(true); trackNecropolisOpened(); }
               else handleNecroTap();
-            }}
-          />
-          <div style={hitZone('quests', 75.4, 52.3, 82.3, 88.5)} {...pressHandlers('quests')} onClick={(e) => { e.stopPropagation(); openQuestLog('title'); }} />
-          {questEchoData.activeQuests.some(q => q.completed) && (
-            <div style={{ position: 'absolute', top: '74.5%', right: '11%', background: '#ff3333', color: '#fff', fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4, pointerEvents: 'none', textShadow: '0 1px 2px #000' }}>
-              {questEchoData.activeQuests.filter(q => q.completed).length}
+            })}
+            {menuBtn('QUESTS', '#88ccff', '#2266aa', '#2266aa88', 'quests', () => openQuestLog('title'))}
+          </div>
+
+          {/* Tertiary buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, width: '100%', maxWidth: 340, justifyContent: 'center', marginBottom: 8 }}>
+            {menuBtn('BLOODLINE', '#ff6644', '#aa2222', '#aa222288', 'blood', () => { setShowBloodline(true); trackBloodlineOpened(); })}
+            {menuBtn(isPremium ? '\u2B50 PREMIUM' : '2X GOLD', '#ffd700', '#aa8800', '#aa880088', 'gold', () => { setShowPremiumModal(true); trackOfferShown('premium'); })}
+            {menuBtn('MORE', '#aaaaaa', '#555555', '#55555588', 'more', () => setShowMoreMenu(true))}
+          </div>
+
+          {/* Decorative bottom */}
+          <div style={{ color: '#1a3a1a', fontFamily: 'monospace', fontSize: 10, textAlign: 'center', marginTop: 4, userSelect: 'none' }}>
+            {'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'}
+          </div>
+
+          {purchaseStatus && (
+            <div style={{ color: '#ff6', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', marginTop: 4 }}>
+              {purchaseStatus}
             </div>
           )}
-          <div style={hitZone('blood', 84.7, 1.7, 91.5, 35.3)} {...pressHandlers('blood')} onClick={(e) => { e.stopPropagation(); setShowBloodline(true); trackBloodlineOpened(); }} />
-          <div style={hitZone('gold', 84.7, 36.5, 91.5, 66.7)} {...pressHandlers('gold')} onClick={(e) => { e.stopPropagation(); setShowPremiumModal(true); trackOfferShown('premium'); }} />
-          <div style={hitZone('more', 84.7, 68.4, 91.5, 98.3)} {...pressHandlers('more')} onClick={(e) => { e.stopPropagation(); setShowMoreMenu(true); }} />
 
-          {/* Version number */}
-          <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', color: '#444', fontFamily: 'monospace', fontSize: 10, zIndex: 3 }}>v{BUILD_VERSION}</div>
+          <div style={{ color: '#333', fontFamily: 'monospace', fontSize: 9, marginTop: 8 }}>v{BUILD_VERSION}</div>
         </div>
-        {/* ── More Menu Overlay ── */}
+        {/* ── More Menu Overlay (ASCII styled) ── */}
         {showMoreMenu && (
           <div style={moreMenuOverlayStyle} onClick={() => setShowMoreMenu(false)}>
-            <div style={{ width: '92%', maxWidth: 420, maxHeight: '90vh', overflow: 'hidden', borderRadius: 6 }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ position: 'relative', width: '100%', aspectRatio: '3072 / 5504' }}>
-              {moreMenuBgUrl && <img src={moreMenuBgUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', objectFit: 'cover', borderRadius: 6 }} />}
-              {/* Hit zones over the baked-in menu image */}
+            <div style={{ width: '92%', maxWidth: 380, background: '#06080e', border: '1px solid #33ff6644', padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ color: '#33ff66', fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold', letterSpacing: 4, textShadow: '0 0 12px #33ff6688', marginBottom: 4 }}>
+                {'~~ MENU ~~'}
+              </div>
               {(() => {
-                const mz = (id: string, t: number, l: number, b: number, r: number): CSSProperties => ({
-                  position: 'absolute', top: `${t}%`, left: `${l}%`, width: `${r - l}%`, height: `${b - t}%`,
-                  cursor: 'pointer', background: pressedZone === id ? 'rgba(255,255,255,0.25)' : 'transparent',
-                  border: 'none', padding: 0, zIndex: 2, borderRadius: 4, transition: 'background 0.05s',
-                });
-                const mp = (id: string) => ({
-                  onTouchStart: () => setPressedZone(id),
-                  onTouchEnd: () => setPressedZone(null),
-                  onTouchCancel: () => setPressedZone(null),
-                  onMouseDown: () => setPressedZone(id),
-                  onMouseUp: () => setPressedZone(null),
-                  onMouseLeave: () => setPressedZone(null),
-                });
-                return (<>
-                  <div style={mz('m-leader', 23.4, 4.5, 33.4, 32.7)} {...mp('m-leader')} onClick={() => { setShowMoreMenu(false); setShowLeaderboard(true); }} />
-                  <div style={mz('m-echo', 23.4, 35.8, 33.5, 63.9)} {...mp('m-echo')} onClick={() => { setShowMoreMenu(false); openEchoTree('title'); }} />
-                  <div style={mz('m-best', 23.4, 66.9, 33.4, 95.3)} {...mp('m-best')} onClick={() => { setShowMoreMenu(false); setShowBestiary(true); trackBestiaryOpened(); }} />
-                  <div style={mz('m-journal', 36.9, 4.5, 47.0, 32.7)} {...mp('m-journal')} onClick={() => { setShowMoreMenu(false); setShowJournal(true); }} />
-                  <div style={mz('m-hist', 36.9, 35.8, 47.1, 63.8)} {...mp('m-hist')} onClick={() => { setShowMoreMenu(false); setShowRunHistory(true); }} />
-                  <div style={mz('m-how', 36.9, 67.0, 46.9, 95.3)} {...mp('m-how')} onClick={() => { setShowMoreMenu(false); setShowTips(true); }} />
-                  <div style={mz('m-new', 50.6, 4.5, 60.5, 32.5)} {...mp('m-new')} onClick={() => { setShowMoreMenu(false); setShowWhatsNew(true); }} />
-                  <div style={mz('m-disc', 50.6, 35.8, 60.6, 64.0)} {...mp('m-disc')} onClick={() => { setShowMoreMenu(false); const a = document.createElement('a'); a.href = 'https://discord.gg/A9ayUtVv2Q'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.click(); }} />
-                  <div style={mz('m-bug', 50.6, 67.0, 60.6, 95.3)} {...mp('m-bug')} onClick={() => { setShowMoreMenu(false); setShowBugReport(true); }} />
-                  <div style={mz('m-close', 73.5, 28.8, 81.4, 72.2)} {...mp('m-close')} onClick={() => setShowMoreMenu(false)} />
-                </>);
+                const mb = (label: string, color: string, border: string, onClick: () => void) => (
+                  <button
+                    style={{
+                      flex: '1 1 30%', minWidth: 90, padding: '10px 4px', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace',
+                      letterSpacing: 1, border: `1px solid ${border}`, borderRadius: 0, cursor: 'pointer',
+                      background: '#0a0a14', color, textShadow: `0 0 6px ${border}66`,
+                      boxShadow: `inset 0 0 10px ${border}11`, transition: 'background 0.1s',
+                    }}
+                    onClick={onClick}
+                    onMouseDown={(e) => { (e.target as HTMLElement).style.background = `${border}22`; }}
+                    onMouseUp={(e) => { (e.target as HTMLElement).style.background = '#0a0a14'; }}
+                    onTouchStart={(e) => { (e.target as HTMLElement).style.background = `${border}22`; }}
+                    onTouchEnd={(e) => { (e.target as HTMLElement).style.background = '#0a0a14'; }}
+                  >
+                    {label}
+                  </button>
+                );
+                return (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, width: '100%', justifyContent: 'center' }}>
+                    {mb('LEADERBOARD', '#88ccff', '#2266aa', () => { setShowMoreMenu(false); setShowLeaderboard(true); })}
+                    {mb('ECHO TREE', '#44ff88', '#228844', () => { setShowMoreMenu(false); openEchoTree('title'); })}
+                    {mb('BESTIARY', '#ff8844', '#aa4422', () => { setShowMoreMenu(false); setShowBestiary(true); trackBestiaryOpened(); })}
+                    {mb('JOURNAL', '#cc88ff', '#6622aa', () => { setShowMoreMenu(false); setShowJournal(true); })}
+                    {mb('HISTORY', '#aaaacc', '#555566', () => { setShowMoreMenu(false); setShowRunHistory(true); })}
+                    {mb('HOW TO PLAY', '#88ff88', '#338833', () => { setShowMoreMenu(false); setShowTips(true); })}
+                    {mb("WHAT'S NEW", '#ffcc44', '#886622', () => { setShowMoreMenu(false); setShowWhatsNew(true); })}
+                    {mb('DISCORD', '#7788ff', '#3344aa', () => { setShowMoreMenu(false); const a = document.createElement('a'); a.href = 'https://discord.gg/A9ayUtVv2Q'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.click(); })}
+                    {mb('REPORT BUG', '#ff6666', '#aa3333', () => { setShowMoreMenu(false); setShowBugReport(true); })}
+                  </div>
+                );
               })()}
-              {/* Journal notification badge */}
-              {getNewLoreIds({ bloodline, questEchoData }, bloodline.journalSeenIds ?? []).length > 0 && (
-                <div style={{ position: 'absolute', top: '36%', left: '27%', background: '#ff3333', color: '#fff', fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4, pointerEvents: 'none', textShadow: '0 1px 2px #000' }}>
-                  {getNewLoreIds({ bloodline, questEchoData }, bloodline.journalSeenIds ?? []).length}
-                </div>
-              )}
+              {/* Story Journal — special amber button */}
+              <button
+                style={{
+                  width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 'bold', fontFamily: 'monospace',
+                  letterSpacing: 2, border: '2px solid #cc8844', borderRadius: 0, cursor: 'pointer',
+                  background: '#0a0a14', color: '#ffcc66', textShadow: '0 0 8px #cc884488',
+                  boxShadow: '0 0 12px #cc884422, inset 0 0 15px #cc884411', transition: 'background 0.1s',
+                }}
+                onClick={async () => { setShowMoreMenu(false); const cs = await loadCampaign(); setCampaignSave(cs); campaignSaveRef.current = cs; setShowStoryJournal(true); trackStoryJournalOpened(); }}
+              >
+                STORY JOURNAL
+              </button>
               {/* Player ID */}
-              <div style={{ position: 'absolute', bottom: '20%', left: '50%', transform: 'translateX(-50%)', color: '#555', fontFamily: 'monospace', fontSize: 9, textAlign: 'center', userSelect: 'text', WebkitUserSelect: 'text', zIndex: 3, textShadow: '0 1px 3px #000' }}>
+              <div style={{ color: '#444', fontFamily: 'monospace', fontSize: 8, textAlign: 'center', userSelect: 'text', WebkitUserSelect: 'text' }}>
                 ID: {(() => { try { return RundotGameAPI.getProfile()?.id ?? '...'; } catch { return '...'; } })()}
               </div>
-              </div>
+              {/* Close */}
+              <button
+                style={{
+                  width: '60%', padding: '8px 0', fontSize: 14, fontWeight: 'bold', fontFamily: 'monospace',
+                  letterSpacing: 3, border: '2px solid #33ff66', borderRadius: 0, cursor: 'pointer',
+                  background: '#0a0a14', color: '#33ff66', textShadow: '0 0 8px #33ff6688',
+                  boxShadow: '0 0 10px #33ff6622', marginTop: 4,
+                }}
+                onClick={() => setShowMoreMenu(false)}
+              >
+                [ CLOSE ]
+              </button>
             </div>
           </div>
         )}
@@ -4253,7 +4311,7 @@ export function Game() {
         {showNecropolis && <NecropolisView onClose={() => setShowNecropolis(false)} />}
         {showQuestLog && <QuestLog data={questEchoData} characterQuests={state?.activeCharacterQuests} onClaim={handleClaimQuest} onClaimCharacterQuest={handleClaimCharacterQuest} onClose={() => setShowQuestLog(false)} onOpenEchoTree={() => { setShowQuestLog(false); openEchoTree('title_quest_log'); }} />}
         {/* More menu sub-screens with dungeon background */}
-        {(showLeaderboard || showBestiary || showRunHistory || showTips || showBugReport || showWhatsNew || showEchoTree || showJournal) && (
+        {(showLeaderboard || showBestiary || showRunHistory || showTips || showBugReport || showWhatsNew || showEchoTree || showJournal || showStoryJournal) && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 49, overflow: 'hidden' }}>
             {moreContentBgUrl && <img src={moreContentBgUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated' as const }} />}
             {showLeaderboard && <Leaderboard onClose={() => setShowLeaderboard(false)} />}
@@ -4264,6 +4322,7 @@ export function Game() {
             {showWhatsNew && <WhatsNew onClose={() => setShowWhatsNew(false)} />}
             {showEchoTree && <EchoTreeView data={questEchoData} onUnlock={handleUnlockEchoNode} onClose={() => setShowEchoTree(false)} />}
             {showJournal && <Journal bloodline={bloodline} questEchoData={questEchoData} seenIds={bloodline.journalSeenIds ?? []} onMarkSeen={handleJournalMarkSeen} onClose={() => setShowJournal(false)} />}
+            {showStoryJournal && <StoryJournal entries={bloodline.storyJournal ?? []} onClose={() => setShowStoryJournal(false)} />}
           </div>
         )}
         {elderPortal}
@@ -5894,6 +5953,21 @@ export function Game() {
               if (!state) return;
               if (isStoryMode) {
                 setAutoPlay(false);
+                if (campaignSaveRef.current && state) {
+                  const cs = campaignSaveRef.current;
+                  cs.skillPoints = state.skillPoints;
+                  cs.unlockedNodes = [...state.unlockedNodes];
+                  cs.playerLevel = state.player.level;
+                  cs.gold = state.score;
+                  cs.inventoryJson = JSON.stringify(state.player.inventory);
+                  cs.equipmentJson = JSON.stringify(state.player.equipment);
+                  cs.dinoSerumUses = state._campaignDinoUses ?? 0;
+                  saveCampaign(cs).then(async () => {
+                    const refreshed = await loadCampaign();
+                    setCampaignSave(refreshed ?? cs);
+                    campaignSaveRef.current = refreshed ?? cs;
+                  });
+                }
                 setScreen('storyHub');
                 return;
               }

@@ -50,6 +50,20 @@ export const CHAPTER_1: ChapterDef = {
         'A framed "Employee of the Month" photo hangs crooked. The glass is cracked.',
         'Mining helmets hang in a row on hooks. Eight hooks. Five helmets missing.',
       ],
+      atmosphericEvents: [
+        {
+          id: 'ch1_f1_atmo_abandoned_cart',
+          title: 'The Last Shipment',
+          text: 'An overturned mine cart blocks part of the tunnel. Ore spills across the floor like frozen black blood. The cart\'s manifest is still pinned to its side: "SHAFT 7 — FINAL LOAD — PRIORITY RUSH." Someone scrawled beneath it in charcoal: "This is the last one. We\'re not going back." The wheels are still locked. Whoever tipped this cart did it on purpose.',
+          artAsset: 'story/story-ch1-atmo-abandoned-cart.png',
+        },
+        {
+          id: 'ch1_f1_atmo_canary_cage',
+          title: 'The Canary',
+          text: 'A brass birdcage hangs from a ceiling hook, its door swinging open. Inside, a small pile of yellow feathers and nothing else. Miners used canaries to detect poisonous gas — when the bird stopped singing, you ran. But this cage is deep in the mine, far past where canaries are useful. Someone brought this bird down here for company. The silence where birdsong should be feels like a wound.',
+          artAsset: 'story/story-ch1-atmo-canary-cage.png',
+        },
+      ],
       encounters: [
         {
           id: 'ch1_f1_hidden_cache',
@@ -179,13 +193,13 @@ export const CHAPTER_1: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'Cave Rat', char: 'r', color: '#aa8866', stats: { hp: 8, maxHp: 8, attack: 2, defense: 0, speed: 12 }, xpValue: 3, lootChance: 0.2, count: 4 },
-        { name: 'Giant Spider', char: 'S', color: '#774488', stats: { hp: 12, maxHp: 12, attack: 3, defense: 1, speed: 10 }, xpValue: 5, lootChance: 0.3, count: 2 },
+        { name: 'Cave Rat', char: '\u03C8', color: '#aa8866', stats: { hp: 14, maxHp: 14, attack: 5, defense: 1, speed: 12 }, xpValue: 4, lootChance: 0.2, count: 5 },
+        { name: 'Giant Spider', char: '\u2620', color: '#774488', stats: { hp: 22, maxHp: 22, attack: 6, defense: 3, speed: 10 }, xpValue: 7, lootChance: 0.3, count: 3 },
       ],
       items: [
         { name: 'Miner\'s Pickaxe', type: 'weapon', char: '/', color: '#aa8866', value: 8, description: 'A sturdy mining pickaxe. Not a sword, but it\'ll do.', statBonus: { attack: 1 }, equipSlot: 'weapon', count: 1 },
         { name: 'Hardtack Biscuit', type: 'food', char: '%', color: '#cc9944', value: 5, description: 'Standard miner\'s ration. Hard as stone but keeps you going.', count: 3 },
-        { name: 'Shadowstone Shard', type: 'potion', char: '!', color: '#44cc88', value: 12, description: 'A sliver of raw shadowstone. Heals 12 HP when crushed.', count: 2 },
+        { name: 'Shadowstone Shard', type: 'potion', char: '!', color: '#44cc88', value: 12, description: 'A sliver of raw shadowstone. Heals 12 HP when crushed.', count: 1 },
         { name: 'Miner\'s Hard Hat', type: 'armor', char: '[', color: '#ccaa44', value: 10, description: 'Reinforced mining helmet. Not pretty, but it\'ll stop a rock.', statBonus: { defense: 1 }, equipSlot: 'armor', count: 1 },
       ],
     },
@@ -215,6 +229,20 @@ export const CHAPTER_1: ChapterDef = {
         'Chains hang from the ceiling, swaying gently. There is no wind.',
         'Scratches on the wall spell out: "HE WONT LET ME DIE"',
         'You hear heavy footsteps somewhere above you. Thud. Thud. Thud.',
+      ],
+      atmosphericEvents: [
+        {
+          id: 'ch1_f2_atmo_trophy_wall',
+          title: 'The Trophy Wall',
+          text: 'The Butcher has been busy. Mining helmets hang in a row on the wall — not on hooks, driven into the stone with pickaxe strikes. Fifteen of them. Each one has a name scratched into it in shaking letters. You recognize some from the missing persons list: COBB. ANDERS. FERRY. WELLS. The names stop halfway through. The remaining helmets have no names — just tally marks. As if counting had become easier than remembering.',
+          artAsset: 'story/story-ch1-atmo-trophy-wall.png',
+        },
+        {
+          id: 'ch1_f2_atmo_brothers_photo',
+          title: 'The Locket on the Ground',
+          text: 'Something glints on the floor. A small gold locket, open, lying face-down in dried blood. You turn it over. Inside: a photograph of two men — one enormous, one small, both grinning. Brothers. The inscription reads "H & C — Together always." The chain is snapped clean. This didn\'t fall off. It was torn away. By the man in the photo. By what he became.',
+          artAsset: 'story/story-ch1-atmo-brothers-photo.png',
+        },
       ],
       encounters: [
         {
@@ -271,6 +299,7 @@ export const CHAPTER_1: ChapterDef = {
                   { type: 'item', itemName: 'Health Potion' },
                   { type: 'item', itemName: 'Health Potion' },
                   { type: 'message', text: 'Tomm gives you his last healing potions.', color: '#44ff44' },
+                  { type: 'setFlag', key: 'tomm_choice', value: 'took_supplies' },
                 ],
               },
               {
@@ -278,6 +307,7 @@ export const CHAPTER_1: ChapterDef = {
                 responseText: '"Fire. He flinches from fire. And he\'s slow — strong as a cave bear but slow. If you can stay out of his reach and keep hitting him... maybe. I saw another adventurer try. She got three good hits in before he caught her. She didn\'t get a fourth."',
                 effects: [
                   { type: 'message', text: 'You learn the Butcher is weak to fire and slow to turn.', color: '#ff8844' },
+                  { type: 'setFlag', key: 'tomm_choice', value: 'asked_intel' },
                 ],
               },
             ],
@@ -347,7 +377,7 @@ export const CHAPTER_1: ChapterDef = {
           id: 'ch1_f2_ominous_sounds',
           type: 'trap_chamber',
           name: 'The Scraping',
-          artAsset: 'story/story-butcher.png',
+          artAsset: 'story/story-ch1-the-scraping.png',
           description: 'The rhythmic scraping of metal on stone echoes from ahead. SCREEEEE... SCREEEEE... It\'s getting closer. You need to decide: hide or press forward.',
           primarySkill: 'stealth',
           alternateSkill: 'awareness',
@@ -375,15 +405,15 @@ export const CHAPTER_1: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'The Butcher', char: 'B', color: '#cc2222', stats: { hp: 30, maxHp: 30, attack: 7, defense: 3, speed: 4 }, xpValue: 30, lootChance: 0.8, count: 1, isBoss: true, defeatMessage: 'The Butcher — what was once Big Harmon — collapses with a sound like crumbling stone. The pickaxe clatters from his grip. For a moment, his eyes clear. "...brother?" he whispers. Then he is still. Whatever dark force animated him releases its hold. The scraping sound that haunted Shaft 7 falls silent at last.' },
-        { name: 'Tunnel Crawler', char: 'c', color: '#669966', stats: { hp: 14, maxHp: 14, attack: 4, defense: 1, speed: 8 }, xpValue: 6, lootChance: 0.25, count: 2 },
-        { name: 'Drowned Skeleton', char: 's', color: '#ddddaa', stats: { hp: 10, maxHp: 10, attack: 3, defense: 2, speed: 6 }, xpValue: 5, lootChance: 0.3, count: 2 },
+        { name: 'The Butcher', char: '\u2694', color: '#cc2222', stats: { hp: 55, maxHp: 55, attack: 12, defense: 5, speed: 5 }, xpValue: 35, lootChance: 0.8, count: 1, isBoss: true, defeatMessage: 'The Butcher — what was once Big Harmon — collapses with a sound like crumbling stone. The pickaxe clatters from his grip. For a moment, his eyes clear. "...brother?" he whispers. Then he is still. Whatever dark force animated him releases its hold. The scraping sound that haunted Shaft 7 falls silent at last.' },
+        { name: 'Tunnel Crawler', char: '\u2237', color: '#669966', stats: { hp: 22, maxHp: 22, attack: 7, defense: 2, speed: 8 }, xpValue: 8, lootChance: 0.25, count: 3 },
+        { name: 'Drowned Skeleton', char: '\u2623', color: '#ddddaa', stats: { hp: 20, maxHp: 20, attack: 6, defense: 4, speed: 6 }, xpValue: 7, lootChance: 0.3, count: 3 },
       ],
       items: [
         { name: 'Harmon\'s Cleaver', type: 'weapon', char: '/', color: '#cc4444', value: 20, rarity: 'uncommon', description: 'A blood-stained meat cleaver. Was it always this sharp, or did Harmon sharpen it down here?', statBonus: { attack: 3 }, equipSlot: 'weapon', onHitEffect: { type: 'bleed', damage: 2, turns: 3 }, count: 1 },
         { name: 'Burning Lantern', type: 'offhand', char: '(', color: '#ffaa22', value: 15, rarity: 'uncommon', description: 'Gristle\'s old mining lantern, still burning. The Butcher flinches from its light.', statBonus: { defense: 1, speed: 1 }, equipSlot: 'offhand', count: 1 },
-        { name: 'Miner\'s Moonshine', type: 'potion', char: '!', color: '#aaddff', value: 10, description: 'Homemade rotgut from Shaft 7\'s break room. Burns going down. Heals 10 HP.', count: 3 },
-        { name: 'Shadowstone Shard', type: 'potion', char: '!', color: '#44cc88', value: 12, description: 'A sliver of raw shadowstone. Heals 12 HP when crushed.', count: 3 },
+        { name: 'Miner\'s Moonshine', type: 'potion', char: '!', color: '#aaddff', value: 10, description: 'Homemade rotgut from Shaft 7\'s break room. Burns going down. Heals 10 HP.', count: 2 },
+        { name: 'Shadowstone Shard', type: 'potion', char: '!', color: '#44cc88', value: 12, description: 'A sliver of raw shadowstone. Heals 12 HP when crushed.', count: 2 },
         { name: 'Pit Jerky', type: 'food', char: '%', color: '#aa6633', value: 8, description: 'Smoked mystery meat from the miners\' cache. Don\'t ask what it is.', count: 3 },
         { name: 'Voss\'s Signet Ring', type: 'ring', char: '=', color: '#ffd700', value: 25, rarity: 'uncommon', description: 'The Foreman\'s gold signet ring. Engraved: "GRIMHOLLOW MINING CO." Still warm.', statBonus: { defense: 1, attack: 1 }, equipSlot: 'ring', count: 1 },
       ],
@@ -404,10 +434,24 @@ export const CHAPTER_1: ChapterDef = {
       roomMessages: [
         'The geometric carvings on the walls seem to move when you\'re not looking directly at them.',
         'A subsonic hum vibrates through the floor. Your teeth ache.',
-        'Faint blue light pulses from cracks in the walls — bioluminescent fungi, or something else?',
+        'Faint blue light pulses from cracks in the walls — glowing fungi, or something else?',
         'The corridors here don\'t follow normal geometry. Some rooms feel larger inside than out.',
         'You find a Deepfolk mural: tall, thin figures descending into a spiral of light.',
         'The temperature drops suddenly. Your breath mists in the alien air.',
+      ],
+      atmosphericEvents: [
+        {
+          id: 'ch1_f3_atmo_mural',
+          title: 'The Descent Mural',
+          text: 'An entire wall is covered in a single continuous carving — a mural that tells a story in spiraling geometric patterns. At the top: tall, graceful figures standing beneath an open sky. In the middle: the same figures descending into the earth, their bodies elongating, their features smoothing. At the bottom: shapes that are no longer recognizable as people, wrapped around something vast and luminous. The carving is so detailed you can see expressions on the early figures. They look eager. Happy. They wanted this.',
+          artAsset: 'story/story-ch1-atmo-deepfolk-mural.png',
+        },
+        {
+          id: 'ch1_f3_atmo_impossible_room',
+          title: 'The Room That Shouldn\'t Be',
+          text: 'You step through a doorway and stop. The room beyond is enormous — a cathedral-sized space with pillars rising into darkness far above. But the doorway you entered through is set into the wall of a corridor barely ten feet wide. The room cannot fit. The geometry is wrong. When you look back through the doorway, you see the narrow corridor continuing normally. When you look forward, the impossible space stretches on. The Deepfolk didn\'t just build underground. They built outside the rules.',
+          artAsset: 'story/story-ch1-atmo-impossible-room.png',
+        },
       ],
       encounters: [
         {
@@ -448,6 +492,37 @@ export const CHAPTER_1: ChapterDef = {
         },
       ],
       npcs: [
+        {
+          id: 'ch1_tomm_returns',
+          name: 'Tomm',
+          char: 'T',
+          color: '#aacc88',
+          portraitAsset: 'story/story-survivor.png',
+          requiresFlag: { key: 'met_tomm', value: 'true' },
+          dialogue: {
+            text: '"You\'re alive! I heard the fighting stop and I... I followed you down. Couldn\'t just sit there hiding anymore. Not after what you did.\n\nI found some supplies cached in the upper tunnels. And I brought something else — my old prospecting tools. They\'re not much, but the crystal in the handles reacts to Deepfolk stonework. Might help you down here."',
+            choices: [
+              {
+                label: 'Accept his help',
+                responseText: '"Here — take everything. The picks, the rations, all of it. I\'m going to try to make it back to the surface and get help. Real help. If you can keep going down and find the others... I\'ll make sure the way back stays open for you.\n\nBe careful. The deeper you go, the less things make sense."',
+                effects: [
+                  { type: 'item', itemName: 'Health Potion' },
+                  { type: 'statBuff', stat: 'defense', amount: 1 },
+                  { type: 'message', text: 'Tomm gives you supplies and promises to keep the exit clear. +1 Defense.', color: '#44ff44' },
+                  { type: 'setFlag', key: 'tomm_helped', value: 'true' },
+                ],
+              },
+              {
+                label: 'Tell him to stay hidden',
+                responseText: '"You\'re right. I\'m no fighter. But I can wait. I\'ll stay in the upper tunnels — if you need to retreat, I\'ll have bandages ready. Just... come back. Someone has to come back."',
+                effects: [
+                  { type: 'message', text: 'Tomm will wait at the entrance as a safety net.', color: '#aacc88' },
+                ],
+              },
+            ],
+          },
+          setsFlag: { key: 'tomm_returned', value: 'true' },
+        },
         {
           id: 'ch1_wounded_explorer',
           name: 'Sera',
@@ -570,15 +645,16 @@ export const CHAPTER_1: ChapterDef = {
         },
       ],
       monsters: [
-        { name: 'Stone Sentinel', char: 'S', color: '#888866', stats: { hp: 20, maxHp: 20, attack: 5, defense: 3, speed: 5 }, xpValue: 10, lootChance: 0.4, count: 2 },
-        { name: 'Shadow Wisp', char: 'w', color: '#8888cc', stats: { hp: 8, maxHp: 8, attack: 6, defense: 0, speed: 14 }, xpValue: 8, lootChance: 0.2, count: 3 },
-        { name: 'Deepfolk Remnant', char: 'D', color: '#6622aa', stats: { hp: 16, maxHp: 16, attack: 5, defense: 2, speed: 9 }, xpValue: 9, lootChance: 0.35, count: 2 },
+        { name: 'Stone Sentinel', char: '\u2666', color: '#888866', stats: { hp: 32, maxHp: 32, attack: 8, defense: 5, speed: 5 }, xpValue: 12, lootChance: 0.4, count: 2 },
+        { name: 'Shadow Wisp', char: '\u2734', color: '#8888cc', stats: { hp: 14, maxHp: 14, attack: 9, defense: 0, speed: 14 }, xpValue: 10, lootChance: 0.2, count: 4 },
+        { name: 'Deepfolk Remnant', char: '\u2625', color: '#6622aa', stats: { hp: 26, maxHp: 26, attack: 8, defense: 3, speed: 9 }, xpValue: 11, lootChance: 0.35, count: 3 },
       ],
       items: [
         { name: 'Deepfolk Boneblade', type: 'weapon', char: '/', color: '#6622aa', value: 35, rarity: 'uncommon', description: 'A sword carved from a single massive bone. Deepfolk runes pulse along the edge.', statBonus: { attack: 4 }, equipSlot: 'weapon', onHitEffect: { type: 'poison', damage: 2, turns: 2 }, count: 1 },
         { name: 'Stoneheart Amulet', type: 'amulet', char: '"', color: '#66ccaa', value: 30, rarity: 'uncommon', description: 'A Deepfolk amulet that hums with subsonic energy. You feel tougher wearing it.', statBonus: { defense: 2, maxHp: 10 }, equipSlot: 'amulet', count: 1 },
-        { name: 'Crystallized Essence', type: 'potion', char: '!', color: '#cc88ff', value: 20, description: 'Liquefied Deepfolk crystal. Heals 20 HP and makes your skin tingle.', count: 2 },
-        { name: 'Glowcap Mushroom', type: 'food', char: '%', color: '#44ddaa', value: 10, description: 'Bioluminescent fungus from the ruins. Surprisingly tasty. Nutritious.', count: 3 },
+        { name: 'Dream Shard', type: 'potion', char: '\u25C8', color: '#aa55ff', value: 25, description: 'A sliver of crystallized dream, shed by the Sleeper in its fitful rest. It hums against your skin. Consuming it grants shadow-like speed and stealth — but thins the boundary between you and the dream.', count: 2 },
+        { name: 'Crystallized Essence', type: 'potion', char: '!', color: '#cc88ff', value: 20, description: 'Liquefied Deepfolk crystal. Heals 20 HP and makes your skin tingle.', count: 1 },
+        { name: 'Glowcap Mushroom', type: 'food', char: '%', color: '#44ddaa', value: 10, description: 'Glowing fungus from the ruins. Surprisingly tasty. Nutritious.', count: 2 },
         { name: 'Sera\'s Map Fragment', type: 'offhand', char: '(', color: '#88ccff', value: 15, description: 'A piece of Sera\'s tunnel map. The shortcuts marked give you an edge.', statBonus: { speed: 2 }, equipSlot: 'offhand', count: 1 },
       ],
     },
@@ -606,16 +682,125 @@ export const CHAPTER_1: ChapterDef = {
         'The hum is so loud now it drowns out your own thoughts.',
         'The Sleeper\'s eyes track you across the chamber.',
       ],
-      encounters: [],
-      npcs: [],
-      roomEvents: [],
+      atmosphericEvents: [
+        {
+          id: 'ch1_f4_atmo_crystal_web',
+          title: 'The Crystal Web',
+          text: 'Massive crystalline strands stretch across the cavern ceiling like the web of some impossible spider. Each strand pulses with dim purple light — a slow, rhythmic glow that matches the subsonic hum vibrating through the stone. Where the strands intersect, they form nodes of concentrated energy that cast strange shadows on the walls below. You realize with growing unease that the web isn\'t anchored to the ceiling. It\'s growing from something in the center of the chamber. Something alive.',
+          artAsset: 'story/story-ch1-atmo-crystal-web.png',
+        },
+        {
+          id: 'ch1_f4_atmo_dreaming_miner',
+          title: 'The Dreamer',
+          text: 'A miner sits against the cavern wall, eyes open, breathing slowly. He\'s alive — but when you wave your hand in front of his face, he doesn\'t react. His pupils are dilated to black discs. His lips move soundlessly, repeating the same words over and over. You lean close to listen:\n\n"It shows me home. It shows me sunlight. It shows me my daughter\'s face. Please don\'t wake me up. Please. It\'s so beautiful here."\n\nYou step back. His expression is peaceful. Almost happy. Whatever the Sleeper dreams, it shares.',
+          artAsset: 'story/story-ch1-atmo-dreaming-miner.png',
+        },
+        {
+          id: 'ch1_f4_atmo_eye_cluster',
+          title: 'The Eyes in the Wall',
+          text: 'The cavern wall blinks. Not all at once — a slow ripple of movement, dozens of eyes opening and closing in sequence across the rough stone surface. They\'re embedded in the rock itself, seamlessly fused with the stone as if they\'d grown there. Each eye is different — some are human, some are animal, some are something else entirely. They all track you as you move. When you stop, they stop. When you breathe, they blink in rhythm with your breath. The Sleeper doesn\'t just watch. It mirrors.',
+          artAsset: 'story/story-ch1-atmo-eye-cluster.png',
+        },
+      ],
+      encounters: [
+        {
+          id: 'ch1_f4_crystal_conduit',
+          type: 'skill_challenge',
+          artAsset: 'story/story-ch1-crystal-conduit.png',
+          description: 'A massive crystal formation bridges two sections of the cavern, pulsing with the Sleeper\'s energy. Breaking it might weaken the creature — or release something worse.',
+          primarySkill: 'athletics',
+          alternateSkill: 'lore',
+          target: 9,
+          successDescription: 'You strike the crystal at its resonance point. It shatters cleanly, and the subsonic hum dims noticeably. The Sleeper stirs, weakened.',
+          successReward: { type: 'heal', value: 15 },
+          failureDescription: 'The crystal absorbs your blow and redirects the energy back at you in a painful pulse.',
+          failurePenalty: { type: 'damage', value: 8 },
+        },
+        {
+          id: 'ch1_f4_sleeper_cache',
+          type: 'hidden_cache',
+          artAsset: 'story/story-ch1-sleeper-cache.png',
+          description: 'Among the crystallized remains, you spot something metallic — a previous adventurer\'s pack, half-consumed by crystal growth. Their last stand was here.',
+          primarySkill: 'awareness',
+          target: 8,
+          successDescription: 'You pry the pack free. Inside: potions and a blade that still gleams despite decades of entombment.',
+          successReward: { type: 'item', value: 'Health Potion' },
+          failureDescription: 'The crystal growth has fused the pack shut. You can\'t get it open without shattering the contents.',
+        },
+      ],
+      npcs: [
+        {
+          id: 'ch1_cobb_ghost',
+          name: 'Cobb\'s Shade',
+          char: 'C',
+          color: '#8888cc',
+          portraitAsset: 'story/story-ch1-cobb-shade.png',
+          dialogue: {
+            text: 'A translucent figure flickers into view — small, young, with the rough hands of a miner. His expression is caught between terror and resignation.\n\n"You... you can see me? No one sees me anymore. Not even the thing. I\'m Cobb. I was a miner. Harmon\'s brother. I came down here and... it took me. The Sleeper. It took my body first, then my name, then my face. All I have left is this. This echo."\n\nHe looks toward the center of the chamber with hollow eyes.\n\n"You have to end it. Not for me — I\'m already gone. For Harmon. He came down here looking for me and it broke him. Kill that thing and maybe my brother can finally rest."',
+            choices: [
+              {
+                label: 'I\'ll end this. For both of you.',
+                responseText: '"Thank you. I... I tried to fight it. We all did, at first. But it gets inside your dreams and shows you beautiful things. Makes you want to stay. Don\'t listen to the dreams. Don\'t look at the eyes. Just hit it until it stops. The crystals around it — they\'re its nervous system. Shatter those first and it\'ll feel every blow."\n\nCobb\'s form flickers.\n\n"Tell Gristle... tell him I didn\'t desert. Tell him I stayed because I couldn\'t leave."',
+                effects: [
+                  { type: 'statBuff', stat: 'attack', amount: 3 },
+                  { type: 'message', text: 'Cobb\'s desperate hope empowers you. +3 Attack.', color: '#8888cc' },
+                ],
+              },
+              {
+                label: 'What happened to the other miners?',
+                responseText: '"Absorbed. All of them. The Sleeper takes what it needs — bodies, minds, memories. We\'re all in there, in the dream. Thirty miners. Three adventurers before you. And Harmon... poor Harmon. He fought the hardest. Fought so hard the thing couldn\'t take his mind completely. So it just... used his body. Made him patrol the tunnels. Guard the entrance. The Butcher isn\'t evil. He\'s a prison."\n\nCobb fades slightly.\n\n"We\'re all still in there. If you kill it... maybe we finally get to sleep for real."',
+                effects: [
+                  { type: 'message', text: 'The weight of thirty lost souls settles on your shoulders.', color: '#8866aa' },
+                ],
+              },
+            ],
+          },
+          setsFlag: { key: 'met_cobb', value: 'true' },
+        },
+      ],
+      roomEvents: [
+        {
+          id: 'ch1_f4_dream_pulse',
+          type: 'trap_chamber',
+          name: 'The Sleeper\'s Dream',
+          artAsset: 'story/story-ch1-dream-pulse.png',
+          description: 'A wave of purple energy pulses from the Sleeper. Your vision blurs. For a moment you see sunlight, grass, a face you love — then it\'s gone. The dream is a weapon.',
+          primarySkill: 'awareness',
+          alternateSkill: 'survival',
+          baseDifficulty: 9,
+          criticalSuccess: {
+            description: 'You steel your mind against the vision. The dream shatters around you, and you catch a glimpse of the Sleeper\'s true form — smaller than expected, more afraid than angry.',
+            effects: [{ type: 'heal', value: 10, message: 'Clarity empowers you.' }],
+          },
+          success: {
+            description: 'You shake off the dream before it takes hold. Your hands are trembling, but your mind is your own.',
+            effects: [],
+          },
+          partial: {
+            description: 'The dream lingers for too long. You lose a few seconds standing still, vulnerable.',
+            effects: [{ type: 'damage', value: 4, message: 'The dream\'s afterimage stings.' }],
+          },
+          failure: {
+            description: 'The dream pulls you in. You see home, safety, warmth — then you\'re ripped back to reality with a psychic scream.',
+            effects: [{ type: 'damage', value: 8, message: 'Psychic backlash!' }],
+          },
+          criticalFailure: {
+            description: 'The dream consumes you. For what feels like hours, you live another life. When you wake, blood runs from your nose and your head is splitting.',
+            effects: [{ type: 'damage', value: 14, message: 'Your mind nearly shattered!' }],
+          },
+        },
+      ],
       monsters: [
-        { name: 'Sleeper Tendril', char: 't', color: '#6622aa', stats: { hp: 12, maxHp: 12, attack: 4, defense: 1, speed: 11 }, xpValue: 7, lootChance: 0.1, count: 4 },
+        { name: 'Sleeper Tendril', char: '\u223F', color: '#6622aa', stats: { hp: 20, maxHp: 20, attack: 7, defense: 2, speed: 11 }, xpValue: 9, lootChance: 0.1, count: 5 },
+        { name: 'Crystal Guardian', char: '\u2756', color: '#cc88ff', stats: { hp: 34, maxHp: 34, attack: 9, defense: 6, speed: 5 }, xpValue: 14, lootChance: 0.3, count: 2 },
+        { name: 'Nightmare Shade', char: '\u2302', color: '#440066', stats: { hp: 16, maxHp: 16, attack: 10, defense: 0, speed: 13 }, xpValue: 12, lootChance: 0.2, count: 3 },
+        { name: 'Absorbed Miner', char: '\u2640', color: '#aa6688', stats: { hp: 24, maxHp: 24, attack: 8, defense: 3, speed: 8 }, xpValue: 10, lootChance: 0.25, count: 2, defeatMessage: 'The twisted miner collapses, and for a moment their face returns to normal — confused, frightened, human. Then they are still.' },
       ],
       items: [
-        { name: 'Crystallized Essence', type: 'potion', char: '!', color: '#cc88ff', value: 20, description: 'Liquefied Deepfolk crystal. Heals 20 HP and makes your skin tingle.', count: 3 },
+        { name: 'Dream Shard', type: 'potion', char: '\u25C8', color: '#aa55ff', value: 25, description: 'The Sleeper\'s dreams made solid. The crystal whispers of impossible places. Power and peril in equal measure.', count: 3 },
+        { name: 'Crystallized Essence', type: 'potion', char: '!', color: '#cc88ff', value: 20, description: 'Liquefied Deepfolk crystal. Heals 20 HP and makes your skin tingle.', count: 2 },
         { name: 'Deepstone Shield', type: 'offhand', char: '(', color: '#888866', value: 25, rarity: 'uncommon', description: 'A shield carved from the ruins\' walls. Impossibly light for stone.', statBonus: { defense: 3 }, equipSlot: 'offhand', count: 1 },
-        { name: 'Glowcap Mushroom', type: 'food', char: '%', color: '#44ddaa', value: 10, description: 'Bioluminescent fungus from the ruins. Surprisingly tasty.', count: 3 },
+        { name: 'Glowcap Mushroom', type: 'food', char: '%', color: '#44ddaa', value: 10, description: 'Glowing fungus from the ruins. Surprisingly tasty.', count: 2 },
         { name: 'Last Adventurer\'s Sword', type: 'weapon', char: '/', color: '#dddddd', value: 40, rarity: 'rare', description: 'A fine blade dropped by the last sellsword who came here. They didn\'t make it. Maybe you will.', statBonus: { attack: 5 }, equipSlot: 'weapon', count: 1 },
       ],
     },
@@ -623,15 +808,15 @@ export const CHAPTER_1: ChapterDef = {
   boss: {
     name: 'The Sleeper',
     title: 'Ancient Deepfolk Horror',
-    char: 'S',
+    char: '\u2641',
     color: '#aa44ff',
-    stats: { hp: 80, maxHp: 80, attack: 8, defense: 4, speed: 7 },
-    xpValue: 50,
+    stats: { hp: 130, maxHp: 130, attack: 13, defense: 6, speed: 7 },
+    xpValue: 60,
     bossAbility: {
       type: 'multi',
       abilities: [
         { type: 'summon', monsterName: 'Sleeper Tendril', count: 2, cooldown: 4 },
-        { type: 'aoe', damage: 6, radius: 2, cooldown: 3 },
+        { type: 'aoe', damage: 8, radius: 2, cooldown: 3 },
       ],
     },
     element: 'dark',

@@ -222,7 +222,7 @@ const overlayStyle: CSSProperties = {
 
 const panelStyle: CSSProperties = {
   width: '100%',
-  maxWidth: 380,
+  maxWidth: 440,
   maxHeight: '80%',
   background: '#000',
   border: '1px solid #8a6a1a',
@@ -331,6 +331,7 @@ const priceStyle: CSSProperties = {
   fontWeight: 'bold',
   minWidth: 36,
   textAlign: 'right',
+  flexShrink: 0,
 };
 
 const buyBtnStyle: CSSProperties = {
@@ -343,6 +344,7 @@ const buyBtnStyle: CSSProperties = {
   fontFamily: 'monospace',
   cursor: 'pointer',
   letterSpacing: 1,
+  flexShrink: 0,
 };
 
 const buyBtnDisabledStyle: CSSProperties = {

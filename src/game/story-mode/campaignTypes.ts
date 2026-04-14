@@ -32,6 +32,12 @@ export interface CampaignSave {
   skillPoints: number;
   /** Total play time in seconds */
   totalPlayTime: number;
+  /** Dino Serum: total uses across the campaign (6+ = permanent transformation) */
+  dinoSerumUses?: number;
+  /** General transformation system: uses per transform type */
+  transformUses?: Record<string, number>;
+  /** Currently active permanent transformation ID (null = human) */
+  activeTransform?: string | null;
 }
 
 export const CAMPAIGN_SAVE_VERSION = 1;
@@ -105,6 +111,17 @@ export interface StoryFloorDef {
   introSlides?: NarrativeSlide[];
   /** Ambient messages that appear in the message log as the player explores */
   roomMessages?: string[];
+  /** Atmospheric popup events — image + text shown when player walks into a room, no skill check */
+  atmosphericEvents?: AtmosphericEvent[];
+}
+
+export interface AtmosphericEvent {
+  id: string;
+  title: string;
+  text: string;
+  artAsset: string;
+  /** Only show this event if the given story flag is set */
+  requiresFlag?: { key: string; value: string };
 }
 
 // ── Pre-baked content types ──
@@ -122,6 +139,8 @@ export interface PrebakedEncounter {
   failurePenalty?: { type: 'damage' | 'hunger'; value: number };
   /** CDN asset path for encounter scene art */
   artAsset?: string;
+  /** Only show this encounter if the given story flag is set */
+  requiresFlag?: { key: string; value: string };
 }
 
 export interface PrebakedNPC {
@@ -153,6 +172,8 @@ export interface PrebakedRoomEvent {
   criticalFailure: RoomEventOutcome;
   /** CDN asset path for room event scene art */
   artAsset?: string;
+  /** Only show this room event if the given story flag is set */
+  requiresFlag?: { key: string; value: string };
 }
 
 export interface PrebakedMonsterSpawn {

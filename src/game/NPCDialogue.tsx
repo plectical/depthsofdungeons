@@ -5,6 +5,8 @@ import { getNPCDef, getNPCDialogue } from './npcs';
 import { applyDialogueEffects } from './engine';
 import { safeEngineCall } from './errorReporting';
 import { cloneState } from './utils';
+import { getStoryNpcDef } from './story-mode/storyNpcRegistry';
+import { trackStoryNpcMet } from './analytics';
 import { generateNPCPortrait } from './story/seriesAI';
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 
@@ -19,6 +21,7 @@ interface NPCDialogueProps {
 export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onClose }: NPCDialogueProps) {
   const [response, setResponse] = useState<string | null>(null);
   const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const [pendingNext, setPendingNext] = useState<GameState | null>(null);
 
   const npc = state.npcs.find((n) => n.id === state.pendingNPC);
   const def = npc ? getNPCDef(npc.defId) : null;
@@ -76,13 +79,26 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
     if (npcRef) npcRef.talked = true;
     next.pendingNPC = null;
 
-    setResponse(choice.responseText);
-    onBloodlineChange(bl);
+    // Write story flags from NPC setsFlag and setFlag effects
+    const storyDef = getStoryNpcDef(npc.defId);
+    if (storyDef?.setsFlag) {
+      if (!next._storyFlags) next._storyFlags = {};
+      next._storyFlags[storyDef.setsFlag.key] = storyDef.setsFlag.value;
+    }
+    if (next._isStoryMode && def) {
+      trackStoryNpcMet({ npcId: npc.defId, npcName: def.name, chapter: '', floor: next.floorNumber });
+    }
 
-    setTimeout(() => {
-      onChange(next);
-      onClose();
-    }, 1500);
+    setResponse(choice.responseText);
+    setPendingNext(next);
+    onBloodlineChange(bl);
+  };
+
+  const handleContinue = () => {
+    if (pendingNext) {
+      onChange(pendingNext);
+    }
+    onClose();
   };
 
   return (
@@ -95,12 +111,13 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
               src={portraitUrl} 
               alt={def.name}
               style={{
-                width: 120,
-                height: 120,
+                width: '85%',
+                maxWidth: 280,
                 objectFit: 'cover',
-                borderRadius: 8,
-                border: `3px solid ${def.color}66`,
+                borderRadius: 6,
+                border: `2px solid ${def.color}66`,
                 boxShadow: `0 0 15px ${def.color}44`,
+                imageRendering: 'pixelated' as const,
               }}
             />
           ) : (
@@ -128,7 +145,10 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
 
         {!response && (
           <div style={choicesStyle}>
-            {dialogue.choices.map((choice, i) => (
+            {dialogue.choices.filter((choice) => {
+              if (!choice.requiresFlag) return true;
+              return state._storyFlags?.[choice.requiresFlag.key] === choice.requiresFlag.value;
+            }).map((choice, i) => (
               <button
                 key={i}
                 style={choiceBtnStyle}
@@ -141,8 +161,8 @@ export function NPCDialogue({ state, bloodline, onChange, onBloodlineChange, onC
         )}
 
         {response && (
-          <div style={{ color: '#1a6a2a', fontSize: 10, textAlign: 'center', padding: '8px 0', fontFamily: 'monospace' }}>
-            ...
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 16px 14px' }}>
+            <button style={choiceBtnStyle} onClick={handleContinue}>[ Continue ]</button>
           </div>
         )}
       </div>
