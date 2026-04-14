@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import type { BloodlineData, QuestEchoData } from './types';
 import { getUnlockedLore, type LoreEntry, type LoreCategory, type LoreContext } from './lore';
+import { useCdnImage } from './useCdnImage';
 
 interface JournalProps {
   bloodline: BloodlineData;
@@ -59,24 +60,7 @@ export function Journal({ bloodline, questEchoData, seenIds, onMarkSeen, onClose
         
         <div style={contentStyle}>
           {selectedEntry ? (
-            <div style={entryDetailStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 18, color: selectedEntry.color }}>{selectedEntry.icon}</span>
-                <span style={{ color: selectedEntry.color, fontWeight: 'bold', fontSize: 14 }}>{selectedEntry.title}</span>
-              </div>
-              <div style={{ color: '#888', fontSize: 10, marginBottom: 12, fontStyle: 'italic' }}>
-                {selectedEntry.subtitle}
-              </div>
-              <div style={{ color: '#aaa', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {selectedEntry.text}
-              </div>
-              <button 
-                style={{ ...backBtnStyle, marginTop: 16 }} 
-                onClick={() => setSelectedEntry(null)}
-              >
-                Back
-              </button>
-            </div>
+            <EntryDetail entry={selectedEntry} onBack={() => setSelectedEntry(null)} />
           ) : (
             <div style={listStyle}>
               {CATEGORY_ORDER.map(cat => {
@@ -114,6 +98,43 @@ export function Journal({ bloodline, questEchoData, seenIds, onMarkSeen, onClose
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function EntryDetail({ entry, onBack }: { entry: LoreEntry; onBack: () => void }) {
+  const artUrl = useCdnImage(entry.artAsset ?? '__noop__');
+
+  return (
+    <div style={entryDetailStyle}>
+      {artUrl && (
+        <img
+          src={artUrl}
+          alt={entry.title}
+          style={{
+            width: '100%',
+            aspectRatio: '16 / 9',
+            objectFit: 'cover',
+            borderRadius: 4,
+            border: `1px solid ${entry.color}44`,
+            marginBottom: 12,
+            imageRendering: 'pixelated' as const,
+          }}
+        />
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 18, color: entry.color }}>{entry.icon}</span>
+        <span style={{ color: entry.color, fontWeight: 'bold', fontSize: 14 }}>{entry.title}</span>
+      </div>
+      <div style={{ color: '#888', fontSize: 10, marginBottom: 12, fontStyle: 'italic' }}>
+        {entry.subtitle}
+      </div>
+      <div style={{ color: '#aaa', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+        {entry.text}
+      </div>
+      <button style={{ ...backBtnStyle, marginTop: 16 }} onClick={onBack}>
+        Back
+      </button>
     </div>
   );
 }

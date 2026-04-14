@@ -3280,7 +3280,34 @@ export function Game() {
       setState(next);
       console.log('[Dev] Full map revealed');
     };
-    return () => { delete w.__storyState; delete w.__storyGodMode; delete w.__storyKillAll; delete w.__storyRevealMap; };
+    w.__generateJournalArt = async () => {
+      const { ALL_LORE } = await import('./lore');
+      console.log(`[JournalArt] Generating art for ${ALL_LORE.length} entries...`);
+      for (let i = 0; i < ALL_LORE.length; i++) {
+        const entry = ALL_LORE[i]!;
+        const sceneText = entry.text.replace(/\n/g, ' ').slice(0, 250);
+        const categoryCtx: Record<string, string> = {
+          origins: 'An ancient dungeon that breathes and shifts',
+          zones: 'A distinct dungeon zone with unique atmosphere',
+          bosses: 'A powerful dungeon boss in their lair',
+          creatures: 'Dungeon creatures in their natural habitat',
+          ancestors: 'The bloodline legacy of dungeon delvers',
+          artifacts: 'A legendary magical artifact radiating power',
+          factions: 'A faction surviving within the dungeon',
+        };
+        const prompt = `PIXEL ART scene for a dungeon lore journal entry.\nTitle: "${entry.title}"\nDescription: "${entry.subtitle}"\nContext: ${categoryCtx[entry.category] ?? 'A dark fantasy dungeon scene'}\nScene: ${sceneText}\n\nStyle: Retro dungeon crawler pixel art. Dark fantasy medieval. Palette: deep blacks, dark greens, amber/orange accents. Chunky visible pixels. No smooth gradients. Subtle CRT glow.\nNO TEXT, NO WORDS, NO LETTERS, NO UI ELEMENTS.`;
+        try {
+          const result = await RundotGameAPI.imageGen.generate({ prompt, aspectRatio: '16:9', model: 'gemini-3-pro-image-preview' });
+          console.log(`[JournalArt] [${i + 1}/${ALL_LORE.length}] ${entry.id}: ${result.imageUrl?.slice(0, 80)}...`);
+          // Download: right-click the logged URL and save as journal/lore-{entry.id}.png
+        } catch (e: any) {
+          console.log(`[JournalArt] [${i + 1}/${ALL_LORE.length}] ${entry.id}: FAILED — ${e.message}`);
+        }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      console.log('[JournalArt] Done!');
+    };
+    return () => { delete w.__storyState; delete w.__storyGodMode; delete w.__storyKillAll; delete w.__storyRevealMap; delete w.__generateJournalArt; };
   });
 
   // Auto-play loop — uses a Web Worker timer for consistent tick rate
