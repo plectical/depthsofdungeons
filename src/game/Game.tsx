@@ -91,6 +91,7 @@ import {
 import { updateErrorContext, reportError, safeEngineCall } from './errorReporting';
 import { safeSetItem, safeGetItem, safeGetProfile } from './safeStorage';
 import { trackAttribution } from './attribution';
+import { scheduleReengagement, cancelReengagement, scheduleBloodlineDeath, cancelBloodlineDeath, cancelQuestComplete } from './notifications';
 import { startAffliction, getAfflictionForFaction } from './afflictions';
 import { getFactionForCreature, modifyFactionReputation, REPUTATION_CHANGES, canTransformIntoFaction, FACTION_DEFS } from './factions';
 import type { FactionId } from './types';
@@ -430,6 +431,19 @@ export function Game() {
     };
   }, [hasWatchedDodShow]);
 
+  // Re-engagement notifications — schedule when player leaves, cancel when they return
+  useEffect(() => {
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        scheduleReengagement();
+      } else {
+        cancelReengagement();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => document.removeEventListener('visibilitychange', onVisChange);
+  }, []);
+
   // Keep refs in sync
   useEffect(() => {
     bloodlineRef.current = bloodline;
@@ -761,6 +775,8 @@ export function Game() {
       trackPlayerIdentity();
       trackAttribution();
       setupSessionTracking();
+      cancelReengagement();
+      cancelBloodlineDeath();
       setIsLoaded(true);
       mark('game_ready');
 
@@ -1398,6 +1414,8 @@ export function Game() {
     bl.ancestors.push(ancestor);
     if (bl.ancestors.length > 5) bl.ancestors.shift();
     bl.generation++;
+
+    scheduleBloodlineDeath(finalState.floorNumber);
 
     // Merge NPC choices from the game state bloodline ref (they're written during dialogue)
     if (finalState._bloodlineRef) {
@@ -2102,6 +2120,7 @@ export function Game() {
     if (earned > 0) {
       saveQuestEcho(qe);
       if (tmpl) {
+        cancelQuestComplete(tmpl.id);
         trackQuestClaimed({
           questId: tmpl.id,
           questName: tmpl.name,
