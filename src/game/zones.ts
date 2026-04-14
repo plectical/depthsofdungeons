@@ -14,6 +14,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'The original dungeon. Dark corridors and ancient halls.',
     color: '#33ff66',
     icon: '#',
+    element: 'dark',
     unlockRequirements: [], // Always available
     terrainPool: ['water', 'lava', 'poison', 'ice', 'tall_grass', 'mud', 'holy', 'shadow'],
     floorRange: { min: 1, max: 15 },
@@ -30,6 +31,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'Icy tunnels where breath freezes. Frost creatures lurk within.',
     color: '#88ddff',
     icon: '*',
+    element: 'ice',
     unlockRequirements: [
       { bossName: 'Goblin King', withClass: 'warrior' },
     ],
@@ -48,6 +50,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'A swampy underground full of toxic spores and strange mushrooms.',
     color: '#44cc22',
     icon: '~',
+    element: 'poison',
     unlockRequirements: [
       { bossName: 'Stone Guardian', withClass: 'ranger' },
     ],
@@ -66,6 +69,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'Rivers of lava and scorching heat. Demons call this home.',
     color: '#ff5522',
     icon: '!',
+    element: 'fire',
     unlockRequirements: [
       { bossName: 'Vampire Lord', withClass: 'mage' },
     ],
@@ -84,6 +88,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'Shimmering halls of living crystal. Magic saturates every surface.',
     color: '#cc77ff',
     icon: '+',
+    element: 'lightning',
     unlockRequirements: [
       { bossName: 'Abyssal Worm', withClass: 'rogue' },
     ],
@@ -102,6 +107,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'A dimension of pure darkness. Only the strongest survive.',
     color: '#aa44ff',
     icon: 'V',
+    element: 'holy',
     unlockRequirements: [
       { bossName: 'Lich Emperor', withClass: 'necromancer' },
     ],
@@ -120,6 +126,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     description: 'The deepest pit of all. Eternal fire, tormented souls, and demons beyond reckoning.',
     color: '#ff2200',
     icon: '6',
+    element: 'fire',
     unlockRequirements: [
       { bossName: 'The Nameless One', withClass: 'paladin' },
     ],

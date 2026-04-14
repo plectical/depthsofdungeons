@@ -327,6 +327,7 @@ export function Game() {
   const [pendingEncounter, setPendingEncounter] = useState<InteractableElement | null>(null);
   const [showSkillCheck, setShowSkillCheck] = useState(false);
   const [skillCheckArtUrl, setSkillCheckArtUrl] = useState<string | null>(null);
+  const [selectedSkillForCheck, setSelectedSkillForCheck] = useState<import('./types').SkillName | null>(null);
   // Enemy encounter dialogue state (attack/communicate/steal/observe choices)
   const [showEnemyEncounter, setShowEnemyEncounter] = useState(false);
   const [enemyEncounterData, setEnemyEncounterData] = useState<import('./types').EnemyEncounterData | null>(null);
@@ -2774,19 +2775,26 @@ export function Game() {
         case 'stat_buff':
         case 'stat_debuff':
           if (effect.value && effect.duration && effect.target) {
-            const statKey = effect.target as keyof typeof next.player.stats;
-            const modifiers: Partial<typeof next.player.stats> = {};
-            modifiers[statKey] = effect.type === 'stat_buff' ? effect.value : -effect.value;
-            
-            addRoomEventBuff(
-              next,
-              effect.type === 'stat_buff' ? 'Blessing' : 'Curse',
-              effect.message || `${effect.target} ${effect.type === 'stat_buff' ? '+' : ''}${effect.type === 'stat_buff' ? effect.value : -effect.value}`,
-              modifiers,
-              effect.duration,
-              effect.type === 'stat_debuff'
-            );
-            addMessage(next, effect.message || `${effect.target} modified for ${effect.duration} floors!`, effect.type === 'stat_buff' ? '#44ff44' : '#ff6644');
+            const narrativeSkills = ['stealth', 'athletics', 'lore', 'diplomacy', 'awareness', 'survival'];
+            if (narrativeSkills.includes(effect.target) && next.skills) {
+              const skillKey = effect.target as keyof typeof next.skills;
+              const delta = effect.type === 'stat_buff' ? effect.value : -effect.value;
+              next.skills[skillKey] = Math.max(3, next.skills[skillKey] + delta);
+              addMessage(next, effect.message || `${effect.target} ${delta > 0 ? '+' : ''}${delta} for ${effect.duration} floors!`, effect.type === 'stat_buff' ? '#44ff44' : '#ff6644');
+            } else {
+              const statKey = effect.target as keyof typeof next.player.stats;
+              const modifiers: Partial<typeof next.player.stats> = {};
+              modifiers[statKey] = effect.type === 'stat_buff' ? effect.value : -effect.value;
+              addRoomEventBuff(
+                next,
+                effect.type === 'stat_buff' ? 'Blessing' : 'Curse',
+                effect.message || `${effect.target} ${effect.type === 'stat_buff' ? '+' : ''}${effect.type === 'stat_buff' ? effect.value : -effect.value}`,
+                modifiers,
+                effect.duration,
+                effect.type === 'stat_debuff'
+              );
+              addMessage(next, effect.message || `${effect.target} modified for ${effect.duration} floors!`, effect.type === 'stat_buff' ? '#44ff44' : '#ff6644');
+            }
           }
           break;
           
@@ -6296,24 +6304,54 @@ export function Game() {
           </div>
         </div>
       )}
-      {showSkillCheck && pendingEncounter && state?.skills && (
-        <SkillCheckModal
-          skill={pendingEncounter.primarySkill}
-          skillValue={state.skills[pendingEncounter.primarySkill] ?? 10}
-          gearBonus={0}
-          target={pendingEncounter.target}
-          description={pendingEncounter.description}
-          imageUrl={skillCheckArtUrl}
-          successHint={pendingEncounter.successHint}
-          failureHint={pendingEncounter.failureHint}
-          onComplete={handleSkillCheckComplete}
-          onCancel={() => {
-            setShowSkillCheck(false);
-            setPendingEncounter(null);
-            setSkillCheckArtUrl(null);
-          }}
-        />
-      )}
+      {showSkillCheck && pendingEncounter && state?.skills && (() => {
+        const hasAlt = !!pendingEncounter.alternateSkill;
+        const chosenSkill = selectedSkillForCheck ?? pendingEncounter.primarySkill;
+        if (hasAlt && !selectedSkillForCheck) {
+          const altSkill = pendingEncounter.alternateSkill!;
+          const priVal = state.skills[pendingEncounter.primarySkill] ?? 10;
+          const altVal = state.skills[altSkill] ?? 10;
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div style={{ background: '#111', border: '2px solid #33ff6688', borderRadius: 8, padding: 20, maxWidth: 340, width: '100%', fontFamily: 'monospace' }}>
+                <div style={{ color: '#33ff66', fontSize: 16, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' }}>Choose Your Approach</div>
+                <div style={{ color: '#88aa88', fontSize: 12, marginBottom: 16, textAlign: 'center' }}>{pendingEncounter.description}</div>
+                <button style={{ display: 'block', width: '100%', padding: '10px 12px', marginBottom: 8, background: '#1a2a1a', border: '1px solid #33ff66', borderRadius: 6, color: '#33ff66', fontFamily: 'monospace', fontSize: 13, cursor: 'pointer', textAlign: 'left' }}
+                  onClick={() => setSelectedSkillForCheck(pendingEncounter.primarySkill)}>
+                  {pendingEncounter.primarySkill.charAt(0).toUpperCase() + pendingEncounter.primarySkill.slice(1)} ({priVal})
+                </button>
+                <button style={{ display: 'block', width: '100%', padding: '10px 12px', marginBottom: 8, background: '#1a1a2a', border: '1px solid #8855ff', borderRadius: 6, color: '#8855ff', fontFamily: 'monospace', fontSize: 13, cursor: 'pointer', textAlign: 'left' }}
+                  onClick={() => setSelectedSkillForCheck(altSkill)}>
+                  {altSkill.charAt(0).toUpperCase() + altSkill.slice(1)} ({altVal})
+                </button>
+                <button style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'transparent', border: '1px solid #555', borderRadius: 6, color: '#888', fontFamily: 'monospace', fontSize: 11, cursor: 'pointer', textAlign: 'center' }}
+                  onClick={() => { setShowSkillCheck(false); setPendingEncounter(null); setSkillCheckArtUrl(null); setSelectedSkillForCheck(null); }}>
+                  Walk Away
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <SkillCheckModal
+            skill={chosenSkill}
+            skillValue={state.skills[chosenSkill] ?? 10}
+            gearBonus={0}
+            target={pendingEncounter.target}
+            description={pendingEncounter.description}
+            imageUrl={skillCheckArtUrl}
+            successHint={pendingEncounter.successHint}
+            failureHint={pendingEncounter.failureHint}
+            onComplete={(result) => { setSelectedSkillForCheck(null); handleSkillCheckComplete(result); }}
+            onCancel={() => {
+              setShowSkillCheck(false);
+              setPendingEncounter(null);
+              setSkillCheckArtUrl(null);
+              setSelectedSkillForCheck(null);
+            }}
+          />
+        );
+      })()}
       {/* Room Event Modal */}
       {showRoomEvent && state?.pendingRoomEvent && (
         <RoomEventModal

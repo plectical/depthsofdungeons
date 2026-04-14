@@ -6,6 +6,8 @@ import { getZoneDef } from './zones';
 import { useCdnImage } from './useCdnImage';
 import { getRaceDef } from './races';
 import { LEGACY_ABILITY_DESCRIPTIONS } from './legacyGear';
+import { getTransformDef } from './story-mode/transformations';
+import { ELEMENT_INFO } from './elements';
 
 interface HUDProps {
   state: GameState;
@@ -57,16 +59,13 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
   const raceThumbUrl = useCdnImage(state.playerRace ? `races/${state.playerRace}.png` : '__noop__');
   const isDinoForm = !!(state.dinoTransformTurns && state.dinoTransformTurns > 0) || !!state.dinoPermanent;
   const isGeneralTransform = !!(state._activeTransformId && ((state._transformTurns ?? 0) > 0 || state._transformPermanent));
-  const generalTransformPortrait = isGeneralTransform && state._activeTransformId === 'flesh_wall'
-    ? 'story/story-ch2-flesh-wall-form.png'
-    : isGeneralTransform && state._activeTransformId === 'shadow'
-    ? 'story/story-ch1-shadow-form.png'
-    : '__noop__';
-  const generalTransformColor = isGeneralTransform && state._activeTransformId === 'flesh_wall'
-    ? '#cc4466' : isGeneralTransform && state._activeTransformId === 'shadow' ? '#8844cc' : '#44ff88';
+  const activeTransformDef = isGeneralTransform && state._activeTransformId ? getTransformDef(state._activeTransformId) : undefined;
+  const dinoTransformDef = isDinoForm ? getTransformDef('dino') : undefined;
+  const transformDef = activeTransformDef ?? dinoTransformDef;
+  const transformPortraitPath = transformDef?.portrait ?? '__noop__';
+  const transformColor = transformDef?.color ?? '#44ff88';
   const storyPortraitUrl = useCdnImage(isStoryMode ? 'story/story-sellsword.png' : '__noop__');
-  const dinoPortraitUrl = useCdnImage(isStoryMode && isDinoForm ? 'story/story-ch3-dino-warrior.png' : '__noop__');
-  const generalTransformUrl = useCdnImage(isStoryMode ? generalTransformPortrait : '__noop__');
+  const transformPortraitUrl = useCdnImage(transformDef ? transformPortraitPath : '__noop__');
 
   const generatedClassThumb = useCdnImage('generated-class-thumb.png');
   const portraits: Record<string, string | null> = {
@@ -109,19 +108,20 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
   const hasDamaged = !!damagedSrc;
   const showPortrait = !!normalSrc || (playerClass === 'generated' && genClass);
 
-  let portraitSrc = isStoryMode && isGeneralTransform && generalTransformUrl
-    ? generalTransformUrl
-    : isStoryMode && isDinoForm && dinoPortraitUrl
-    ? dinoPortraitUrl
+  const isTransformed = !!(transformDef && transformPortraitUrl);
+  let portraitSrc = isTransformed
+    ? transformPortraitUrl
     : isStoryMode && storyPortraitUrl ? storyPortraitUrl : normalSrc;
   const raceDef = state.playerRace ? getRaceDef(state.playerRace) : undefined;
-  let portraitBorder = isStoryMode
-    ? (isGeneralTransform ? generalTransformColor : isDinoForm ? '#44ff88' : '#cc8844')
-    : (state.playerRace && raceDef)
-      ? raceDef.color
-      : playerClass === 'generated' 
-        ? (genClass?.color ?? '#44ff88')
-        : (classBorders[playerClass] ?? '#ff6644');
+  let portraitBorder = isTransformed
+    ? transformColor
+    : isStoryMode
+      ? '#cc8844'
+      : (state.playerRace && raceDef)
+        ? raceDef.color
+        : playerClass === 'generated' 
+          ? (genClass?.color ?? '#44ff88')
+          : (classBorders[playerClass] ?? '#ff6644');
   if (hasDamaged && hpPct <= 0.5 && !isStoryMode) {
     portraitSrc = damagedSrc;
     portraitBorder = '#ff3333';
@@ -329,9 +329,16 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
               <span style={{ ...compactStatStyle, color: '#ffcc33', fontWeight: 'bold', textShadow: '0 0 6px #ffcc3344' }}>SP:{state.skillPoints}</span>
             )}
             <span style={{ ...compactStatStyle, color: '#33ff66' }}>F:{floorNumber}</span>
-            {state.zone !== 'stone_depths' && (
-              <span style={{ ...compactStatStyle, color: getZoneDef(state.zone).color, opacity: 0.8 }}>{getZoneDef(state.zone).name.split(' ')[0]}</span>
-            )}
+            {(() => {
+              const zd = getZoneDef(state.zone);
+              const elInfo = zd.element ? ELEMENT_INFO[zd.element] : undefined;
+              return <>
+                {state.zone !== 'stone_depths' && (
+                  <span style={{ ...compactStatStyle, color: zd.color, opacity: 0.8 }}>{zd.name.split(' ')[0]}</span>
+                )}
+                {elInfo && <span style={{ ...compactStatStyle, color: elInfo.color, opacity: 0.7 }} title={`Zone element: ${elInfo.name}`}>{elInfo.icon}</span>}
+              </>;
+            })()}
             {state.mercenaries && state.mercenaries.filter(m => !m.isDead).length > 0 && (
               <span style={{ ...compactStatStyle, color: '#88ccff' }}>Party:{state.mercenaries.filter(m => !m.isDead).length}</span>
             )}
@@ -342,19 +349,12 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
         </div>
       </div>
       {/* Transformation indicator */}
-      {isDinoForm && (
-        <div style={{ ...rowStyle, borderTop: '1px solid #44ff8833', paddingTop: 2, marginTop: 1 }}>
-          <span style={{ ...compactStatStyle, color: state.dinoPermanent ? '#ff4444' : '#44ff88', fontWeight: 'bold', textShadow: `0 0 6px ${state.dinoPermanent ? '#ff444488' : '#44ff8888'}` }}>
-            {state.dinoPermanent ? '\u{1F996} PERMANENT DINO FORM' : `\u{1F996} DINO FORM (${state.dinoTransformTurns} turns)`}
-          </span>
-        </div>
-      )}
-      {isGeneralTransform && !isDinoForm && (
-        <div style={{ ...rowStyle, borderTop: `1px solid ${generalTransformColor}33`, paddingTop: 2, marginTop: 1 }}>
-          <span style={{ ...compactStatStyle, color: state._transformPermanent ? '#ff4444' : generalTransformColor, fontWeight: 'bold', textShadow: `0 0 6px ${state._transformPermanent ? '#ff444488' : generalTransformColor + '88'}` }}>
-            {state._transformPermanent
-              ? `PERMANENT ${(state._activeTransformId ?? '').toUpperCase().replace('_', ' ')} FORM`
-              : `${(state._activeTransformId ?? '').toUpperCase().replace('_', ' ')} FORM (${state._transformTurns} turns)`}
+      {transformDef && (
+        <div style={{ ...rowStyle, borderTop: `1px solid ${transformColor}33`, paddingTop: 2, marginTop: 1 }}>
+          <span style={{ ...compactStatStyle, color: (state._transformPermanent || state.dinoPermanent) ? '#ff4444' : transformColor, fontWeight: 'bold', textShadow: `0 0 6px ${(state._transformPermanent || state.dinoPermanent) ? '#ff444488' : transformColor + '88'}` }}>
+            {(state._transformPermanent || state.dinoPermanent)
+              ? `PERMANENT ${transformDef.name.toUpperCase()}`
+              : `${transformDef.name.toUpperCase()} (${isDinoForm ? state.dinoTransformTurns : state._transformTurns} turns)`}
           </span>
         </div>
       )}

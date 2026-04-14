@@ -1,0 +1,27 @@
+---
+description: TypeScript build hygiene and pre-deploy checks
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Build Hygiene
+
+## Before Deploying
+
+1. Run `npm run build` and fix all errors before deploying
+2. `noUnusedLocals` and `noUnusedParameters` are enabled — remove unused imports/variables when deleting code
+3. Test files in `src/game/__tests__/` are excluded from `tsconfig.json` — keep it that way
+
+## Common Build Failures
+
+- **Unused imports after refactoring**: when removing usage of a function, also remove its import
+- **Missing `@types/node`**: test files use `process` — they must stay excluded from tsconfig
+- **Dead code**: remove helper functions/variables when the code that used them is deleted, don't just leave them
+
+## Game.tsx
+
+`Game.tsx` is 7000+ lines. When editing it:
+
+- Search for specific symbols with grep, don't read the whole file
+- After removing features, grep for all references to confirm nothing is left dangling
+- Check both the import block and the usage sites

@@ -62,7 +62,9 @@ export function getElementalMultiplier(attackElement?: Element, defendElement?: 
  */
 export function getAttackElement(entity: Entity): Element | undefined {
   if (entity.isPlayer) {
-    return entity.equipment?.weapon?.element;
+    const weapon = entity.equipment?.weapon;
+    if (!weapon) return undefined;
+    return weapon.element ?? inferElementFromEffect(weapon);
   }
   return entity.element;
 }
@@ -73,7 +75,9 @@ export function getAttackElement(entity: Entity): Element | undefined {
  * For monsters: comes from their innate element.
  */
 export function getDefenseElement(entity: Entity): Element | undefined {
-  if (entity.isPlayer) return undefined;
+  if (entity.isPlayer) {
+    return entity.equipment?.armor?.element;
+  }
   return entity.element;
 }
 

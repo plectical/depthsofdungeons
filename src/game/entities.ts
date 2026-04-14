@@ -27,6 +27,8 @@ import {
 } from './constants';
 import { uid, randInt, pick } from './utils';
 import { pickVariant } from './variants';
+import { getZoneDef } from './zones';
+import { ELEMENT_INFO } from './elements';
 import { isWalkableTile, getTile } from './dungeon';
 import {
   getNecropolisMonsters,
@@ -416,6 +418,32 @@ export function spawnItems(floor: DungeonFloor, floorNumber: number, occupied: S
       pos,
       item: randomItem(floorNumber, zone),
     });
+  }
+
+  // Elemental shrine — rare spawn (15% chance per floor, min floor 3)
+  if (floorNumber >= 3 && Math.random() < 0.15) {
+    const zoneDef = getZoneDef(zone);
+    const elements = Object.keys(ELEMENT_INFO) as import('./types').Element[];
+    const shrineElement = zoneDef.element ?? pick(elements);
+    const elInfo = ELEMENT_INFO[shrineElement];
+    const shrinePos = randomWalkable(floor, occupied);
+    if (shrinePos) {
+      items.push({
+        id: uid(),
+        pos: shrinePos,
+        item: {
+          id: uid(),
+          name: `${elInfo.name} Shrine`,
+          type: 'shrine',
+          char: '\u{2660}',
+          color: elInfo.color,
+          value: 0,
+          element: shrineElement,
+          description: `An ancient shrine pulsing with ${elInfo.name.toLowerCase()} energy. Requires a matching weapon to activate.`,
+        },
+      });
+      occupied.add(`${shrinePos.x},${shrinePos.y}`);
+    }
   }
 
   return items;

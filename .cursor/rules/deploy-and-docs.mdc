@@ -1,0 +1,26 @@
+---
+description: Deployment workflow and doc review checklist
+alwaysApply: true
+---
+
+# Deployment
+
+Before running any deploy, build, or `rundot` commands:
+
+1. Read `package.json` scripts to confirm the current deploy pipeline
+2. Run `rundot game list-tags` to verify current tag names and versions
+3. The tag flow is: **Private** → **Review** → **Public** (platform-approved)
+4. Never assume old tag names (development/staging/production) — always verify
+
+Deploy command: `npm run deploy`
+Manual steps: `npm run build && rundot deploy && rundot game copy-tag private review`
+
+# Doc Review
+
+Before making changes to a system, check if relevant docs exist:
+
+- **RUN.game SDK**: read from `.rundot-docs/` before writing any SDK code
+- **Story content**: read `STORY_CONTENT_GUIDE.md` before editing story/campaign files
+- **Story QA**: read `STORY_TEST_PLAN.md` before modifying story test infrastructure
+- **README.md**: keep deploy instructions in sync when changing the deploy pipeline
+- **CLAUDE.md / AGENTS.md**: re-read the `<source-index>` when unsure about project structure

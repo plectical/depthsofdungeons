@@ -19,6 +19,8 @@ export interface ZoneDef {
   description: string;
   color: string;
   icon: string;
+  /** Dominant element of this zone — matching weapon element deals bonus damage */
+  element?: Element;
   /** Boss names + class combos required to unlock. Empty = always available. */
   unlockRequirements: ZoneUnlockReq[];
   /** Terrain types that appear in this zone */
@@ -89,7 +91,7 @@ export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' |
 export type EquipSlot = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy';
 
 // ── Item types ──
-export type ItemType = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy' | 'potion' | 'scroll' | 'gold' | 'food';
+export type ItemType = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy' | 'potion' | 'scroll' | 'gold' | 'food' | 'shrine';
 
 export interface Item {
   id: string;

@@ -27,7 +27,7 @@ import { getSkillNode, canUnlockNode, getEnemyTags } from './skillTree';
 import { trackSkillUnlocked, trackRangedAttack, trackConsumableUsed, trackStoryTransformUsed } from './analytics';
 import type { EchoBonuses } from './echoTree';
 import { SHARD_DROP_CHANCE, BOSS_SHARD_MIN, BOSS_SHARD_MAX, ensureLegacyData, getGearForClass, getCumulativeStats, createLegacyItem, getUnlockedAbilities, LEGACY_ABILITY_DESCRIPTIONS } from './legacyGear';
-import { initializeStoryState, initializeCharacterSkills, onFloorEnter, createEmptyCache, spawnFloorEncounters, getBoonBonus, updateBoonDurations } from './story';
+import { initializeStoryState, initializeCharacterSkills, onFloorEnter, createEmptyCache, spawnFloorEncounters, getBoonBonus, updateBoonDurations, checkForHiddenElements, discoverHiddenElement } from './story';
 import { getContentCache } from './story/progressiveLoader';
 import { getMercenariesForFloor } from './story/contentCache';
 import { progressAffliction, getRandomProgressMessage, getAfflictionStatModifiers, getTelepathicLink, getCurrentStage, getAfflictionDef, isItemBlocked } from './afflictions';
@@ -823,12 +823,12 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
   // Class-specific starting gear — gives each class a unique early-game feel
   // All classes now get Bread to prevent floor-2 starvation deaths (6 deaths, avg 298s)
   // that were causing 62% of first-session players to never reach floor 2.
-  const classGear: Record<string, { weapon?: string; item?: string; item2?: string }> = {
-    warrior: { weapon: 'Short Sword', item: 'Health Potion', item2: 'Bread' },
-    rogue: { weapon: 'Rusty Dagger', item: 'Bread', item2: 'Health Potion' },
-    mage: { weapon: 'Wooden Staff', item: 'Health Potion', item2: 'Bread' },
-    ranger: { weapon: 'Short Bow', item: 'Bread', item2: 'Health Potion' },
-    paladin: { weapon: 'Short Sword', item: 'Bread' },
+  const classGear: Record<string, { weapon?: string; weaponElement?: import('./types').Element; item?: string; item2?: string }> = {
+    warrior: { weapon: 'Short Sword', weaponElement: 'fire', item: 'Health Potion', item2: 'Bread' },
+    rogue: { weapon: 'Rusty Dagger', weaponElement: 'dark', item: 'Bread', item2: 'Health Potion' },
+    mage: { weapon: 'Wooden Staff', weaponElement: 'lightning', item: 'Health Potion', item2: 'Bread' },
+    ranger: { weapon: 'Short Bow', weaponElement: 'poison', item: 'Bread', item2: 'Health Potion' },
+    paladin: { weapon: 'Short Sword', weaponElement: 'holy', item: 'Bread' },
     necromancer: { item: 'Health Potion', item2: 'Bread' },
     revenant: { item: 'Bread' },
   };
@@ -837,7 +837,7 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
     if (gear.weapon) {
       const weaponTemplate = findItemTemplate(gear.weapon);
       if (weaponTemplate) {
-        const weapon = { ...weaponTemplate, id: uid() };
+        const weapon = { ...weaponTemplate, id: uid(), element: gear.weaponElement ?? weaponTemplate.element };
         state.player.equipment.weapon = weapon;
       }
     }
@@ -915,8 +915,8 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
     }
   }
 
-  // Spawn narrative encounters on floor 1 (only in narrative_test zone)
-  if (zone === 'narrative_test') {
+  // Spawn narrative encounters (skill checks, hidden elements)
+  if (!state._isStoryMode) {
     spawnFloorEncounters(state, occupied);
   }
 
@@ -1187,6 +1187,14 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
         return;
       }
     }
+    // Athletics skill — +1% dodge per point above 10
+    if (state.skills) {
+      const athBonus = state.skills.athletics - 10;
+      if (athBonus > 0 && Math.random() < athBonus * 0.01) {
+        addMessage(state, 'Athletic reflexes! You dodge the attack!', '#44ccff');
+        return;
+      }
+    }
   }
 
   // Mana Shield — mage can negate incoming damage
@@ -1439,6 +1447,16 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
       fsExt._firstStrikeUsed = true;
       addMessage(state, `First Strike! +${firstStrike} damage!`, '#ffaa33');
     }
+    // Stealth skill — +3% damage per point above 10 on first hit against each monster
+    if (state.skills && (defender as Entity & { _stealthHit?: boolean })._stealthHit !== true) {
+      const stealthBonus = state.skills.stealth - 10;
+      if (stealthBonus > 0) {
+        const mult = 1 + stealthBonus * 0.03;
+        dmg = Math.floor(dmg * mult);
+        addMessage(state, 'Sneak attack!', '#aabbcc');
+      }
+      (defender as Entity & { _stealthHit?: boolean })._stealthHit = true;
+    }
   }
 
   // ── Skill tree weapon proficiency bonus ──
@@ -1466,6 +1484,21 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
     if (msg) {
       const color = elementMult > 1 ? ELEMENT_INFO[atkElement].color : '#888888';
       addMessage(state, msg, color);
+    }
+  }
+
+  // ── Zone element affinity ──
+  if (attacker.isPlayer && atkElement) {
+    const zoneDef = getZoneDef(state.zone);
+    if (zoneDef.element) {
+      const zoneWeakness = getElementalMultiplier(atkElement, zoneDef.element);
+      if (zoneWeakness === 1.5) {
+        dmg = Math.max(1, Math.floor(dmg * 1.1));
+        addMessage(state, `Your ${ELEMENT_INFO[atkElement].name} thrives in ${zoneDef.name}!`, ELEMENT_INFO[atkElement].color);
+      } else if (zoneWeakness === 0.75) {
+        dmg = Math.max(1, Math.floor(dmg * 0.9));
+        addMessage(state, `Your ${ELEMENT_INFO[atkElement].name} weakens in ${zoneDef.name}...`, '#888888');
+      }
     }
   }
 
@@ -3101,24 +3134,81 @@ export function movePlayer(state: GameState, dx: number, dy: number): boolean {
     state.runStats.terrainSteps[_terrain] = (state.runStats.terrainSteps[_terrain] ?? 0) + 1;
   }
 
-  // ── Room Event Check (narrative_test zone only) ──
-  if (state.zone === 'narrative_test') {
-    console.log('[Engine] narrative_test zone - checking for room event at', nx, ny);
+  // ── Room Event Check ──
+  if (!state._isStoryMode) {
     const currentRoom = getRoomAtPosition(state.floor, { x: nx, y: ny });
-    console.log('[Engine] Current room:', currentRoom ? `found (${currentRoom.x},${currentRoom.y})` : 'null');
     if (currentRoom) {
       const roomEvent = checkForRoomEvent(state, currentRoom);
-      console.log('[Engine] Room event result:', roomEvent ? roomEvent.event.name : 'none');
       if (roomEvent) {
         state.pendingRoomEvent = roomEvent;
         addMessage(state, `Something unusual in this chamber...`, MSG_COLOR.system);
-        return true; // Stop movement to show event
+        return true;
+      }
+    }
+  }
+
+  // ── Awareness-based discovery ──
+  if (state.skills) {
+    const awarenessBonus = state.skills.awareness - 10;
+    if (awarenessBonus > 0 && Math.random() < awarenessBonus * 0.008) {
+      const discoverySpots = [
+        { x: nx + 1, y: ny }, { x: nx - 1, y: ny },
+        { x: nx, y: ny + 1 }, { x: nx, y: ny - 1 },
+      ].filter(p => {
+        if (p.x < 0 || p.x >= state.floor.width || p.y < 0 || p.y >= state.floor.height) return false;
+        const t = getTile(state.floor, p.x, p.y);
+        return isWalkableTile(t) && !state.items.some(i => i.pos.x === p.x && i.pos.y === p.y);
+      });
+      if (discoverySpots.length > 0) {
+        const spot = discoverySpots[Math.floor(Math.random() * discoverySpots.length)]!;
+        const loot = randomItem(state.floorNumber, state.zone);
+        state.items.push({ id: uid(), pos: spot, item: loot });
+        const lootColor = loot.rarity && loot.rarity !== 'common' ? RARITY_DEFS[loot.rarity].color : MSG_COLOR.loot;
+        addMessage(state, `Your keen awareness reveals a hidden ${loot.name}!`, lootColor);
+      }
+    }
+  }
+
+  // ── Hidden element discovery (skill-gated secrets) ──
+  const hiddenFind = checkForHiddenElements(state);
+  if (hiddenFind) {
+    const result = discoverHiddenElement(state, hiddenFind.id);
+    if (result) {
+      addMessage(state, hiddenFind.description, '#ffdd00');
+      if (result.reward) {
+        if (result.reward.type === 'gold' && typeof result.reward.value === 'number') {
+          state.score += result.reward.value;
+          state.runStats.goldEarned += result.reward.value;
+          addMessage(state, `Found ${result.reward.value} hidden gold!`, '#ffd700');
+        } else {
+          const loot = randomItem(state.floorNumber, state.zone);
+          state.items.push({ id: uid(), pos: { x: nx, y: ny }, item: loot });
+          addMessage(state, `Discovered ${loot.name}!`, MSG_COLOR.loot);
+        }
       }
     }
   }
 
   const itemsHere = state.items.filter((i) => i.pos.x === nx && i.pos.y === ny);
   for (const mi of itemsHere) {
+    if (mi.item.type === 'shrine') {
+      const shrineElement = mi.item.element;
+      const weaponElement = getAttackElement(state.player);
+      if (shrineElement && weaponElement === shrineElement) {
+        const elInfo = ELEMENT_INFO[shrineElement];
+        const statOptions = ['attack', 'defense', 'speed', 'maxHp'] as const;
+        const bonusStat = statOptions[Math.floor(Math.random() * statOptions.length)] ?? 'attack';
+        const bonusAmount = bonusStat === 'maxHp' ? 5 : 2;
+        state.player.stats[bonusStat] += bonusAmount;
+        if (bonusStat === 'maxHp') state.player.stats.hp += bonusAmount;
+        addMessage(state, `${elInfo.icon} The ${elInfo.name} Shrine resonates with your weapon! +${bonusAmount} ${bonusStat}!`, elInfo.color);
+        state.items = state.items.filter((i) => i.id !== mi.id);
+      } else if (shrineElement) {
+        const elInfo = ELEMENT_INFO[shrineElement];
+        addMessage(state, `${elInfo.icon} A ${elInfo.name} Shrine. It requires a ${elInfo.name.toLowerCase()} weapon to activate.`, '#888888');
+      }
+      continue;
+    }
     if (mi.item.type === 'gold') {
       const goldValue = state.premiumActive ? mi.item.value * 2 : mi.item.value;
       state.score += goldValue;
@@ -4079,6 +4169,11 @@ export function processTurn(state: GameState) {
   if (state.floorNumber <= 2) hungerRate *= 0.5;
   if (state.premiumActive) hungerRate *= 0.5;
   if (hasPassive(state, 'Iron Will')) hungerRate *= 0.7;
+  // Survival skill — reduce hunger drain by 2% per point above 10
+  if (state.skills) {
+    const survBonus = state.skills.survival - 10;
+    if (survBonus > 0) hungerRate *= Math.max(0.7, 1 - survBonus * 0.02);
+  }
   state.hunger.current = Math.round(Math.max(0, state.hunger.current - hungerRate) * 10) / 10;
 
   if (state.hunger.current <= STARVING_THRESHOLD) {
@@ -4438,7 +4533,7 @@ function descend(state: GameState) {
     state.npcs = [];
   }
 
-  if (state.zone === 'narrative_test') {
+  if (!state._isStoryMode) {
     spawnFloorEncounters(state, occupied);
   }
 

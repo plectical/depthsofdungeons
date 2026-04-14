@@ -1,0 +1,36 @@
+---
+description: Local development fallbacks for RUN.game SDK features
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Local Testing Fallbacks
+
+RUN.game SDK features are unavailable when running locally (localhost). Always provide fallbacks.
+
+## SDK Features That Don't Work Locally
+
+- `RundotGameAPI.globalStorage` — cross-game shared storage (e.g. RUN TV watch status)
+- `RundotGameAPI.appStorage` — uses `safeStorage.ts` wrappers which handle this
+- `RundotGameAPI.ads` — ad calls will fail silently
+- `RundotGameAPI.context.shareParams` — no deep link data
+- Registration / add-to-home / entitlements — platform-only
+
+## Fallback Pattern
+
+```typescript
+// Always try SDK first, fall back to localStorage for local dev
+try {
+  const val = await RundotGameAPI.globalStorage.getItem('key');
+  if (val === '1') { unlock(); return; }
+} catch { /* SDK unavailable */ }
+
+// localStorage fallback for local testing
+try {
+  if (localStorage.getItem('key') === '1') { unlock(); }
+} catch { /* noop */ }
+```
+
+## Debug Mode
+
+The debug panel (class select screen, `?debug` URL param or 5-tap subtitle) provides manual toggles for SDK-gated features. When adding new SDK-gated unlocks, add a corresponding debug toggle.
