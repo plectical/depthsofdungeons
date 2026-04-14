@@ -333,9 +333,7 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
               const zd = getZoneDef(state.zone);
               const elInfo = zd.element ? ELEMENT_INFO[zd.element] : undefined;
               return <>
-                {state.zone !== 'stone_depths' && (
-                  <span style={{ ...compactStatStyle, color: zd.color, opacity: 0.8 }}>{zd.name.split(' ')[0]}</span>
-                )}
+                <span style={{ ...compactStatStyle, color: zd.color, opacity: 0.8 }}>{zd.name.split(' ')[0]}</span>
                 {elInfo && <span style={{ ...compactStatStyle, color: elInfo.color, opacity: 0.7 }} title={`Zone element: ${elInfo.name}`}>{elInfo.icon}</span>}
               </>;
             })()}

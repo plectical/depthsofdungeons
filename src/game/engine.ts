@@ -21,7 +21,7 @@ import { computeBloodlineBonuses, createEmptyRunStats } from './traits';
 import { spawnNPCs } from './npcs';
 import { getNecropolisClasses, getNecropolisMonsters } from './necropolis';
 import { getNecropolisState } from './necropolisService';
-import { getZoneDef, ZONE_BOSSES, ZONE_BOSS_LOOT } from './zones';
+import { getZoneDef, getNextZone, ZONE_BOSSES, ZONE_BOSS_LOOT } from './zones';
 import { getAttackElement, getDefenseElement, getElementalMultiplier, getElementalMessage, ELEMENT_INFO } from './elements';
 import { getSkillNode, canUnlockNode, getEnemyTags } from './skillTree';
 import { trackSkillUnlocked, trackRangedAttack, trackConsumableUsed, trackStoryTransformUsed } from './analytics';
@@ -4497,6 +4497,20 @@ function descend(state: GameState) {
     if (heal > 0) {
       state.player.stats.hp += heal;
       addMessage(state, `Lay on Hands! +${heal} HP`, '#ffd700');
+    }
+  }
+
+  // ── Sequential zone progression: advance zone after boss kill ──
+  if (!state._isStoryMode) {
+    const prevFloorBossKills = state.bossesDefeatedThisRun;
+    if (prevFloorBossKills.length > 0) {
+      const nextZone = getNextZone(state.zone);
+      if (nextZone) {
+        const prevZoneDef = getZoneDef(state.zone);
+        state.zone = nextZone;
+        const newZoneDef = getZoneDef(nextZone);
+        addMessage(state, `You leave ${prevZoneDef.name} behind and descend into ${newZoneDef.name}...`, newZoneDef.color);
+      }
     }
   }
 

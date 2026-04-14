@@ -34,7 +34,7 @@ import { AbilityChoice } from './AbilityChoice';
 import { SkillTreeView } from './SkillTreeView';
 import { getNecropolisClasses } from './necropolis';
 import { reportDeath, reportKills, getNecropolisState, connectToNecropolis, setLocalDeathFloor, setLocalKillsFloor } from './necropolisService';
-import { ZONE_DEFS, isZoneUnlocked } from './zones';
+// Zone select removed — endless mode auto-starts in Stone Depths and progresses sequentially
 import type { QuestEchoData, RunQuestTracker } from './types';
 import { createDefaultQuestEchoData, fillQuestSlots, updateQuestProgress, mergeRunIntoCounters, claimQuest, patchQuestEchoData, getQuestTemplate } from './quests';
 import { computeEchoBonuses, canUnlockEchoNode, getEchoNode, getEchoNodePathName, getEchoNodeCount } from './echoTree';
@@ -2678,6 +2678,12 @@ export function Game() {
     const prepareArt = async () => {
       const event = state.pendingRoomEvent!.event;
 
+      // Only attempt art generation/loading in narrative_test zone
+      if (state.zone !== 'narrative_test') {
+        setShowRoomEvent(true);
+        return;
+      }
+
       // Story mode: load art from CDN if artAsset is defined
       if (event.artAsset && isStoryMode) {
         try {
@@ -2696,7 +2702,6 @@ export function Game() {
       // Check cache first
       const cachedArt = getRoomEventArtFromCache(event.id);
       if (cachedArt) {
-        console.log('[RoomEvent] Using cached art for:', event.name);
         const next = cloneState(state);
         if (next.pendingRoomEvent) {
           next.pendingRoomEvent.artUrl = cachedArt;
@@ -2709,36 +2714,20 @@ export function Game() {
       // No cached art, generate on-demand
       setIsGeneratingRoomEventArt(true);
       try {
-        console.log('[RoomEvent] Generating art on-demand for:', event.name, 'prompt:', event.artPrompt?.substring(0, 50));
-        
         const artUrl = await generateRoomEventArt(event.name, event.artPrompt);
         
         if (artUrl) {
-          console.log('[RoomEvent] Art generated successfully:', artUrl.substring(0, 50));
-          try {
-            await preloadImage(artUrl);
-            console.log('[RoomEvent] Art preloaded');
-          } catch (preloadErr) {
-            console.warn('[RoomEvent] Art preload failed but continuing:', preloadErr);
-          }
-          
-          // Cache it for future use
+          try { await preloadImage(artUrl); } catch { /* continue without preload */ }
           cacheRoomEventArt(event.id, artUrl);
-          
-          // Update the event with the art URL
           const next = cloneState(state);
           if (next.pendingRoomEvent) {
             next.pendingRoomEvent.artUrl = artUrl;
           }
           setState(next);
-        } else {
-          console.warn('[RoomEvent] Art generation returned null for:', event.name);
         }
         
         setShowRoomEvent(true);
-      } catch (err) {
-        console.error('[RoomEvent] Art generation failed with error:', err);
-        // Show the event anyway without art
+      } catch {
         setShowRoomEvent(true);
       } finally {
         setIsGeneratingRoomEventArt(false);
@@ -5307,64 +5296,8 @@ export function Game() {
   }
 
   if (screen === 'zoneSelect') {
-    const bossLog = bloodline.bossKillLog ?? [];
-    return (
-      <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 20 }}>
-        <div style={{ ...titleTextStyle, fontSize: 20 }}>Choose Your Zone</div>
-        <div style={{ color: '#1a8a3a', fontFamily: 'monospace', fontSize: 11, marginBottom: 4 }}>
-          Defeat bosses with specific characters to unlock new zones
-        </div>
-        <div style={classGridStyle}>
-          {ZONE_DEFS.filter((z) => !z.isDebugZone).map((zone) => {
-            const unlocked = isZoneUnlocked(zone.id, bossLog);
-            return (
-              <button
-                key={zone.id}
-                style={unlocked ? { ...classCardStyle, borderColor: zone.color + '66' } : classCardLockedStyle}
-                onClick={() => { if (unlocked) beginGame(zone.id); }}
-                disabled={!unlocked}
-              >
-                {unlocked ? (
-                  <>
-                    <div style={{ color: zone.color, fontSize: 18, fontWeight: 'bold', textShadow: `0 0 8px ${zone.color}44` }}>
-                      {zone.icon} {zone.name}
-                    </div>
-                    <div style={{ color: '#1a8a3a', fontSize: 10, marginTop: 4, lineHeight: '14px' }}>
-                      {zone.description}
-                    </div>
-                    <div style={{ color: zone.color, fontSize: 9, marginTop: 6, opacity: 0.7 }}>
-                      Floors {zone.floorRange.min}-{zone.floorRange.max}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ color: zone.color, fontSize: 18, fontWeight: 'bold', opacity: 0.4 }}>
-                      [x] {zone.name}
-                    </div>
-                    <div style={{ color: '#1a5a2a', fontSize: 10, marginTop: 4, lineHeight: '14px' }}>
-                      {zone.description}
-                    </div>
-                    <div style={{ marginTop: 6 }}>
-                      {zone.unlockRequirements.map((req, i) => {
-                        const done = bossLog.includes(`${req.bossName}|${req.withClass}`);
-                        return (
-                          <div key={i} style={{ color: done ? '#33ff66' : '#ffd700', fontSize: 9, lineHeight: '13px' }}>
-                            {done ? '✓' : '○'} Beat {req.bossName} as {req.withClass.charAt(0).toUpperCase() + req.withClass.slice(1)}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        <button style={secondaryBtnStyle} onClick={() => setScreen('classSelect')}>
-          {'[ Back ]'}
-        </button>
-      </div>
-    );
+    beginGame('stone_depths');
+    return null;
   }
 
   if (screen === 'gameover' && state) {

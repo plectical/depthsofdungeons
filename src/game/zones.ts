@@ -32,9 +32,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     color: '#88ddff',
     icon: '*',
     element: 'ice',
-    unlockRequirements: [
-      { bossName: 'Goblin King', withClass: 'warrior' },
-    ],
+    unlockRequirements: [],
     terrainPool: ['ice', 'frozen', 'water', 'holy'],
     floorRange: { min: 1, max: 12 },
     palette: {
@@ -51,9 +49,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     color: '#44cc22',
     icon: '~',
     element: 'poison',
-    unlockRequirements: [
-      { bossName: 'Stone Guardian', withClass: 'ranger' },
-    ],
+    unlockRequirements: [],
     terrainPool: ['poison', 'mud', 'spore', 'mycelium', 'tall_grass', 'water'],
     floorRange: { min: 1, max: 12 },
     palette: {
@@ -70,9 +66,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     color: '#ff5522',
     icon: '!',
     element: 'fire',
-    unlockRequirements: [
-      { bossName: 'Vampire Lord', withClass: 'mage' },
-    ],
+    unlockRequirements: [],
     terrainPool: ['lava', 'brimstone', 'shadow', 'holy'],
     floorRange: { min: 1, max: 12 },
     palette: {
@@ -89,9 +83,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     color: '#cc77ff',
     icon: '+',
     element: 'lightning',
-    unlockRequirements: [
-      { bossName: 'Abyssal Worm', withClass: 'rogue' },
-    ],
+    unlockRequirements: [],
     terrainPool: ['crystal', 'holy', 'ice', 'water', 'shadow'],
     floorRange: { min: 1, max: 12 },
     palette: {
@@ -108,9 +100,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     color: '#aa44ff',
     icon: 'V',
     element: 'holy',
-    unlockRequirements: [
-      { bossName: 'Lich Emperor', withClass: 'necromancer' },
-    ],
+    unlockRequirements: [],
     terrainPool: ['shadow', 'void_rift', 'poison', 'holy'],
     floorRange: { min: 1, max: 15 },
     palette: {
@@ -127,9 +117,7 @@ export const ZONE_DEFS: ZoneDef[] = [
     color: '#ff2200',
     icon: '6',
     element: 'fire',
-    unlockRequirements: [
-      { bossName: 'The Nameless One', withClass: 'paladin' },
-    ],
+    unlockRequirements: [],
     terrainPool: ['hellfire', 'soul_ash', 'blood_pool', 'lava', 'brimstone', 'shadow'],
     floorRange: { min: 1, max: 20 },
     palette: {
@@ -1242,6 +1230,24 @@ export const ZONE_SCROLLS: Record<ZoneId, Omit<Item, 'id'>[]> = {
 
 export function getZoneDef(zoneId: ZoneId): ZoneDef {
   return ZONE_DEFS.find(z => z.id === zoneId) ?? ZONE_DEFS[0]!;
+}
+
+/** Sequential zone progression order for endless mode */
+export const ZONE_ORDER: ZoneId[] = [
+  'stone_depths',
+  'frozen_caverns',
+  'fungal_marsh',
+  'infernal_pit',
+  'crystal_sanctum',
+  'shadow_realm',
+  'hell',
+];
+
+/** Get the next zone in the sequential progression. Returns null if already at the final zone (Hell loops). */
+export function getNextZone(currentZone: ZoneId): ZoneId | null {
+  const idx = ZONE_ORDER.indexOf(currentZone);
+  if (idx < 0 || idx >= ZONE_ORDER.length - 1) return null;
+  return ZONE_ORDER[idx + 1] ?? null;
 }
 
 /** Check if a zone is unlocked given the player's boss kill log + optional echo-unlocked zones */
