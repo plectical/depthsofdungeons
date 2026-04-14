@@ -9,7 +9,7 @@
     "build": "npm run _build",
     "build:bundled": "cross-env RUNDOT_GAME_DISABLE_EMBEDDED_LIBS=true npm run _build",
     "preview": "vite preview",
-    "deploy": "npm run build && rundot deploy && rundot game copy-tag development production && rundot game copy-tag production public && rundot game copy-tag production public-live && git add -A && git commit -m \"Build deployed\" && git push",
+    "deploy": "npm run build && rundot deploy && rundot game copy-tag private review && git add -A && git commit -m \"Build deployed\" && git push",
     "format": "prettier \"{src,public}/**/*.{ts,tsx,js,jsx,json,css,html}\" --write",
     "format:check": "prettier \"{src,public}/**/*.{ts,tsx,js,jsx,json,css,html}\" --check"
   },

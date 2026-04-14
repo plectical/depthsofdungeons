@@ -403,18 +403,30 @@ export function Game() {
   // Re-check globalStorage when the tab regains focus (player returns from watching)
   useEffect(() => {
     if (hasWatchedDodShow) return;
-    const onVisChange = async () => {
-      if (document.visibilityState !== 'visible') return;
+    const checkUnlock = async () => {
       try {
         const watched = await RundotGameAPI.globalStorage.getItem('watched_dod_show');
         if (watched === '1') {
           setHasWatchedDodShow(true);
           try { RundotGameAPI.analytics.recordCustomEvent('runtv_impregnar_unlock', { source: 'visibility_check' }).catch(() => {}); } catch {}
+          return;
         }
       } catch { /* globalStorage unavailable */ }
+      try {
+        if (localStorage.getItem('runtv_clicked') === '1') {
+          localStorage.removeItem('runtv_clicked');
+          setHasWatchedDodShow(true);
+        }
+      } catch { /* localStorage unavailable */ }
     };
+    const onVisChange = () => { if (document.visibilityState === 'visible') checkUnlock(); };
+    const onFocus = () => checkUnlock();
     document.addEventListener('visibilitychange', onVisChange);
-    return () => document.removeEventListener('visibilitychange', onVisChange);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisChange);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [hasWatchedDodShow]);
 
   // Keep refs in sync
@@ -4446,6 +4458,17 @@ export function Game() {
               </button>
               <button
                 style={{
+                  background: hasWatchedDodShow ? '#003300' : '#442200',
+                  color: hasWatchedDodShow ? '#88ff44' : '#ff8800',
+                  border: '1px solid', borderRadius: 4, padding: '2px 6px',
+                  fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
+                }}
+                onClick={() => setHasWatchedDodShow(prev => !prev)}
+              >
+                TV: {hasWatchedDodShow ? 'Y' : 'N'}
+              </button>
+              <button
+                style={{
                   background: '#440022', color: '#ff4488',
                   border: '1px solid #ff4488', borderRadius: 4, padding: '2px 6px',
                   fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
@@ -4975,13 +4998,9 @@ export function Game() {
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.85)', zIndex: 10000,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, cursor: 'pointer',
-        }} onClick={() => {
-          setHasWatchedDodShow(true);
-          try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
-          setShowRunTvPopup(false);
-        }}>
-          <div style={{ maxWidth: 360, width: '100%', position: 'relative' }}>
+          padding: 20,
+        }} onClick={() => setShowRunTvPopup(false)}>
+          <div style={{ maxWidth: 360, width: '100%', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
             {runTvPopupImg ? (
               <img src={runTvPopupImg} alt="Watch Depths of Dungeon on RUN TV" style={{
                 width: '100%', maxWidth: 360, borderRadius: 8,
@@ -5002,6 +5021,27 @@ export function Game() {
             )}
             <button
               style={{
+                display: 'block', width: '100%', marginTop: 12,
+                padding: '12px 0', textAlign: 'center',
+                background: '#88ff44', color: '#111', borderRadius: 6,
+                fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold',
+                textDecoration: 'none', border: 'none', cursor: 'pointer',
+              }}
+              onClick={() => {
+                try { localStorage.setItem('runtv_clicked', '1'); } catch { /* noop */ }
+                try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
+                const win = window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank', 'noopener,noreferrer');
+                if (!win) {
+                  // Popup blocked — unlock directly
+                  setHasWatchedDodShow(true);
+                  setShowRunTvPopup(false);
+                }
+              }}
+            >
+              WATCH NOW ON RUN TV
+            </button>
+            <button
+              style={{
                 position: 'absolute', top: 8, right: 8,
                 background: 'rgba(0,0,0,0.6)', color: '#ff6644',
                 border: '2px solid #ff664488', borderRadius: 6,
@@ -5010,7 +5050,7 @@ export function Game() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 zIndex: 1,
               }}
-              onClick={(e) => { e.stopPropagation(); setShowRunTvPopup(false); }}
+              onClick={() => setShowRunTvPopup(false)}
             >X</button>
           </div>
         </div>
