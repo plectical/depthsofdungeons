@@ -553,6 +553,9 @@ export function Game() {
         .catch(() => {});
       return;
     }
+
+    // Only generate art in narrative_test zone — skip for normal endless
+    if (stateRef.current?.zone !== 'narrative_test') return;
     
     const description = pendingEncounter.description || 'skill check';
     const skill = pendingEncounter.primarySkill || 'awareness';
@@ -560,13 +563,10 @@ export function Game() {
     generateSkillCheckArt(description, skill)
       .then(url => {
         if (url) {
-          console.log('[SkillCheck] Generated art:', url);
           setSkillCheckArtUrl(url);
         }
       })
-      .catch(err => {
-        console.warn('[SkillCheck] Art generation failed:', err);
-      });
+      .catch(() => {});
   }, [showSkillCheck, pendingEncounter, isStoryMode]);
 
   // Load best floor + bloodline on mount, and connect to necropolis
