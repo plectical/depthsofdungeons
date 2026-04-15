@@ -188,23 +188,16 @@ export function RoomEventModal({
             </button>
           )}
 
-          {/* Large pixel art display */}
-          <div style={largeArtContainerStyle}>
-            {roomEvent.artUrl ? (
+          {/* Large pixel art display — only shown when art is available */}
+          {roomEvent.artUrl && (
+            <div style={largeArtContainerStyle}>
               <img 
                 src={roomEvent.artUrl} 
                 alt={event.name}
                 style={largeArtImageStyle}
               />
-            ) : (
-              <div style={largeArtFallbackStyle}>
-                <span style={{ fontSize: 48, color: UI_COLORS.primary }}>?</span>
-                <span style={{ fontSize: 12, color: UI_COLORS.textMuted, marginTop: 8 }}>
-                  Generating art...
-                </span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Event name */}
           <div style={eventNameContainerStyle}>
@@ -314,15 +307,7 @@ const largeArtImageStyle: CSSProperties = {
   display: 'block',
 };
 
-const largeArtFallbackStyle: CSSProperties = {
-  width: '100%',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: '#111',
-};
+// largeArtFallbackStyle removed — art area hidden when no art available
 
 const eventNameContainerStyle: CSSProperties = {
   textAlign: 'center',
