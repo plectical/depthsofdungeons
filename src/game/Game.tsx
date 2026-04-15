@@ -444,14 +444,6 @@ export function Game() {
     return () => document.removeEventListener('visibilitychange', onVisChange);
   }, []);
 
-  // Show/hide AdSense banner based on screen — hidden during gameplay
-  useEffect(() => {
-    const ad = document.getElementById('ad-container');
-    if (!ad) return;
-    const showAd = screen === 'title' || screen === 'gameover' || screen === 'classSelect';
-    ad.style.display = showAd ? 'block' : 'none';
-  }, [screen]);
-
   // Keep refs in sync
   useEffect(() => {
     bloodlineRef.current = bloodline;

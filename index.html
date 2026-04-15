@@ -20,8 +20,6 @@
     fbq('init', '1938108636803653');  // general - fires on page load
 </script>
     <!-- End Meta Pixel Code -->
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1220411708747471" crossorigin="anonymous"></script>
     <!-- Early boot crash detection — fires BEFORE any module JS loads.
          Captures errors that kill the session before React/SDK can report. -->
     <script>
@@ -76,16 +74,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Depths AdSense Banner — hidden by default, shown by game code on menu/death screens -->
-    <div id="ad-container" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;text-align:center;pointer-events:auto;">
-      <ins class="adsbygoogle"
-           style="display:block"
-           data-ad-client="ca-pub-1220411708747471"
-           data-ad-slot="5575876480"
-           data-ad-format="auto"
-           data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
