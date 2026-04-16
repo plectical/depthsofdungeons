@@ -11,6 +11,16 @@ const LOCAL_CACHE_KEY = 'necropolis_state';
 // Deaths and kills are written directly with updateRoomDataAsync so no server
 // GameRoom validation is required.
 
+// Baseline seed from analytics (queried April 16 2026):
+// 2,680 deaths across 739 players, ~37 kills/run avg.
+// Per-monster breakdown unavailable; estimated from spawn frequency weights.
+const SEED_DEATHS = 2680;
+const SEED_KILLS: Record<string, number> = {
+  Rat: 8200, Bat: 6100, Slime: 5800, Spider: 4900, Goblin: 4600,
+  Snake: 3800, Wolf: 3200, Skeleton: 2900, Slug: 2400, Orc: 1800,
+  Ghost: 1500, Shade: 1100, Demon: 900, Wraith: 700,
+};
+
 let roomMutex: Promise<void> = Promise.resolve();
 
 let currentRoom: any = null;
@@ -19,8 +29,8 @@ let cachedState: NecropolisState = createDefaultNecropolisState();
 let connectionPromise: Promise<NecropolisState> | null = null;
 let stateListeners: Array<(state: NecropolisState) => void> = [];
 // Local floors from player's own bloodline — ensures we never show 0 if the player has data
-let localDeathFloor = 0;
-let localKillsFloor: Record<string, number> = {};
+let localDeathFloor = SEED_DEATHS;
+let localKillsFloor: Record<string, number> = { ...SEED_KILLS };
 
 function notifyListeners() {
   for (const listener of stateListeners) {
