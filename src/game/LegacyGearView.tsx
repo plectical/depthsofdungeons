@@ -59,6 +59,9 @@ const btnDisabledStyle: CSSProperties = {
 
 export function LegacyGearView({ bloodline, onSave, onClose }: Props) {
   const [selectedClass, setSelectedClass] = useState<PlayerClass | null>(null);
+  const [showTutorial, setShowTutorial] = useState(() => {
+    try { return !localStorage.getItem('dod_legacy_gear_tutorial_seen'); } catch { return true; }
+  });
 
   const legacyData = ensureLegacyData(bloodline);
 
@@ -76,6 +79,47 @@ export function LegacyGearView({ bloodline, onSave, onClose }: Props) {
 
   return (
     <div style={containerStyle}>
+      {showTutorial && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div style={{
+            maxWidth: 320, background: '#0e0e1a', border: '1px solid #c49eff66',
+            boxShadow: '0 0 30px #c49eff22', padding: '24px 20px', fontFamily: 'monospace',
+            textAlign: 'center',
+          }}>
+            <div style={{ color: '#c49eff', fontSize: 18, fontWeight: 'bold', letterSpacing: 2, marginBottom: 12 }}>
+              {'\u{2726}'} LEGACY GEAR {'\u{2726}'}
+            </div>
+            <div style={{ color: '#aaa', fontSize: 12, lineHeight: '1.6', marginBottom: 16 }}>
+              Every class has a unique <b style={{ color: '#c49eff' }}>Legacy weapon</b> that grows stronger the more you invest.
+            </div>
+            <div style={{ color: '#888', fontSize: 11, lineHeight: '1.5', marginBottom: 16, textAlign: 'left' }}>
+              <div style={{ marginBottom: 6 }}><span style={{ color: '#c49eff' }}>{'\u{2726}'}</span> <b style={{ color: '#ccc' }}>Earn shards</b> by reaching deeper floors</div>
+              <div style={{ marginBottom: 6 }}><span style={{ color: '#c49eff' }}>{'\u{2726}'}</span> <b style={{ color: '#ccc' }}>Spend shards</b> to level up your gear</div>
+              <div style={{ marginBottom: 6 }}><span style={{ color: '#c49eff' }}>{'\u{2726}'}</span> <b style={{ color: '#ccc' }}>Gear auto-equips</b> at the start of every run</div>
+              <div><span style={{ color: '#c49eff' }}>{'\u{2726}'}</span> <b style={{ color: '#ccc' }}>Unlock abilities</b> at milestone levels</div>
+            </div>
+            <div style={{ color: '#666', fontSize: 10, marginBottom: 16, fontStyle: 'italic' }}>
+              Your Legacy Gear can never be lost or sold. It is yours forever.
+            </div>
+            <button
+              style={{
+                background: '#2a1a4a', color: '#c49eff', border: '1px solid #c49eff',
+                borderRadius: 4, padding: '10px 24px', fontFamily: 'monospace', fontSize: 13,
+                fontWeight: 'bold', cursor: 'pointer', letterSpacing: 1,
+              }}
+              onClick={() => {
+                setShowTutorial(false);
+                try { localStorage.setItem('dod_legacy_gear_tutorial_seen', '1'); } catch { /* ok */ }
+              }}
+            >
+              {'[ Got it ]'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

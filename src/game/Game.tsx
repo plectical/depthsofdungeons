@@ -4376,7 +4376,7 @@ export function Game() {
               else handleNecroTap();
             })}
             {menuBtn('QUESTS', '#88ccff', '#2266aa', '#2266aa88', 'quests', () => openQuestLog('title'))}
-            {menuBtn('LEGACY GEAR', '#c49eff', '#7733bb', '#c49eff88', 'legacy', () => setShowLegacyGear(true))}
+            {ensureLegacyData(bloodline).totalShardsEarned > 0 && menuBtn('LEGACY GEAR', '#c49eff', '#7733bb', '#c49eff88', 'legacy', () => setShowLegacyGear(true))}
           </div>
 
           {/* Tertiary buttons */}
