@@ -5329,9 +5329,13 @@ export function Game() {
               onClick={() => {
                 try { localStorage.setItem('runtv_clicked', '1'); } catch { /* noop */ }
                 try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
-                const win = window.open('https://run-game.onelink.me/5Mmv/0h4l9shh', '_blank', 'noopener,noreferrer');
-                if (!win) {
-                  // Popup blocked — unlock directly
+                try {
+                  const a = document.createElement('a');
+                  a.href = 'https://run-game.onelink.me/5Mmv/0h4l9shh';
+                  a.target = '_blank';
+                  a.rel = 'noopener noreferrer';
+                  a.click();
+                } catch {
                   setHasWatchedDodShow(true);
                   setShowRunTvPopup(false);
                 }
