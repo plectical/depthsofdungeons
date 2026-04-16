@@ -11,6 +11,8 @@ const LOCAL_CACHE_KEY = 'necropolis_state';
 // Deaths and kills are written directly with updateRoomDataAsync so no server
 // GameRoom validation is required.
 
+let roomMutex: Promise<void> = Promise.resolve();
+
 let currentRoom: any = null;
 let unsubscribeFn: (() => void) | null = null;
 let cachedState: NecropolisState = createDefaultNecropolisState();
@@ -107,10 +109,10 @@ async function saveLocalCache(state: NecropolisState) {
   safeSetItem(LOCAL_CACHE_KEY, JSON.stringify(state));
 }
 
-/** Parse room data into NecropolisState — reads from customMetadata.necropolisState */
+/** Parse room data into NecropolisState — checks multiple data paths for compatibility */
 function parseRoomData(roomData: any): NecropolisState {
-  // Support both the old nested path and the flat necropolisState key
   const gs =
+    roomData?.necropolisState ??
     roomData?.customMetadata?.necropolisState ??
     roomData?.customMetadata?.rules?.gameState?.gameSpecificState ??
     {};
@@ -214,8 +216,13 @@ async function pushStateToRoom(state: NecropolisState): Promise<void> {
 }
 
 /** Report a player death to the Necropolis */
-export async function reportDeath(): Promise<void> {
-  // Always increment local cache immediately for responsiveness
+export function reportDeath(): Promise<void> {
+  const job = roomMutex.then(() => reportDeathInner());
+  roomMutex = job.catch(() => {});
+  return job;
+}
+
+async function reportDeathInner(): Promise<void> {
   cachedState = {
     ...cachedState,
     communalDeaths: cachedState.communalDeaths + 1,
@@ -225,20 +232,14 @@ export async function reportDeath(): Promise<void> {
   await saveLocalCache(cachedState);
   notifyListeners();
 
-  // If we don't have a room connection, try to connect now
   if (!currentRoom) {
-    try {
-      await connectToNecropolis();
-    } catch { /* best effort */ }
+    try { await connectToNecropolis(); } catch { /* best effort */ }
   }
-
   if (!currentRoom) return;
 
   try {
-    // Fetch latest room data to merge with other players' deaths
     const roomData = await RundotGameAPI.rooms.getRoomDataAsync(currentRoom);
     const serverState = parseRoomData(roomData);
-    // Take the higher of server count + 1 (our death) vs what we already have
     const newDeaths = Math.max(serverState.communalDeaths + 1, cachedState.communalDeaths);
     const newKills = mergeKillsWithFloor(serverState.communalKills, cachedState.communalKills);
 
@@ -250,8 +251,6 @@ export async function reportDeath(): Promise<void> {
     };
     await saveLocalCache(cachedState);
     notifyListeners();
-
-    // Write directly to the room — no server validation needed
     await pushStateToRoom(cachedState);
   } catch {
     // Best effort - local state already updated
@@ -259,8 +258,13 @@ export async function reportDeath(): Promise<void> {
 }
 
 /** Report monster kills from a run to the Necropolis communal bestiary */
-export async function reportKills(monsterKills: Record<string, number>): Promise<void> {
-  // Merge kills into communal totals locally
+export function reportKills(monsterKills: Record<string, number>): Promise<void> {
+  const job = roomMutex.then(() => reportKillsInner(monsterKills));
+  roomMutex = job.catch(() => {});
+  return job;
+}
+
+async function reportKillsInner(monsterKills: Record<string, number>): Promise<void> {
   const merged = { ...cachedState.communalKills };
   for (const [name, count] of Object.entries(monsterKills)) {
     merged[name] = (merged[name] ?? 0) + count;
@@ -274,21 +278,15 @@ export async function reportKills(monsterKills: Record<string, number>): Promise
   await saveLocalCache(cachedState);
   notifyListeners();
 
-  // If we don't have a room connection, try to connect now
   if (!currentRoom) {
-    try {
-      await connectToNecropolis();
-    } catch { /* best effort */ }
+    try { await connectToNecropolis(); } catch { /* best effort */ }
   }
-
   if (!currentRoom) return;
 
   try {
-    // Fetch latest room data to merge with server's kill counts
     const roomData = await RundotGameAPI.rooms.getRoomDataAsync(currentRoom);
     const serverState = parseRoomData(roomData);
 
-    // Merge this player's new kills into the server's current totals
     const updatedKills = { ...serverState.communalKills };
     for (const [name, count] of Object.entries(monsterKills)) {
       updatedKills[name] = (updatedKills[name] ?? 0) + count;
@@ -303,8 +301,6 @@ export async function reportKills(monsterKills: Record<string, number>): Promise
     };
     await saveLocalCache(cachedState);
     notifyListeners();
-
-    // Write directly to the room
     await pushStateToRoom(cachedState);
   } catch {
     // Best effort
