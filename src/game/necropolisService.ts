@@ -81,7 +81,7 @@ function mergeKillsWithFloor(remote: Record<string, number>, local: Record<strin
 /** Set a minimum death count from the player's own bloodline data.
  *  This ensures the necropolis never shows 0 when the player has local deaths. */
 export function setLocalDeathFloor(totalDeaths: number): void {
-  localDeathFloor = totalDeaths;
+  localDeathFloor = Math.max(localDeathFloor, totalDeaths);
   // If current cached state is below the floor, bump it up
   if (cachedState.communalDeaths < localDeathFloor) {
     cachedState = {
@@ -97,7 +97,7 @@ export function setLocalDeathFloor(totalDeaths: number): void {
 /** Set minimum kill counts from the player's own bloodline bestiary data.
  *  This ensures the bestiary never shows 0 kills when the player has local kills. */
 export function setLocalKillsFloor(kills: Record<string, number>): void {
-  localKillsFloor = kills;
+  localKillsFloor = mergeKillsWithFloor(localKillsFloor, kills);
   const merged = mergeKillsWithFloor(cachedState.communalKills, localKillsFloor);
   // Only update if something changed
   const changed = Object.keys(merged).some(k => merged[k] !== cachedState.communalKills[k]);
