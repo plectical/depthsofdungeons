@@ -4599,6 +4599,19 @@ export function Game() {
           </div>
         </div>
         )}
+        {showLegacyGear && createPortal(
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0a12' }}>
+            <LegacyGearView
+              bloodline={bloodline}
+              onSave={(bl) => {
+                saveBloodline(bl);
+                setBloodline({ ...bl });
+              }}
+              onClose={() => setShowLegacyGear(false)}
+            />
+          </div>,
+          document.body,
+        )}
         {pendingLorePopup && (() => {
           const entry = ALL_LORE.find(e => e.id === pendingLorePopup);
           if (!entry) return null;
