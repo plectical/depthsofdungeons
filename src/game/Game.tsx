@@ -88,7 +88,6 @@ import {
   trackPlayerIdentity, trackGameModeStart,
   trackStoryModeStart, trackStoryFloorReached,
   trackStoryBossKill, trackStoryDeath,
-  trackStoryJournalOpened,
 } from './analytics';
 import { updateErrorContext, reportError, safeEngineCall } from './errorReporting';
 import { safeSetItem, safeGetItem, safeGetProfile } from './safeStorage';
@@ -4439,18 +4438,6 @@ export function Game() {
                   </div>
                 );
               })()}
-              {/* Story Journal — special amber button */}
-              <button
-                style={{
-                  width: '100%', padding: '10px 0', fontSize: 13, fontWeight: 'bold', fontFamily: 'monospace',
-                  letterSpacing: 2, border: '2px solid #cc8844', borderRadius: 0, cursor: 'pointer',
-                  background: '#0a0a14', color: '#ffcc66', textShadow: '0 0 8px #cc884488',
-                  boxShadow: '0 0 12px #cc884422, inset 0 0 15px #cc884411', transition: 'background 0.1s',
-                }}
-                onClick={async () => { setShowMoreMenu(false); const cs = await loadCampaign(); setCampaignSave(cs); campaignSaveRef.current = cs; setShowStoryJournal(true); trackStoryJournalOpened(); }}
-              >
-                STORY JOURNAL
-              </button>
               {/* Player ID */}
               <div style={{ color: '#444', fontFamily: 'monospace', fontSize: 8, textAlign: 'center', userSelect: 'text', WebkitUserSelect: 'text' }}>
                 ID: {(() => { try { return RundotGameAPI.getProfile()?.id ?? '...'; } catch { return '...'; } })()}

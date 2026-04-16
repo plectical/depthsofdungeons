@@ -371,6 +371,29 @@ export function Inventory({ state, onChange, onClose, autoSellRarities, onAutoSe
 
         {tab === 'equip' && (
           <div style={listStyle}>
+            {/* ASCII character silhouette */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8, gap: 12 }}>
+              <pre style={{
+                fontFamily: 'monospace', fontSize: 10, lineHeight: '1.3', color: '#33ff6644',
+                textAlign: 'center', margin: 0, userSelect: 'none',
+              }}>{
+`    ${equipment.amulet ? '\u{2726}' : '\u{00B7}'}
+   ╔═╗
+   ║${equipment.armor ? '@' : '\u{00B7}'}║${equipment.cloak ? '~' : ' '}
+  ${equipment.weapon ? ')' : ' '}╠═╣${equipment.offhand ? ']' : ' '}
+   ║ ║${equipment.ring ? '=' : ' '}
+   ╚╦╝${equipment.trinket ? '*' : ' '}
+   ${equipment.boots ? '╩' : '║'}`
+              }</pre>
+              <div style={{ fontSize: 9, fontFamily: 'monospace', color: '#555', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
+                <div style={{ color: equipment.amulet ? '#88ddff' : '#333' }}>{'\u{2726}'} Amulet</div>
+                <div style={{ color: equipment.armor ? '#33ff66' : '#333' }}>@ Armor</div>
+                <div style={{ color: equipment.weapon ? '#ff6644' : '#333' }}>) Weapon</div>
+                <div style={{ color: equipment.offhand ? '#ffdd44' : '#333' }}>] Offhand</div>
+                <div style={{ color: equipment.ring ? '#ff66dd' : '#333' }}>= Ring</div>
+                <div style={{ color: equipment.boots ? '#88ff44' : '#333' }}>{'\u{2229}'} Boots</div>
+              </div>
+            </div>
             {(['weapon', 'offhand', 'armor', 'cloak', 'boots', 'ring', 'amulet', 'trinket', 'legacy'] as EquipSlot[]).map((slot) => {
               const item = equipment[slot];
               if (slot === 'legacy' && !item) return null;
