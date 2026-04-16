@@ -5327,18 +5327,10 @@ export function Game() {
                 textDecoration: 'none', border: 'none', cursor: 'pointer',
               }}
               onClick={() => {
-                try { localStorage.setItem('runtv_clicked', '1'); } catch { /* noop */ }
                 try { RundotGameAPI.analytics.recordCustomEvent('runtv_watch_clicked', { source: 'popup' }).catch(() => {}); } catch {}
-                try {
-                  const a = document.createElement('a');
-                  a.href = 'https://run-game.onelink.me/5Mmv/0h4l9shh';
-                  a.target = '_blank';
-                  a.rel = 'noopener noreferrer';
-                  a.click();
-                } catch {
-                  setHasWatchedDodShow(true);
-                  setShowRunTvPopup(false);
-                }
+                try { RundotGameAPI.globalStorage.setItem('watched_dod_show', '1').catch(() => {}); } catch {}
+                setHasWatchedDodShow(true);
+                setShowRunTvPopup(false);
               }}
             >
               WATCH NOW ON RUN TV
