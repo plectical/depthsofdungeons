@@ -19,7 +19,7 @@ function getStoredGeneratedClass(): GeneratedClass | null {
 }
 import { computeBloodlineBonuses, createEmptyRunStats } from './traits';
 import { spawnNPCs } from './npcs';
-import { getNecropolisClasses, getNecropolisMonsters } from './necropolis';
+import { getNecropolisClasses, getNecropolisMonsters, isUnlocked } from './necropolis';
 import { getNecropolisState } from './necropolisService';
 import { getZoneDef, getNextZone, ZONE_BOSSES, ZONE_BOSS_LOOT } from './zones';
 import { getAttackElement, getDefenseElement, getElementalMultiplier, getElementalMessage, ELEMENT_INFO } from './elements';
@@ -745,6 +745,12 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
         player.inventory.push({ ...template, id: uid() });
       }
     }
+  }
+
+  // Necropolis zone bonuses
+  const necroDeaths = getNecropolisState().communalDeaths;
+  if (isUnlocked('zone_throne_of_bones', necroDeaths)) {
+    bonusGold += 10;
   }
 
   // Apply Legacy Gear stat bonuses (persistent meta-progression)
@@ -2458,7 +2464,8 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
         const allDefs = [...MONSTER_DEFS, ...getNecropolisMonsters(getNecropolisState().communalDeaths)];
         const def = allDefs.find((m) => m.name === defender.name);
         const lootBonus = hasPassive(state, 'Scavenger') ? 0.2 : 0;
-        if (def && Math.random() < def.lootChance + lootBonus) {
+        const ossuaryBonus = isUnlocked('dungeon_ossuary', getNecropolisState().communalDeaths) ? 0.05 : 0;
+        if (def && Math.random() < def.lootChance + lootBonus + ossuaryBonus) {
           const loot = randomItem(state.floorNumber, state.zone);
           state.items.push({ id: uid(), pos: { ...defender.pos }, item: loot });
           const lootColor = loot.rarity && loot.rarity !== 'common' ? RARITY_DEFS[loot.rarity].color : MSG_COLOR.loot;

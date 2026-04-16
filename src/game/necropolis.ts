@@ -211,11 +211,11 @@ export const NECROPOLIS_UNLOCKS: NecropolisUnlock[] = [
     color: '#ff4444',
   },
 
-  // ─── ZONES (entirely new areas that appear after certain floors) ───
+  // ─── ZONES (global passive bonuses unlocked by communal deaths) ───
   {
     id: 'zone_graveyard',
     name: 'The Graveyard',
-    description: 'An open graveyard zone appears every 5 floors. More food, more undead.',
+    description: 'Necropolis enemies now appear in ALL zones, not just Stone Depths.',
     category: 'zone',
     deathsRequired: 45,
     icon: '+',
@@ -224,7 +224,7 @@ export const NECROPOLIS_UNLOCKS: NecropolisUnlock[] = [
   {
     id: 'zone_necropolis_depths',
     name: 'Necropolis Depths',
-    description: 'The deep Necropolis. Appears after floor 10. Extreme danger, extreme rewards.',
+    description: 'Shops always stock one Necropolis item. Better dark loot everywhere.',
     category: 'zone',
     deathsRequired: 225,
     icon: '+',
@@ -233,11 +233,145 @@ export const NECROPOLIS_UNLOCKS: NecropolisUnlock[] = [
   {
     id: 'zone_throne_of_bones',
     name: 'Throne of Bones',
-    description: 'The final zone. A boss arena unlocked by massive sacrifice.',
+    description: 'All heroes start with +10 bonus gold from the Necropolis treasury.',
     category: 'zone',
     deathsRequired: 500,
     icon: '+',
     color: '#ff3333',
+  },
+
+  // ─── HIGH-TIER WEAPONS (750+) ───
+  {
+    id: 'weapon_ghoul_fang',
+    name: 'Ghoul Fang',
+    description: 'A cursed dagger that drains life. +7 atk, poison, lifedrain.',
+    category: 'weapon',
+    deathsRequired: 750,
+    icon: ')',
+    color: '#44dd88',
+  },
+  {
+    id: 'weapon_wraith_blade',
+    name: 'Wraith Blade',
+    description: 'Phases through armor. +12 atk, ignores 3 defense.',
+    category: 'weapon',
+    deathsRequired: 1500,
+    icon: ')',
+    color: '#bb88ff',
+  },
+  {
+    id: 'weapon_lich_staff',
+    name: 'Lich Staff',
+    description: 'Ranged dark magic. +14 atk, range 4, stun chance.',
+    category: 'weapon',
+    deathsRequired: 3000,
+    icon: '/',
+    color: '#dd44ff',
+  },
+  {
+    id: 'weapon_oblivion_edge',
+    name: 'Oblivion Edge',
+    description: 'The void made sharp. +22 atk, dark element, bleed.',
+    category: 'weapon',
+    deathsRequired: 7500,
+    icon: ')',
+    color: '#ff2266',
+  },
+
+  // ─── HIGH-TIER ARMOR (1000+) ───
+  {
+    id: 'armor_banshee_veil',
+    name: "Banshee's Veil",
+    description: 'Woven from screams. +5 def, +6 speed.',
+    category: 'armor',
+    deathsRequired: 1000,
+    icon: '[',
+    color: '#ccbbff',
+  },
+  {
+    id: 'armor_dread_plate',
+    name: 'Dread Plate',
+    description: 'Forged in 2,500 deaths. +16 def, +10 HP.',
+    category: 'armor',
+    deathsRequired: 2500,
+    icon: '[',
+    color: '#aa3366',
+  },
+  {
+    id: 'armor_death_lord_mantle',
+    name: "Death Lord's Mantle",
+    description: 'The ultimate necropolis armor. +20 def, +15 HP, +3 atk.',
+    category: 'armor',
+    deathsRequired: 5000,
+    icon: '[',
+    color: '#ff44aa',
+  },
+
+  // ─── HIGH-TIER ITEMS (750+) ───
+  {
+    id: 'item_bone_dice',
+    name: 'Bone Dice',
+    description: 'Ring: +3 attack, +3 speed. Luck of the dead.',
+    category: 'item',
+    deathsRequired: 750,
+    icon: '=',
+    color: '#eeddaa',
+  },
+  {
+    id: 'item_skull_lantern',
+    name: 'Skull Lantern',
+    description: 'Amulet: +5 speed, reveals nearby enemies.',
+    category: 'item',
+    deathsRequired: 2000,
+    icon: '"',
+    color: '#ffaa44',
+  },
+  {
+    id: 'item_phylactery',
+    name: 'Phylactery',
+    description: 'Ring: +5 all stats. The power of an undying soul.',
+    category: 'item',
+    deathsRequired: 5000,
+    icon: '=',
+    color: '#ff55ff',
+  },
+
+  // ─── HIGH-TIER ENEMIES (1000+) ───
+  {
+    id: 'enemy_bone_dragon',
+    name: 'Bone Dragon',
+    description: 'An undead wyrm of terrible power. Floor 9+.',
+    category: 'enemy',
+    deathsRequired: 1000,
+    icon: 'D',
+    color: '#eeddff',
+  },
+  {
+    id: 'enemy_grave_titan',
+    name: 'Grave Titan',
+    description: 'A mountain of bone and hate. Floor 10+.',
+    category: 'enemy',
+    deathsRequired: 2500,
+    icon: 'T',
+    color: '#aa7799',
+  },
+  {
+    id: 'enemy_lich_lord',
+    name: 'Lich Lord',
+    description: 'Supreme master of the Necropolis. Floor 11+.',
+    category: 'enemy',
+    deathsRequired: 5000,
+    icon: 'L',
+    color: '#ff33ff',
+  },
+  {
+    id: 'enemy_death_incarnate',
+    name: 'Death Incarnate',
+    description: 'Born from 10,000 deaths. The Necropolis itself hunts you. Floor 12+.',
+    category: 'enemy',
+    deathsRequired: 10000,
+    icon: '\u{2620}',
+    color: '#ff0044',
   },
 ];
 
@@ -314,6 +448,83 @@ export function getNecropolisMonsters(communalDeaths: number): MonsterDef[] {
     });
   }
 
+  if (isUnlocked('enemy_bone_dragon', communalDeaths)) {
+    monsters.push({
+      name: 'Bone Dragon',
+      char: 'D',
+      color: '#eeddff',
+      element: 'dark',
+      stats: { hp: 75, maxHp: 75, attack: 22, defense: 10, speed: 7 },
+      xpValue: 100,
+      minFloor: 9,
+      lootChance: 0.6,
+      abilities: [
+        { type: 'chargeAttack', multiplier: 2.0, chance: 0.25 },
+        { type: 'freezeAttack', chance: 0.2, turns: 2 },
+        { type: 'callForHelp', monsterName: 'Bone Walker', chance: 0.15, cooldown: 6 },
+      ],
+      attackRange: 4, projectileChar: '*', projectileColor: '#eeddff', aggroRange: 12,
+    });
+  }
+
+  if (isUnlocked('enemy_grave_titan', communalDeaths)) {
+    monsters.push({
+      name: 'Grave Titan',
+      char: 'T',
+      color: '#aa7799',
+      element: 'dark',
+      stats: { hp: 110, maxHp: 110, attack: 18, defense: 16, speed: 3 },
+      xpValue: 120,
+      minFloor: 10,
+      lootChance: 0.6,
+      abilities: [
+        { type: 'chargeAttack', multiplier: 2.2, chance: 0.2 },
+        { type: 'selfHeal', amount: 15, hpThreshold: 0.4, cooldown: 4 },
+        { type: 'enrage', hpThreshold: 0.25, atkMultiplier: 2.0 },
+      ],
+      aggroRange: 6,
+    });
+  }
+
+  if (isUnlocked('enemy_lich_lord', communalDeaths)) {
+    monsters.push({
+      name: 'Lich Lord',
+      char: 'L',
+      color: '#ff33ff',
+      element: 'dark',
+      stats: { hp: 65, maxHp: 65, attack: 25, defense: 10, speed: 10 },
+      xpValue: 140,
+      minFloor: 11,
+      lootChance: 0.65,
+      abilities: [
+        { type: 'drainLife', percent: 30, chance: 0.35 },
+        { type: 'stunAttack', chance: 0.25 },
+        { type: 'callForHelp', monsterName: 'Lich', chance: 0.15, cooldown: 7 },
+      ],
+      attackRange: 5, projectileChar: '*', projectileColor: '#ff33ff', aggroRange: 12,
+    });
+  }
+
+  if (isUnlocked('enemy_death_incarnate', communalDeaths)) {
+    monsters.push({
+      name: 'Death Incarnate',
+      char: '\u{2620}',
+      color: '#ff0044',
+      element: 'dark',
+      stats: { hp: 90, maxHp: 90, attack: 28, defense: 12, speed: 11 },
+      xpValue: 200,
+      minFloor: 12,
+      lootChance: 0.75,
+      abilities: [
+        { type: 'drainLife', percent: 35, chance: 0.35 },
+        { type: 'chargeAttack', multiplier: 2.0, chance: 0.2 },
+        { type: 'bleedAttack', damage: 5, turns: 5, chance: 0.3 },
+        { type: 'enrage', hpThreshold: 0.3, atkMultiplier: 1.8 },
+      ],
+      attackRange: 4, projectileChar: '\u{2620}', projectileColor: '#ff0044', aggroRange: 14,
+    });
+  }
+
   return monsters;
 }
 
@@ -358,6 +569,69 @@ export function getNecropolisWeapons(communalDeaths: number): Omit<Item, 'id'>[]
       equipSlot: 'weapon',
       statBonus: { attack: 17 },
       description: 'The ultimate reaping tool',
+    });
+  }
+
+  if (isUnlocked('weapon_ghoul_fang', communalDeaths)) {
+    weapons.push({
+      name: 'Ghoul Fang',
+      type: 'weapon',
+      char: ')',
+      color: '#44dd88',
+      value: 55,
+      equipSlot: 'weapon',
+      element: 'poison',
+      statBonus: { attack: 7 },
+      onHitEffect: { type: 'lifesteal', percent: 15 },
+      description: 'Drains life with every strike',
+      rarity: 'rare',
+    });
+  }
+
+  if (isUnlocked('weapon_wraith_blade', communalDeaths)) {
+    weapons.push({
+      name: 'Wraith Blade',
+      type: 'weapon',
+      char: ')',
+      color: '#bb88ff',
+      value: 80,
+      equipSlot: 'weapon',
+      element: 'dark',
+      statBonus: { attack: 12 },
+      description: 'Phases through armor',
+      rarity: 'rare',
+    });
+  }
+
+  if (isUnlocked('weapon_lich_staff', communalDeaths)) {
+    weapons.push({
+      name: 'Lich Staff',
+      type: 'weapon',
+      char: '/',
+      color: '#dd44ff',
+      value: 100,
+      equipSlot: 'weapon',
+      element: 'dark',
+      statBonus: { attack: 14 },
+      range: 4,
+      description: 'Dark bolts that stun the living',
+      rarity: 'epic',
+    });
+  }
+
+  if (isUnlocked('weapon_oblivion_edge', communalDeaths)) {
+    weapons.push({
+      name: 'Oblivion Edge',
+      type: 'weapon',
+      char: ')',
+      color: '#ff2266',
+      value: 150,
+      equipSlot: 'weapon',
+      element: 'dark',
+      statBonus: { attack: 22 },
+      onHitEffect: { type: 'bleed', damage: 4, turns: 4 },
+      description: 'The void made sharp',
+      rarity: 'legendary',
     });
   }
 
@@ -408,6 +682,48 @@ export function getNecropolisArmor(communalDeaths: number): Omit<Item, 'id'>[] {
     });
   }
 
+  if (isUnlocked('armor_banshee_veil', communalDeaths)) {
+    armor.push({
+      name: "Banshee's Veil",
+      type: 'armor',
+      char: '[',
+      color: '#ccbbff',
+      value: 60,
+      equipSlot: 'armor',
+      statBonus: { defense: 5, speed: 6 },
+      description: 'Woven from screams',
+      rarity: 'rare',
+    });
+  }
+
+  if (isUnlocked('armor_dread_plate', communalDeaths)) {
+    armor.push({
+      name: 'Dread Plate',
+      type: 'armor',
+      char: '[',
+      color: '#aa3366',
+      value: 100,
+      equipSlot: 'armor',
+      statBonus: { defense: 16, maxHp: 10 },
+      description: 'Forged in 2,500 deaths',
+      rarity: 'epic',
+    });
+  }
+
+  if (isUnlocked('armor_death_lord_mantle', communalDeaths)) {
+    armor.push({
+      name: "Death Lord's Mantle",
+      type: 'armor',
+      char: '[',
+      color: '#ff44aa',
+      value: 160,
+      equipSlot: 'armor',
+      statBonus: { defense: 20, maxHp: 15, attack: 3 },
+      description: 'The mantle of the Death Lord',
+      rarity: 'legendary',
+    });
+  }
+
   return armor;
 }
 
@@ -450,6 +766,48 @@ export function getNecropolisItems(communalDeaths: number): Omit<Item, 'id'>[] {
       equipSlot: 'ring',
       statBonus: { attack: 4, defense: 4, speed: 4 },
       description: '+4 to all stats',
+    });
+  }
+
+  if (isUnlocked('item_bone_dice', communalDeaths)) {
+    items.push({
+      name: 'Bone Dice',
+      type: 'ring',
+      char: '=',
+      color: '#eeddaa',
+      value: 45,
+      equipSlot: 'ring',
+      statBonus: { attack: 3, speed: 3 },
+      description: 'Luck of the dead',
+      rarity: 'rare',
+    });
+  }
+
+  if (isUnlocked('item_skull_lantern', communalDeaths)) {
+    items.push({
+      name: 'Skull Lantern',
+      type: 'amulet',
+      char: '"',
+      color: '#ffaa44',
+      value: 65,
+      equipSlot: 'amulet',
+      statBonus: { speed: 5 },
+      description: 'The dead light your path',
+      rarity: 'rare',
+    });
+  }
+
+  if (isUnlocked('item_phylactery', communalDeaths)) {
+    items.push({
+      name: 'Phylactery',
+      type: 'ring',
+      char: '=',
+      color: '#ff55ff',
+      value: 120,
+      equipSlot: 'ring',
+      statBonus: { attack: 5, defense: 5, speed: 5, maxHp: 5 },
+      description: 'The power of an undying soul',
+      rarity: 'legendary',
     });
   }
 

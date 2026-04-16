@@ -39,6 +39,7 @@ import {
   getNecropolisArmor,
   getNecropolisItems,
   getUnlockedBountyItems,
+  isUnlocked,
 } from './necropolis';
 import { getNecropolisState } from './necropolisService';
 import { ZONE_MONSTERS, ZONE_BOSSES, ZONE_WEAPONS, ZONE_ARMOR, ZONE_POTIONS, ZONE_FOOD, ZONE_BOSS_LOOT, ZONE_RINGS, ZONE_AMULETS, ZONE_OFFHANDS, ZONE_SCROLLS } from './zones';
@@ -106,12 +107,19 @@ function randomWalkableInRoom(
 function getAllMonsterDefs(zone: ZoneId = 'stone_depths'): MonsterDef[] {
   const necroDeaths = getNecropolisState().communalDeaths;
   const echoEnemies = getEchoEnemies(_echoUnlockedNodes).filter(e => !e.isBoss);
+  const necroMonsters = getNecropolisMonsters(necroDeaths);
   const zoneMonsters = ZONE_MONSTERS[zone] ?? [];
+  // zone_graveyard unlock: necropolis enemies appear in ALL zones
+  const graveyardUnlocked = isUnlocked('zone_graveyard', necroDeaths);
   if (zone === 'stone_depths') {
-    return [...MONSTER_DEFS, ...getNecropolisMonsters(necroDeaths), ...echoEnemies];
+    return [...MONSTER_DEFS, ...necroMonsters, ...echoEnemies];
   }
-  // Non-stone_depths zones use their own monsters
-  return zoneMonsters.length > 0 ? [...zoneMonsters, ...echoEnemies] : [...MONSTER_DEFS, ...getNecropolisMonsters(necroDeaths), ...echoEnemies];
+  if (zoneMonsters.length > 0) {
+    return graveyardUnlocked
+      ? [...zoneMonsters, ...necroMonsters, ...echoEnemies]
+      : [...zoneMonsters, ...echoEnemies];
+  }
+  return [...MONSTER_DEFS, ...necroMonsters, ...echoEnemies];
 }
 
 /** Get all available weapon templates (base + necropolis + zone + bounty rewards + ranger-exclusive + echo). */
@@ -270,10 +278,17 @@ export function spawnMonsters(floor: DungeonFloor, floorNumber: number, occupied
   const eligible = combined.filter((m) => m.minFloor <= floorNumber);
   if (eligible.length === 0) return [];
 
+  // Necropolis dungeon modifiers boost monster density
+  const necroDeathsForMod = getNecropolisState().communalDeaths;
+  const catacombsBonus = isUnlocked('dungeon_catacombs', necroDeathsForMod) ? 2 : 0;
+  const ossuaryBonus = isUnlocked('dungeon_ossuary', necroDeathsForMod) ? 1 : 0;
+  const voidPitBonus = isUnlocked('dungeon_void_pit', necroDeathsForMod) ? 2 : 0;
+  const dungeonExtra = catacombsBonus + ossuaryBonus + voidPitBonus;
+
   // Monster density: gentler on early floors, ramps up later
   const minCount = floorNumber <= 1 ? 4 : floorNumber <= 2 ? 5 : floorNumber <= 3 ? 6 : floorNumber >= 8 ? 12 : 8;
   const lateFloorExtra = floorNumber > 4 ? Math.floor((floorNumber - 4) * 1.5) : 0;
-  const count = randInt(minCount, 5 + Math.floor(floorNumber * 1.8) + lateFloorExtra);
+  const count = randInt(minCount + dungeonExtra, 5 + Math.floor(floorNumber * 1.8) + lateFloorExtra + dungeonExtra);
   const monsters: Entity[] = [];
 
   for (let i = 0; i < count; i++) {
@@ -283,10 +298,12 @@ export function spawnMonsters(floor: DungeonFloor, floorNumber: number, occupied
 
     // Steady scaling — gentle early, ramps harder from floor 4+
     const floorsAboveMin = Math.max(0, floorNumber - def.minFloor);
-    const earlyPush = 0; // removed: base stats already define the difficulty curve
-    const midPush = floorNumber >= 4 ? 0.15 : 0;   // slight boost at floor 4+
-    const lateGameBonus = floorNumber >= 6 ? (floorNumber - 5) * 0.25 : 0; // ramps from floor 6
-    const scale = 1 + earlyPush + midPush + floorsAboveMin * 0.2 + lateGameBonus;
+    const earlyPush = 0;
+    const midPush = floorNumber >= 4 ? 0.15 : 0;
+    const lateGameBonus = floorNumber >= 6 ? (floorNumber - 5) * 0.25 : 0;
+    // Void Pit: +5% monster stats when unlocked (more danger, more XP)
+    const voidPitScale = isUnlocked('dungeon_void_pit', necroDeathsForMod) ? 0.05 : 0;
+    const scale = 1 + earlyPush + midPush + floorsAboveMin * 0.2 + lateGameBonus + voidPitScale;
 
     // Try to apply a color variant
     const variant = pickVariant(def.name, def.color, def.isBoss);
@@ -774,12 +791,19 @@ function generateShopStock(floorNumber: number, zone: ZoneId = 'stone_depths', g
     stock.push({ item: narrativeItem2WithRarity, price: Math.floor(narrativeItem2WithRarity.value * 2.2) });
   }
 
-  // Necropolis items in shops on deeper floors
+  // Necropolis items in shops — always when Necropolis Depths unlocked, otherwise floor 3+
   const extraItems = getExtraItems();
-  if (extraItems.length > 0 && floorNumber >= 3) {
+  const necroDepthsActive = isUnlocked('zone_necropolis_depths', getNecropolisState().communalDeaths);
+  if (extraItems.length > 0 && (necroDepthsActive || floorNumber >= 3)) {
     const necroItem = pick(extraItems);
     const necroItemWithRarity = applyGenerationScaling(applyRarity({ ...necroItem, id: uid() }, floorNumber), generation);
     stock.push({ item: necroItemWithRarity, price: Math.floor(necroItemWithRarity.value * 2) });
+    // Necropolis Depths: add a second necropolis item to shops
+    if (necroDepthsActive && extraItems.length > 1) {
+      const necroItem2 = pick(extraItems);
+      const necroItem2WithRarity = applyGenerationScaling(applyRarity({ ...necroItem2, id: uid() }, floorNumber), generation);
+      stock.push({ item: necroItem2WithRarity, price: Math.floor(necroItem2WithRarity.value * 2) });
+    }
   }
 
   return stock;
