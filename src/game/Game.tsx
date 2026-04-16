@@ -192,6 +192,7 @@ function buildDeathParams(gs: GameState, duration: number, generation: number, i
     potionsUsed: gs.runStats.potionsUsed,
     foodEaten: gs.runStats.foodEaten,
     scrollsUsed: gs.runStats.scrollsUsed,
+    monsterKills: gs.runStats.monsterKills,
   };
 }
 

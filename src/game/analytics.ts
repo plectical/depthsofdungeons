@@ -218,11 +218,14 @@ export async function trackPlayerDeath(params: {
   potionsUsed?: number;
   foodEaten?: number;
   scrollsUsed?: number;
+  monsterKills?: Record<string, number>;
 }) {
   await trackFunnel(6, 'player_death');
+  const { monsterKills, ...rest } = params;
   await trackEvent('player_death', {
-    ...params,
+    ...rest,
     hp_percent: params.maxHp > 0 ? Math.round((params.hp / params.maxHp) * 100) : 0,
+    monster_kills: monsterKills ? JSON.stringify(monsterKills) : '{}',
   });
 }
 
