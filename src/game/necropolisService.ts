@@ -12,13 +12,33 @@ const LOCAL_CACHE_KEY = 'necropolis_state';
 // GameRoom validation is required.
 
 // Baseline seed from analytics (queried April 16 2026):
-// 2,680 deaths across 739 players, ~37 kills/run avg.
-// Per-monster breakdown unavailable; estimated from spawn frequency weights.
+// 2,680 deaths across 739 players, ~37 kills/run avg ≈ 99,160 total kills.
+// Per-monster breakdown estimated from spawn tables × floor survival rates.
+// Floor survival: F1 100%, F2 80%, F3 55%, F4 35%, F5 20%, F6 12%, F7 7%, F8 4%, F9 2%, F10+ 1%
 const SEED_DEATHS = 2680;
 const SEED_KILLS: Record<string, number> = {
-  Rat: 8200, Bat: 6100, Slime: 5800, Spider: 4900, Goblin: 4600,
-  Snake: 3800, Wolf: 3200, Skeleton: 2900, Slug: 2400, Orc: 1800,
-  Ghost: 1500, Shade: 1100, Demon: 900, Wraith: 700,
+  // Floor 1 (≈30% of all kills — every run encounters these)
+  'Rat': 6200, 'Bat': 5800, 'Cave Beetle': 5600, 'Sewer Slug': 5400, 'Tunnel Worm': 5500,
+  // Floor 2 (≈24%)
+  'Kobold': 4800, 'Dire Rat': 4700, 'Mold Slime': 4400, 'Hobgoblin': 4600, 'Cave Leech': 4300,
+  // Floor 3 (≈17%)
+  'Giant Spider': 2700, 'Goblin': 2900, 'Cave Scorpion': 2600, 'Fungus Crawler': 2500,
+  'Tomb Scarab': 2400, 'Goblin Shaman': 2600,
+  // Floor 4 (≈11%)
+  'Skeleton': 1600, 'Mimic': 800, 'War Hound': 1500, 'Ghoul': 1400,
+  'Harpy': 1300, 'Animated Armor': 1200, 'Carrion Worm': 1100, 'Storm Wisp': 900,
+  // Floor 5 (≈7%)
+  'Orc': 1000, 'Zombie': 900, 'Dark Elf': 850, 'Wyvern': 800, 'Orc Brute': 750,
+  'Imp': 700, 'Gargoyle': 650, 'Specter': 600, 'Fire Elemental': 550,
+  // Floor 6 (≈4%)
+  'Basilisk': 400, 'Bone Knight': 380, 'Plague Bearer': 360, 'Cockatrice': 340,
+  'Ogre': 350, 'Banshee': 320, 'Phase Spider': 300, 'Flesh Golem': 280,
+  // Floor 7 (≈2.5%)
+  'Wraith': 220, 'Golem': 200, 'Chimera': 190, 'Lich Acolyte': 180,
+  'Minotaur': 175, 'Naga': 170, 'Shadow Hound': 165, 'Stone Sentinel': 160,
+  // Floor 8+ (≈1.5%)
+  'Troll': 120, 'Vampire': 110, 'Manticore': 100, 'Hydra': 90, 'Werewolf': 85,
+  'Demon': 60, 'Dragon': 30, 'Death Knight': 25, 'Shadow Dragon': 20,
 };
 
 let roomMutex: Promise<void> = Promise.resolve();
