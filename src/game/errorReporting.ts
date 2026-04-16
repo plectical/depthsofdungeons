@@ -155,8 +155,12 @@ export function installGlobalErrorHandlers() {
 
   // Intercept console.error() — capture explicit error logs from our code and libraries
   const _originalConsoleError = console.error;
+  let _inErrorHandler = false;
   console.error = (...args: unknown[]) => {
     _originalConsoleError.apply(console, args);
+    if (_inErrorHandler) return;
+    _inErrorHandler = true;
+    try {
 
     const message = args.map(a => {
       if (a instanceof Error) return a.message;
@@ -173,6 +177,10 @@ export function installGlobalErrorHandlers() {
     const firstArg = args[0];
     const error = firstArg instanceof Error ? firstArg : message;
     reportError('console_error', error);
+
+    } finally {
+      _inErrorHandler = false;
+    }
   };
 }
 

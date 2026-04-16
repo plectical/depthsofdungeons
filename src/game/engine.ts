@@ -1,9 +1,9 @@
-import { Tile, type GameState, type Entity, type EquipSlot, type PlayerClass, type BloodlineData, type DialogueEffect, type BossAbility, type ZoneId, type TerrainType, type MonsterAbility, type ClassDef } from './types';
+import { Tile, type GameState, type Entity, type EquipSlot, type PlayerClass, type BloodlineData, type DialogueEffect, type BossAbility, type ZoneId, type TerrainType, type MonsterAbility, type ClassDef, type SkillName } from './types';
 import { getTransformDef } from './story-mode/transformations';
 import { getRaceDef } from './races';
 import { generateFloor, isWalkableTile, getTile, getTerrainAt } from './dungeon';
 import { createPlayer, spawnMonsters, spawnItems, randomItem, spawnShop, findItemTemplate, spawnBoss, spawnMercenaries } from './entities';
-import { VIEW_RADIUS, XP_PER_LEVEL, MSG_COLOR, MONSTER_DEFS, CLASS_DEFS, HUNGER_MAX, HUNGER_PER_TURN, HUNGER_WARNING, STARVING_THRESHOLD, STARVING_DAMAGE, REGEN_INTERVAL, REGEN_HUNGER_MIN, BOSS_DEFS, MERCENARY_DEFS, RARITY_DEFS, POTION_TEMPLATES, FOOD_TEMPLATES } from './constants';
+import { VIEW_RADIUS, XP_PER_LEVEL, MSG_COLOR, MONSTER_DEFS, CLASS_DEFS, HUNGER_MAX, HUNGER_PER_TURN, HUNGER_WARNING, STARVING_THRESHOLD, STARVING_DAMAGE, REGEN_INTERVAL, REGEN_HUNGER_MIN, BOSS_DEFS, MERCENARY_DEFS, RARITY_DEFS, POTION_TEMPLATES, FOOD_TEMPLATES, DEATH_KNIGHT_CLASS } from './constants';
 import { uid, resetIdCounter, manhattan, findPath, linePoints, clamp, gpStart, gpEnd } from './utils';
 import type { GeneratedClass } from './generativeClass';
 
@@ -364,17 +364,16 @@ export function getClassDef(cls: PlayerClass): ClassDef {
     return CLASS_DEFS[0]!;
   }
 
-  // Check base classes first, then necropolis classes
+  // Check base classes first, then special classes, then necropolis classes
   const base = CLASS_DEFS.find((c) => c.id === cls);
   if (base) return base;
+
+  if (cls === 'death_knight') return DEATH_KNIGHT_CLASS;
   
-  // For necropolis classes, always return a valid class def if the player is playing as one
-  // (they must have unlocked it somehow to be playing as it)
   const necroClasses = getNecropolisClasses(getNecropolisState().communalDeaths, ['mas_class_3', 'mas_class_4']);
   const necroClass = necroClasses.find((c) => c.id === cls);
   if (necroClass) return necroClass;
   
-  // Final fallback
   return CLASS_DEFS[0]!;
 }
 
@@ -418,11 +417,29 @@ export function chooseAbility(state: GameState, abilityId: string): boolean {
     case 'rev_relentless':
       state.player.stats.speed += 5;
       break;
+    // Death Knight
+    case 'dk_runic_shield':
+      state.player.stats.defense += 5;
+      break;
+    case 'dk_bone_armor':
+      state.player.stats.maxHp += 8;
+      state.player.stats.hp += 8;
+      state.player.stats.defense += 2;
+      break;
   }
   // All other abilities are passive/triggered effects handled in combat/turn logic
 
   addMessage(state, `Ability learned: ${ability.name}!`, '#ffcc33');
   state.pendingAbilityChoice = null;
+  return true;
+}
+
+/** Apply a +1 narrative skill pick from level-up. */
+export function chooseNarrativeSkill(state: GameState, skill: SkillName): boolean {
+  if (!state.pendingNarrativeSkillPick || !state.skills) return false;
+  state.skills[skill] = Math.min(20, state.skills[skill] + 1);
+  state.pendingNarrativeSkillPick = false;
+  addMessage(state, `${skill.charAt(0).toUpperCase() + skill.slice(1)} improved to ${state.skills[skill]}!`, '#ffcc33');
   return true;
 }
 
@@ -831,6 +848,7 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
     paladin: { weapon: 'Short Sword', weaponElement: 'holy', item: 'Bread' },
     necromancer: { item: 'Health Potion', item2: 'Bread' },
     revenant: { item: 'Bread' },
+    death_knight: { weapon: 'Short Sword', weaponElement: 'dark', item: 'Health Potion', item2: 'Bread' },
   };
   const gear = classGear[playerClass];
   if (gear) {
@@ -853,6 +871,12 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
         state.player.inventory.push({ ...itemTemplate, id: uid() });
       }
     }
+  }
+
+  // Death Knight gets a renamed starting weapon
+  if (playerClass === 'death_knight' && state.player.equipment.weapon) {
+    state.player.equipment.weapon.name = 'Runic Blade';
+    state.player.equipment.weapon.color = '#aa55cc';
   }
 
   if (playerClass === 'generated') {
@@ -962,6 +986,53 @@ export function newGame(playerClass: PlayerClass = 'warrior', bloodline?: Bloodl
   updateFOV(state);
   gpEnd('engine:newGame');
   return state;
+}
+
+/** Apply Starter Pack gear upgrades: better weapons + starting armor for all classes. */
+export function applyStarterPackGear(state: GameState): void {
+  const p = state.player;
+  const cls = state.playerClass;
+
+  const starterArmor: Record<string, { name: string; defense: number; maxHp: number; color: string }> = {
+    warrior:      { name: 'Knight\'s Mail',      defense: 4, maxHp: 8,  color: '#ff6644' },
+    rogue:        { name: 'Shadow Leathers',     defense: 3, maxHp: 5,  color: '#44ff88' },
+    mage:         { name: 'Arcane Robes',        defense: 2, maxHp: 6,  color: '#aa44ff' },
+    ranger:       { name: 'Tracker\'s Hide',     defense: 3, maxHp: 6,  color: '#88ff44' },
+    paladin:      { name: 'Blessed Chainmail',   defense: 4, maxHp: 8,  color: '#ffdd44' },
+    necromancer:  { name: 'Bone-Threaded Robe',  defense: 2, maxHp: 6,  color: '#aa44dd' },
+    revenant:     { name: 'Deathshroud',         defense: 3, maxHp: 5,  color: '#ff4444' },
+    hellborn:     { name: 'Infernal Husk',       defense: 3, maxHp: 6,  color: '#ff2200' },
+    impregnar:    { name: 'Chitinous Shell',     defense: 3, maxHp: 6,  color: '#88ff44' },
+    death_knight: { name: 'Runic Plate',         defense: 4, maxHp: 8,  color: '#aa55cc' },
+  };
+
+  // Upgrade weapon: +2 attack over base
+  if (p.equipment.weapon) {
+    const bonus = p.equipment.weapon.statBonus ?? {};
+    p.equipment.weapon.statBonus = { ...bonus, attack: (bonus.attack ?? 0) + 2 };
+    p.equipment.weapon.name = 'Fine ' + p.equipment.weapon.name;
+    p.equipment.weapon.rarity = 'uncommon';
+  }
+
+  // Equip starting armor if slot is empty
+  const armorDef = starterArmor[cls];
+  if (armorDef && !p.equipment.armor) {
+    const armor: import('./types').Item = {
+      id: uid(),
+      name: armorDef.name,
+      type: 'armor',
+      char: '[',
+      color: armorDef.color,
+      value: 15,
+      equipSlot: 'armor',
+      statBonus: { defense: armorDef.defense, maxHp: armorDef.maxHp },
+      description: 'Starter Pack armor',
+      rarity: 'uncommon',
+    };
+    p.equipment.armor = armor;
+    p.stats.maxHp += armorDef.maxHp;
+    p.stats.hp += armorDef.maxHp;
+  }
 }
 
 // ─── Messages ───
@@ -1703,6 +1774,16 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
       addMessage(state, `Lifesteal +${lifestealHeal} HP!`, '#ffaa33');
     }
 
+    // Death Knight — Death's Embrace: 10% lifesteal on melee attacks
+    if (attacker.isPlayer && hasPassive(state, "Death's Embrace") && dmg > 0) {
+      const dkHeal = Math.max(1, Math.floor(dmg * 0.1));
+      const dkActual = Math.min(dkHeal, attacker.stats.maxHp - attacker.stats.hp);
+      if (dkActual > 0) {
+        attacker.stats.hp += dkActual;
+        addMessage(state, `Death's Embrace +${dkActual} HP`, '#aa55cc');
+      }
+    }
+
     // ── Legacy Hellborn — Soul Siphon: lifesteal 20% of damage dealt ──
     if ((legExt._legacyDrainTurns ?? 0) > 0 && dmg > 0) {
       const healAmt = Math.max(1, Math.floor(dmg * 0.2));
@@ -2337,6 +2418,15 @@ export function attackEntity(state: GameState, attacker: Entity, defender: Entit
         }
       }
 
+      // Death Knight — Soul Harvest: heal 5 HP on kill
+      if (attacker.isPlayer && hasPassive(state, 'Soul Harvest')) {
+        const harvestHeal = Math.min(5, attacker.stats.maxHp - attacker.stats.hp);
+        if (harvestHeal > 0) {
+          attacker.stats.hp += harvestHeal;
+          addMessage(state, `Soul Harvest! +${harvestHeal} HP`, '#aa55cc');
+        }
+      }
+
       // Necromancer — Corpse Burst: kills deal 3 damage to nearby enemies (8 with capstone)
       if (attacker.isPlayer && hasChosenAbility(state, 'nec_corpse_burst')) {
         const burstDmg = hasActiveModifier(state, 'necro_mega_corpse_burst') ? 8 : 3;
@@ -2458,6 +2548,11 @@ function gainXP(state: GameState, amount: number) {
     // Grant a skill point on level up
     state.skillPoints += 1;
     addMessage(state, 'Skill point earned! Open the skill tree to spend it.', '#ffcc33');
+
+    // Narrative skill pick on level up
+    if (state.skills) {
+      state.pendingNarrativeSkillPick = true;
+    }
   }
 }
 
@@ -2798,9 +2893,11 @@ export function equipItem(state: GameState, itemIndex: number): boolean {
   }
 
   if (item.rarity && item.rarity !== 'common') {
+    if (!state.runStats.rarityEquipped) state.runStats.rarityEquipped = {};
     state.runStats.rarityEquipped[item.rarity] = true;
   }
   if (item.name) {
+    if (!state.runStats.namedItemsEquipped) state.runStats.namedItemsEquipped = [];
     if (!state.runStats.namedItemsEquipped.includes(item.name)) {
       state.runStats.namedItemsEquipped.push(item.name);
     }
@@ -3848,6 +3945,14 @@ export function processTurn(state: GameState) {
     }
   }
 
+  // Death Knight — Unholy Resilience: regen 1 HP per turn when below 50% HP
+  if (hasPassive(state, 'Unholy Resilience') && state.player.stats.hp < state.player.stats.maxHp * 0.5) {
+    const dkRegen = Math.min(1, state.player.stats.maxHp - state.player.stats.hp);
+    if (dkRegen > 0) {
+      state.player.stats.hp += dkRegen;
+    }
+  }
+
   // Warrior — Rage decay: -5 per turn when out of combat (not hit this turn)
   if (state.playerClass === 'warrior') {
     const rageDecayExt = state as GameState & { _rage?: number; _hitThisTurn?: boolean };
@@ -3893,6 +3998,13 @@ export function processTurn(state: GameState) {
     const impExt = state as GameState & { _impregCooldown?: number };
     if ((impExt._impregCooldown ?? 0) > 0) {
       impExt._impregCooldown!--;
+    }
+  }
+
+  if (state.playerClass === 'death_knight') {
+    const dkExt = state as GameState & { _dkCoilCooldown?: number };
+    if ((dkExt._dkCoilCooldown ?? 0) > 0) {
+      dkExt._dkCoilCooldown!--;
     }
   }
 
@@ -5399,6 +5511,28 @@ export function onImpregnatedDeath(state: GameState, monster: Entity): void {
       addMessage(state, `Parasitic link heals you for ${heal} HP!`, '#66cc22');
     }
   }
+}
+
+// ─── Death Knight Ability: Death Coil ───
+
+export function getDeathKnightInfo(state: GameState): { cooldown: number } {
+  const ext = state as GameState & { _dkCoilCooldown?: number };
+  return { cooldown: ext._dkCoilCooldown ?? 0 };
+}
+
+export function deathCoil(state: GameState): boolean {
+  if (state.gameOver) return false;
+  if (state.playerClass !== 'death_knight') return false;
+  const ext = state as GameState & { _dkCoilCooldown?: number };
+  if ((ext._dkCoilCooldown ?? 0) > 0) return false;
+
+  const healAmt = Math.min(15, state.player.stats.maxHp - state.player.stats.hp);
+  if (healAmt > 0) {
+    state.player.stats.hp += healAmt;
+  }
+  addMessage(state, `Death Coil! Restored ${healAmt} HP!`, '#aa55cc');
+  ext._dkCoilCooldown = 8;
+  return true;
 }
 
 // ─── Generated Class Ability ───

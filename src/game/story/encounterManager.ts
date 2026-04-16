@@ -235,7 +235,11 @@ function applyPenalty(
 ): void {
   switch (penalty.type) {
     case 'damage':
+    case 'trap':
       state.player.stats.hp = Math.max(0, state.player.stats.hp - penalty.value);
+      break;
+    case 'hunger':
+      state.hunger.current = Math.max(0, state.hunger.current - penalty.value);
       break;
   }
 }

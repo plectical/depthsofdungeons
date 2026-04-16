@@ -9,6 +9,9 @@ import {
   ARMOR_TEMPLATES,
   RING_TEMPLATES,
   AMULET_TEMPLATES,
+  TRINKET_TEMPLATES,
+  CLOAK_TEMPLATES,
+  BOOTS_TEMPLATES,
   SHIELD_TEMPLATES,
   OFFHAND_DAGGER_TEMPLATES,
   FOCUS_TEMPLATES,
@@ -185,8 +188,7 @@ function rollRarity(floorNumber: number): ItemRarity {
  * Gold, food, potions, and scrolls stay common (no rarity visual).
  */
 function applyRarity(item: Item, floorNumber: number): Item {
-  // Only equipment items (weapon, armor, ring, amulet, offhand) get rarity
-  const rarityTypes = new Set(['weapon', 'armor', 'ring', 'amulet', 'offhand']);
+  const rarityTypes = new Set(['weapon', 'armor', 'ring', 'amulet', 'offhand', 'trinket', 'cloak', 'boots']);
   if (!rarityTypes.has(item.type)) {
     item.rarity = 'common';
     return item;
@@ -208,6 +210,17 @@ function applyRarity(item: Item, floorNumber: number): Item {
       }
     }
     item.statBonus = scaled;
+  }
+
+  // Scale skill bonuses for narrative gear
+  if (item.skillBonus) {
+    const scaled = { ...item.skillBonus };
+    for (const key of Object.keys(scaled) as (keyof typeof scaled)[]) {
+      if (scaled[key] !== undefined) {
+        scaled[key] = Math.max(1, Math.round(scaled[key]! * def.statScale));
+      }
+    }
+    item.skillBonus = scaled;
   }
 
   // Override item color to rarity color so it's immediately visible
@@ -341,25 +354,31 @@ export function randomItem(floorNumber: number, zone: ZoneId = 'stone_depths'): 
   const zoneAmulets = ZONE_AMULETS[zone] ?? [];
   const zoneScrolls = ZONE_SCROLLS[zone] ?? [];
 
-  if (roll < 0.13) {
+  if (roll < 0.12) {
     const maxIdx = Math.min(allWeapons.length - 1, Math.floor(floorNumber / 2));
     template = allWeapons[randInt(0, maxIdx)];
-  } else if (roll < 0.24) {
+  } else if (roll < 0.22) {
     const maxIdx = Math.min(allArmor.length - 1, Math.floor(floorNumber / 3));
     template = allArmor[randInt(0, maxIdx)];
-  } else if (roll < 0.31) {
+  } else if (roll < 0.28) {
     const maxIdx = Math.min(allOffhands.length - 1, Math.floor(floorNumber / 2));
     template = allOffhands[randInt(0, maxIdx)];
-  } else if (roll < 0.37) {
+  } else if (roll < 0.33) {
     const ringPool = [...RING_TEMPLATES, ...zoneRings];
     template = pick(ringPool);
-  } else if (roll < 0.42) {
+  } else if (roll < 0.37) {
     const pool = [...AMULET_TEMPLATES, ...zoneAmulets, ...extraItems.filter((i) => i.type === 'amulet' || i.type === 'ring')];
     template = pick(pool.length > 0 ? pool : AMULET_TEMPLATES);
-  } else if (roll < 0.52) {
+  } else if (roll < 0.40) {
+    template = pick(TRINKET_TEMPLATES);
+  } else if (roll < 0.43) {
+    template = pick(CLOAK_TEMPLATES);
+  } else if (roll < 0.46) {
+    template = pick(BOOTS_TEMPLATES);
+  } else if (roll < 0.55) {
     const pool = [...POTION_TEMPLATES, ...zonePotions, ...extraItems.filter((i) => i.type === 'potion')];
     template = pick(pool);
-  } else if (roll < 0.62) {
+  } else if (roll < 0.64) {
     const scrollPool = [...SCROLL_TEMPLATES, ...zoneScrolls];
     template = pick(scrollPool);
   } else if (roll < 0.85) {
@@ -741,6 +760,20 @@ function generateShopStock(floorNumber: number, zone: ZoneId = 'stone_depths', g
     stock.push({ item: amuletItem, price: Math.floor(amuletItem.value * 2.5) });
   }
 
+  // Narrative gear in shops (trinket, cloak, boots)
+  if (floorNumber >= 2) {
+    const narrativePool = [...TRINKET_TEMPLATES, ...CLOAK_TEMPLATES, ...BOOTS_TEMPLATES];
+    const narrativeItem = pick(narrativePool);
+    const narrativeItemWithRarity = applyGenerationScaling(applyRarity({ ...narrativeItem, id: uid() }, floorNumber), generation);
+    stock.push({ item: narrativeItemWithRarity, price: Math.floor(narrativeItemWithRarity.value * 2) });
+  }
+  if (floorNumber >= 6) {
+    const narrativePool2 = [...TRINKET_TEMPLATES, ...CLOAK_TEMPLATES, ...BOOTS_TEMPLATES];
+    const narrativeItem2 = pick(narrativePool2);
+    const narrativeItem2WithRarity = applyGenerationScaling(applyRarity({ ...narrativeItem2, id: uid() }, floorNumber), generation);
+    stock.push({ item: narrativeItem2WithRarity, price: Math.floor(narrativeItem2WithRarity.value * 2.2) });
+  }
+
   // Necropolis items in shops on deeper floors
   const extraItems = getExtraItems();
   if (extraItems.length > 0 && floorNumber >= 3) {
@@ -768,6 +801,9 @@ export function findItemTemplate(name: string): Omit<Item, 'id'> | undefined {
     ...ARMOR_TEMPLATES,
     ...RING_TEMPLATES,
     ...AMULET_TEMPLATES,
+    ...TRINKET_TEMPLATES,
+    ...CLOAK_TEMPLATES,
+    ...BOOTS_TEMPLATES,
     ...POTION_TEMPLATES,
     ...SCROLL_TEMPLATES,
     ...FOOD_TEMPLATES,

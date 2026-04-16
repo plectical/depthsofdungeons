@@ -1273,6 +1273,89 @@ const IMPREGNAR_TREE: SkillTreeDef = {
 };
 
 // ── Registry — maps classId to tree def ──
+// ════════════════════════════════════════════════════════════════
+//  DEATH KNIGHT SKILL TREE
+//  Path 0: Unholy    — dark damage, lifesteal, sustain
+//  Path 1: Frost     — defense, control, survivability
+// ════════════════════════════════════════════════════════════════
+
+const DEATH_KNIGHT_TREE: SkillTreeDef = {
+  classId: 'death_knight' as PlayerClass,
+  paths: [
+    {
+      name: 'Unholy',
+      color: '#aa55cc',
+      icon: '\u{1F480}',
+      description: 'Drain the living. Every strike feeds your dark power.',
+      nodes: [
+        node('dk_u_drain', 'Dark Hunger', '+2 attack', '\u{2694}', '#aa55cc',
+          1, 0, 1, [],
+          { type: 'stat', stat: 'attack', value: 2 }),
+        node('dk_u_hp1', 'Unholy Vigor', '+6 max HP', '\u{2764}', '#cc77ee',
+          1, 0, 1, [],
+          { type: 'stat', stat: 'maxHp', value: 6 }),
+        node('dk_u_atk2', 'Death Strike', '+3 attack', '\u{2694}', '#9944bb',
+          2, 0, 1, ['dk_u_drain', 'dk_u_hp1'],
+          { type: 'stat', stat: 'attack', value: 3 }),
+        node('dk_u_spd1', 'Shadow Step', '+3 speed', '\u{26A1}', '#8833aa',
+          2, 0, 1, ['dk_u_drain', 'dk_u_hp1'],
+          { type: 'stat', stat: 'speed', value: 3 }),
+        node('dk_u_boss', 'Bane of the Living', '+30% damage to bosses', '\u{1F480}', '#7722aa',
+          3, 0, 2, ['dk_u_atk2', 'dk_u_spd1'],
+          { type: 'enemyBonus', enemyKeyword: '__boss__', damagePercent: 30 }),
+        node('dk_u_weapon', 'Runeforged', '+15% damage with all weapons', '\u{2694}', '#bb66dd',
+          3, 0, 2, ['dk_u_atk2', 'dk_u_spd1'],
+          { type: 'weaponProf', weaponKeyword: '__all__', damagePercent: 15 }),
+        node('dk_u_capstone', 'Lord of the Dead', '+8 attack, +10 HP. Lifesteal doubled.', '\u{1F451}', '#cc88ff',
+          4, 0, 2, ['dk_u_boss', 'dk_u_weapon'],
+          { type: 'multi', effects: [
+            { type: 'stat', stat: 'attack', value: 8 },
+            { type: 'stat', stat: 'maxHp', value: 10 },
+          ]}),
+      ],
+    },
+    {
+      name: 'Frost',
+      color: '#88ddff',
+      icon: '\u{2744}',
+      description: 'Freeze the battlefield. Endure what would fell lesser knights.',
+      nodes: [
+        node('dk_f_def1', 'Frost Armor', '+3 defense', '\u{1F6E1}', '#88ccff',
+          1, 1, 1, [],
+          { type: 'stat', stat: 'defense', value: 3 }),
+        node('dk_f_hp2', 'Permafrost', '+8 max HP', '\u{2764}', '#66aadd',
+          1, 1, 1, [],
+          { type: 'stat', stat: 'maxHp', value: 8 }),
+        node('dk_f_def2', 'Icebound Fortitude', '+4 defense', '\u{1F6E1}', '#4488cc',
+          2, 1, 1, ['dk_f_def1', 'dk_f_hp2'],
+          { type: 'stat', stat: 'defense', value: 4 }),
+        node('dk_f_hp3', 'Will of the Forsaken', '+12 max HP', '\u{2764}', '#5599cc',
+          2, 1, 1, ['dk_f_def1', 'dk_f_hp2'],
+          { type: 'stat', stat: 'maxHp', value: 12 }),
+        node('dk_f_atk1', 'Frozen Strike', '+3 attack, +2 defense', '\u{2694}', '#77bbee',
+          3, 1, 2, ['dk_f_def2', 'dk_f_hp3'],
+          { type: 'multi', effects: [
+            { type: 'stat', stat: 'attack', value: 3 },
+            { type: 'stat', stat: 'defense', value: 2 },
+          ]}),
+        node('dk_f_endure', 'Purgatory', '+20 max HP, +2 defense', '\u{1F9CA}', '#88ddff',
+          3, 1, 2, ['dk_f_def2', 'dk_f_hp3'],
+          { type: 'multi', effects: [
+            { type: 'stat', stat: 'maxHp', value: 20 },
+            { type: 'stat', stat: 'defense', value: 2 },
+          ]}),
+        node('dk_f_capstone', 'Lich King', '+6 defense, +15 HP, +5 attack', '\u{1F451}', '#aaeeff',
+          4, 1, 2, ['dk_f_atk1', 'dk_f_endure'],
+          { type: 'multi', effects: [
+            { type: 'stat', stat: 'defense', value: 6 },
+            { type: 'stat', stat: 'maxHp', value: 15 },
+            { type: 'stat', stat: 'attack', value: 5 },
+          ]}),
+      ],
+    },
+  ],
+};
+
 const SKILL_TREES: Partial<Record<PlayerClass, SkillTreeDef>> = {
   warrior: WARRIOR_TREE,
   rogue: ROGUE_TREE,
@@ -1283,6 +1366,7 @@ const SKILL_TREES: Partial<Record<PlayerClass, SkillTreeDef>> = {
   revenant: REVENANT_TREE,
   hellborn: HELLBORN_TREE,
   impregnar: IMPREGNAR_TREE,
+  death_knight: DEATH_KNIGHT_TREE,
 };
 
 export function getSkillTree(classId: PlayerClass): SkillTreeDef | null {

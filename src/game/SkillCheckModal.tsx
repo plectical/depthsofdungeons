@@ -179,7 +179,8 @@ export function SkillCheckModal({
               <span style={statLabelStyle}>Skill:</span>
               <span style={statValueStyle}>
                 {skillValue}
-                {gearBonus > 0 ? ` (+${gearBonus})` : ''}
+                {gearBonus > 0 ? <span style={{ color: '#88ccff' }}> +{gearBonus} gear</span> : ''}
+                {' = '}{skillValue + gearBonus}
               </span>
             </div>
             <div style={statRowStyle}>

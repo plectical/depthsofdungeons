@@ -3,8 +3,9 @@ import type { CSSProperties } from 'react';
 import type { GameState, EquipSlot, Item, ItemRarity, ItemEffect, Stats } from './types';
 import { useItem, equipItem, unequipItem, dropItem, sellItem, autoSellByRarity } from './engine';
 import { safeEngineCall } from './errorReporting';
-import { ELEMENT_INFO } from './elements';
+import { ELEMENT_INFO, inferElementFromEffect } from './elements';
 import { RARITY_DEFS } from './constants';
+import type { Element } from './types';
 import { cloneState } from './utils';
 
 /** Format an item effect into a short readable label. */
@@ -29,13 +30,52 @@ const COMPARE_STATS: { label: string; key: keyof Stats }[] = [
   { label: 'SPD', key: 'speed' },
 ];
 
+const WEAKNESS_LABELS: Record<Element, Element> = {
+  fire: 'ice', ice: 'lightning', lightning: 'poison',
+  poison: 'holy', holy: 'dark', dark: 'fire',
+};
+const RESISTED_BY: Record<Element, Element> = {
+  fire: 'dark', ice: 'fire', lightning: 'ice',
+  poison: 'lightning', holy: 'poison', dark: 'holy',
+};
+
 function ElementBadge({ item }: { item: Item }) {
-  if (!item.element) return null;
-  const info = ELEMENT_INFO[item.element];
+  const element = item.element ?? inferElementFromEffect(item);
+  if (!element) return null;
+  const info = ELEMENT_INFO[element];
+  const inferred = !item.element;
   return (
-    <span style={{ color: info.color, fontSize: 10, marginLeft: 4 }} title={info.name}>
-      {info.icon}
+    <span style={{
+      color: info.color,
+      fontSize: 9,
+      marginLeft: 5,
+      padding: '1px 5px',
+      border: `1px solid ${info.color}${inferred ? '55' : '99'}`,
+      background: `${info.color}15`,
+      fontFamily: 'monospace',
+      letterSpacing: 0.5,
+      whiteSpace: 'nowrap',
+      opacity: inferred ? 0.7 : 1,
+    }} title={`${info.name} element${inferred ? ' (from effect)' : ''}`}>
+      {info.icon} {info.name}
     </span>
+  );
+}
+
+function ElementDetail({ element }: { element: Element }) {
+  const info = ELEMENT_INFO[element];
+  const beats = WEAKNESS_LABELS[element];
+  const beatsInfo = ELEMENT_INFO[beats];
+  const weak = RESISTED_BY[element];
+  const weakInfo = ELEMENT_INFO[weak];
+  return (
+    <div style={elementDetailStyle}>
+      <span style={{ color: info.color }}>{info.icon} {info.name}</span>
+      <span style={{ color: '#555', margin: '0 2px' }}>—</span>
+      <span style={{ color: beatsInfo.color, fontSize: 9 }}>strong vs {beatsInfo.icon}{beatsInfo.name}</span>
+      <span style={{ color: '#333', margin: '0 2px' }}>·</span>
+      <span style={{ color: weakInfo.color, fontSize: 9 }}>weak to {weakInfo.icon}{weakInfo.name}</span>
+    </div>
   );
 }
 
@@ -199,14 +239,25 @@ export function Inventory({ state, onChange, onClose, autoSellRarities, onAutoSe
         {tab === 'items' && (
           <div style={listStyle}>
             {inventory.length === 0 && <div style={emptyStyle}>{'-- No items --'}</div>}
-            {inventory.map((item, idx) => (
-              <div key={item.id} style={itemRowStyle} onClick={() => setSelectedIdx(selectedIdx === idx ? null : idx)}>
+            {inventory.map((item, idx) => {
+              const rowElement = item.element ?? inferElementFromEffect(item);
+              const rowElColor = rowElement ? ELEMENT_INFO[rowElement].color : undefined;
+              return (
+              <div key={item.id} style={{
+                ...itemRowStyle,
+                ...(rowElColor ? { borderLeft: `2px solid ${rowElColor}88`, paddingLeft: 4 } : {}),
+              }} onClick={() => setSelectedIdx(selectedIdx === idx ? null : idx)}>
                 <span style={{ color: item.rarity && item.rarity !== 'common' ? RARITY_DEFS[item.rarity].color : item.color, marginRight: 6, fontFamily: 'monospace', textShadow: getItemTextShadow(item) }}>{item.char}</span>
                 <span style={{ ...itemNameStyle, color: getItemDisplayColor(item), textShadow: getItemTextShadow(item) }}>{item.name}<RarityBadge item={item} /><ElementBadge item={item} />{item.range && item.range > 1 ? <span style={rangedBadgeStyle}>{'\u{1F3F9}'} {item.range}</span> : null}</span>
                 {selectedIdx === idx && (
                   <>
                     {/* ── Stats & effects detail block ── */}
                     <div style={itemDetailStyle}>
+                      {/* Element info */}
+                      {(() => {
+                        const el = item.element ?? inferElementFromEffect(item);
+                        return el ? <ElementDetail element={el} /> : null;
+                      })()}
                       {/* Ranged weapon indicator */}
                       {item.range && item.range > 1 && (
                         <div style={rangedLabelStyle}>{'\u{1F3F9}'} RANGED WEAPON — Attacks from {item.range} tiles away</div>
@@ -231,6 +282,19 @@ export function Inventory({ state, onChange, onClose, autoSellRarities, onAutoSe
                           <div style={chipsRowStyle}>
                             {chips.map((c) => (
                               <span key={c.label} style={statChipStyle}>{c.label} +{c.value}</span>
+                            ))}
+                          </div>
+                        ) : null;
+                      })()}
+                      {/* Skill bonus chips for narrative gear */}
+                      {item.skillBonus && (() => {
+                        const skillChips = Object.entries(item.skillBonus).filter(([, v]) => v);
+                        return skillChips.length > 0 ? (
+                          <div style={chipsRowStyle}>
+                            {skillChips.map(([skill, value]) => (
+                              <span key={skill} style={skillChipStyle}>
+                                {skill.charAt(0).toUpperCase() + skill.slice(1)} +{value}
+                              </span>
                             ))}
                           </div>
                         ) : null;
@@ -300,13 +364,14 @@ export function Inventory({ state, onChange, onClose, autoSellRarities, onAutoSe
                   </>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {tab === 'equip' && (
           <div style={listStyle}>
-            {(['weapon', 'offhand', 'armor', 'ring', 'amulet', 'legacy'] as EquipSlot[]).map((slot) => {
+            {(['weapon', 'offhand', 'armor', 'cloak', 'boots', 'ring', 'amulet', 'trinket', 'legacy'] as EquipSlot[]).map((slot) => {
               const item = equipment[slot];
               if (slot === 'legacy' && !item) return null;
               return (
@@ -317,11 +382,17 @@ export function Inventory({ state, onChange, onClose, autoSellRarities, onAutoSe
                       <span style={{ color: item.rarity && item.rarity !== 'common' ? RARITY_DEFS[item.rarity].color : item.color, marginRight: 4, fontFamily: 'monospace', textShadow: getItemTextShadow(item) }}>{item.char}</span>
                       <span style={{ ...itemNameStyle, color: getItemDisplayColor(item), textShadow: getItemTextShadow(item) }}>{item.name}<RarityBadge item={item} /><ElementBadge item={item} /></span>
                       <span style={bonusStyle}>
-                        {item.statBonus?.attack ? `+${item.statBonus.attack}atk` : ''}
-                        {item.statBonus?.defense ? `+${item.statBonus.defense}def` : ''}
-                        {item.statBonus?.maxHp ? `+${item.statBonus.maxHp}hp` : ''}
+                        {item.statBonus?.attack ? `+${item.statBonus.attack}atk ` : ''}
+                        {item.statBonus?.defense ? `+${item.statBonus.defense}def ` : ''}
+                        {item.statBonus?.maxHp ? `+${item.statBonus.maxHp}hp ` : ''}
+                        {item.statBonus?.speed ? `+${item.statBonus.speed}spd ` : ''}
                         {item.range && item.range > 1 ? <span style={rangedBadgeStyle}>{'\u{1F3F9}'} {item.range}</span> : ''}
                       </span>
+                      {item.skillBonus && (
+                        <span style={skillBonusStyle}>
+                          {Object.entries(item.skillBonus).filter(([, v]) => v).map(([k, v]) => `+${v} ${k.slice(0, 3).toUpperCase()}`).join(' ')}
+                        </span>
+                      )}
                       {slot !== 'legacy' && (
                         <button style={itemActionBtnStyle} onClick={() => handleUnequip(slot)}>
                           [Remove]
@@ -768,4 +839,34 @@ const classRestrictionStyle: CSSProperties = {
   fontSize: 9,
   fontFamily: 'monospace',
   fontStyle: 'italic',
+};
+
+const skillBonusStyle: CSSProperties = {
+  color: '#88ccff',
+  fontSize: 9,
+  marginLeft: 4,
+  fontFamily: 'monospace',
+};
+
+const skillChipStyle: CSSProperties = {
+  background: '#0a0a1a',
+  border: '1px solid #2a3a5a',
+  color: '#88ccff',
+  fontSize: 9,
+  padding: '1px 5px',
+  fontFamily: 'monospace',
+  letterSpacing: 0.5,
+};
+
+const elementDetailStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 3,
+  fontSize: 10,
+  fontFamily: 'monospace',
+  padding: '3px 6px',
+  background: '#0a0a0a',
+  border: '1px solid #1a1a2a',
+  marginBottom: 2,
 };

@@ -7,8 +7,8 @@ import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 import { getVariant, trackExposure, forceVariant, getNarrativeExperimentInfo } from './abTesting';
 import type { GameState, PlayerClass, BloodlineData, AncestorRecord, TraitDef, ZoneId, TutorialStepId } from './types';
 import { TutorialBar, TUTORIAL_STEPS } from './TutorialBar';
-import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, impregnate, getImpregnarInfo, addMessage, useGeneratedAbility, getGeneratedClassInfo, forfeitRun } from './engine';
-import { CLASS_DEFS, getHellbornClass, HELLBORN_CLASS } from './constants';
+import { newGame, waitTurn, movePlayer, isAtShop, extractCauseOfDeath, extractKillingBlowDamage, updateFOV, rageStrike, getWarriorRage, sacredVow, getPaladinVow, isPaladinVowActive, shadowStep, getRogueShadowCooldown, arcaneBlast, getMageBlastCooldown, huntersMark, getRangerMark, summonSkeleton, getNecroSkeletons, impregnate, getImpregnarInfo, deathCoil, getDeathKnightInfo, addMessage, useGeneratedAbility, getGeneratedClassInfo, forfeitRun, applyStarterPackGear } from './engine';
+import { CLASS_DEFS, getHellbornClass, HELLBORN_CLASS, DEATH_KNIGHT_CLASS } from './constants';
 import { createDefaultBloodline, mergeRunIntoBloodline, checkForNewTraits, generateAncestorName, computeBloodlineBonuses } from './traits';
 import { GameView } from './GameView';
 import { HUD } from './HUD';
@@ -32,6 +32,7 @@ import { CharacterInfo } from './CharacterInfo';
 import { FeatureTutorial, RANGED_CLASS_TUTORIAL } from './FeatureTutorial';
 import { AbilityChoice } from './AbilityChoice';
 import { SkillTreeView } from './SkillTreeView';
+import { NarrativeSkillPicker } from './NarrativeSkillPicker';
 import { getNecropolisClasses } from './necropolis';
 import { reportDeath, reportKills, getNecropolisState, connectToNecropolis, setLocalDeathFloor, setLocalKillsFloor } from './necropolisService';
 // Zone select removed — endless mode auto-starts in Stone Depths and progresses sequentially
@@ -52,6 +53,7 @@ import { StoryDialogue, type DialogueResult } from './StoryDialogue';
 import { GenerativeClassSelect } from './GenerativeClassSelect';
 import type { GeneratedClass } from './generativeClass';
 import { SkillCheckModal } from './SkillCheckModal';
+import { getGearSkillBonus } from './story/characterSkills';
 import {
   prepareRunContent,
   findCharacterById,
@@ -197,6 +199,7 @@ export function Game() {
   const titleBgUrl = useCdnImage('title-bg.jpg');
   const elderGuideUrl = useCdnImage('guide.jpg');
   const premiumBannerUrl = useCdnImage('premium-banner.jpg');
+  const starterPackBannerUrl = useCdnImage('starter-pack-banner.png');
   const moreContentBgUrl = useCdnImage('more-content-bg.jpg');
   // const classSelectBgUrl = useCdnImage('class-select-bg.jpg'); // Replaced by grid layout
   const classPortraits: Record<string, string | null> = {
@@ -216,11 +219,13 @@ export function Game() {
     'necromancer-fullscreen': useCdnImage('necromancer-fullscreen.png'),
     revenant: useCdnImage('revenant-portrait.png'),
     impregnar: useCdnImage('impregnar-portrait.png'),
+    death_knight: useCdnImage('death-knight-portrait.png'),
   };
   const classBorderColors: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
     necromancer: '#aa44dd', revenant: '#ff4444', impregnar: '#88ff44',
+    death_knight: '#aa55cc',
   };
   const { muted, toggleMute, onUserInteraction } = useMusic('soundtrack.mp3');
   const [screen, setScreen] = useState<Screen>('title');
@@ -268,6 +273,8 @@ export function Game() {
   const [deathInfo, setDeathInfo] = useState<DeathInfo | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [isFirstTimeBuyer, setIsFirstTimeBuyer] = useState(false);
+  const [starterPackOwned, setStarterPackOwned] = useState(false);
+  const [showStarterPackModal, setShowStarterPackModal] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [hasAutoSave, setHasAutoSave] = useState(false);
   const [necropolisUnlocked, setNecropolisUnlocked] = useState(false);
@@ -604,7 +611,7 @@ export function Game() {
 
       // Load critical data in parallel to reduce total load time and prevent
       // sequential timeout cascades (was causing 188 permission errors on load)
-      const [bestFloorRaw, bloodlineRaw, autosaveRaw, necropolisRaw, premiumRaw, rogueRaw, autoSellRaw, consumablesRaw, questRaw, lastSeenRaw] = await Promise.all([
+      const [bestFloorRaw, bloodlineRaw, autosaveRaw, necropolisRaw, premiumRaw, rogueRaw, autoSellRaw, consumablesRaw, questRaw, lastSeenRaw, starterPackRaw] = await Promise.all([
         safeGetItem('bestFloor'),
         safeGetItem('bloodline'),
         safeGetItem('autosave'),
@@ -615,6 +622,7 @@ export function Game() {
         safeGetItem('autoSellConsumables'),
         safeGetItem('questEchoData'),
         safeGetItem('lastSeenVersion'),
+        safeGetItem('starterPackOwned'),
       ]);
       mark('storage_loaded');
 
@@ -648,6 +656,9 @@ export function Game() {
       if (necropolisRaw === '1') setNecropolisUnlocked(true);
       if (rogueRaw === '1') setAddToHomeUnlocked(true);
 
+      // Load starter pack status
+      if (starterPackRaw === '1') setStarterPackOwned(true);
+
       // Verify premium status — if save says premium, confirm the player actually made a purchase
       try {
         const hasPurchased = await RundotGameAPI.iap.hasUserMadePurchase();
@@ -655,13 +666,11 @@ export function Game() {
           if (hasPurchased) {
             setIsPremium(true);
           } else {
-            // False positive — premium was saved but no purchase was ever made
             safeSetItem('premiumUnlocked', '');
           }
         }
         if (!hasPurchased) setIsFirstTimeBuyer(true);
       } catch {
-        // If we can't verify, trust the saved value
         if (premiumRaw === '1') setIsPremium(true);
       }
 
@@ -948,6 +957,8 @@ export function Game() {
     if (!raw) return null;
     try {
       const saved = JSON.parse(raw) as GameState;
+      // Reject dead game states — never restore a game-over save
+      if (saved.gameOver) return null;
       // Validate minimum required fields
       if (!saved.player || !saved.floor || !saved.playerClass) return null;
       if (!saved.player.pos || typeof saved.player.pos.x !== 'number') return null;
@@ -1109,9 +1120,31 @@ export function Game() {
     }
     // Try to restore a saved game first
     if (hasAutoSave) {
-      const restored = await restoreGameState();
-      if (restored) return;
+      try {
+        const restored = await restoreGameState();
+        if (restored) return;
+      } catch {
+        setHasAutoSave(false);
+      }
     }
+    // Clean up stale state from previous run before showing class select
+    setState(null);
+    setShowInventory(false);
+    setShowShop(false);
+    setShowNPCDialogue(false);
+    setShowMercHire(false);
+    setShowBloodline(false);
+    setShowBestiary(false);
+    setShowLeaderboard(false);
+    setShowRunHistory(false);
+    setShowEchoTree(false);
+    setShowQuestLog(false);
+    setShowJournal(false);
+    setShowLegacyGear(false);
+    setAutoPlay(false);
+    setDeathInfo(null);
+    setActiveElderTip(null);
+    beginGameGuardRef.current = false;
     setScreen('classSelect');
   }, [hasAutoSave, restoreGameState]);
 
@@ -1175,6 +1208,14 @@ export function Game() {
           playerClass: state?.playerClass ?? 'none',
           generation: bloodlineRef.current.generation,
         });
+        try {
+          window.fbq?.('trackSingle', '1293676609379981', 'Purchase', {
+            value: cost,
+            currency: 'USD',
+            content_name: 'premium_no_ads',
+            content_type: 'product',
+          });
+        } catch {}
         setPurchaseStatus('');
       } else {
         setPurchaseStatus('Purchase did not complete.');
@@ -1185,6 +1226,53 @@ export function Game() {
       setTimeout(() => setPurchaseStatus(''), 4000);
     }
   }, [isFirstTimeBuyer]);
+
+  const STARTER_PACK_COST = 50;
+  const handleStarterPackPurchase = useCallback(async () => {
+    setPurchaseStatus('Loading...');
+    try {
+      const balance = await RundotGameAPI.iap.getHardCurrencyBalance();
+      if (balance < STARTER_PACK_COST) {
+        setPurchaseStatus('Not enough bucks! Opening store...');
+        await RundotGameAPI.iap.openStore();
+        setTimeout(() => setPurchaseStatus(''), 3000);
+        return;
+      }
+      const result = await RundotGameAPI.iap.spendCurrency('starter_pack', STARTER_PACK_COST) as any;
+      if (result?.success === true) {
+        setStarterPackOwned(true);
+        setShowStarterPackModal(false);
+        safeSetItem('starterPackOwned', '1');
+        // Grant 50 Essence Shards
+        const bl = structuredClone(bloodlineRef.current);
+        const legacyData = ensureLegacyData(bl);
+        addEssenceShards(legacyData, 50);
+        saveBloodline(bl);
+        setBloodline(bl);
+        try {
+          RundotGameAPI.analytics.recordCustomEvent('starter_pack_purchased', {
+            cost: STARTER_PACK_COST,
+            generation: bl.generation,
+          }).catch(() => {});
+        } catch {}
+        try {
+          window.fbq?.('trackSingle', '1293676609379981', 'Purchase', {
+            value: STARTER_PACK_COST,
+            currency: 'USD',
+            content_name: 'starter_pack',
+            content_type: 'product',
+          });
+        } catch {}
+        setPurchaseStatus('');
+      } else {
+        setPurchaseStatus('Purchase did not complete.');
+        setTimeout(() => setPurchaseStatus(''), 3000);
+      }
+    } catch (e: any) {
+      setPurchaseStatus(e?.message || 'Something went wrong.');
+      setTimeout(() => setPurchaseStatus(''), 4000);
+    }
+  }, []);
 
   const selectClassAndPickZone = useCallback((cls: PlayerClass) => {
     setSelectedClass(cls);
@@ -1198,7 +1286,12 @@ export function Game() {
     setScreen('zoneSelect');
   }, []);
 
+  const beginGameGuardRef = useRef(false);
+
   const beginGame = useCallback(async (zone: ZoneId, overrideClass?: PlayerClass) => {
+    if (beginGameGuardRef.current) return;
+    beginGameGuardRef.current = true;
+
     // Use override class if provided (for generated classes where state hasn't updated yet)
     const playerClass = overrideClass ?? selectedClass;
     
@@ -1228,6 +1321,7 @@ export function Game() {
             setGenerationMessage('Login cancelled. AI content requires authentication.');
             await new Promise(r => setTimeout(r, 2000));
             setShowGenerationLoading(false);
+            beginGameGuardRef.current = false;
             return;
           }
         } catch (loginErr) {
@@ -1235,6 +1329,7 @@ export function Game() {
           setGenerationMessage('Login failed. Please try again.');
           await new Promise(r => setTimeout(r, 2000));
           setShowGenerationLoading(false);
+          beginGameGuardRef.current = false;
           return;
         }
       }
@@ -1287,9 +1382,11 @@ export function Game() {
     const gs = safeEngineCall('newGame', () => newGame(playerClass, bloodlineRef.current, zone, echoBonuses, selectedRace));
     if (!gs) {
       if (isNarrativeZone) setShowGenerationLoading(false);
-      return; // engine error creating game — stay on screen
+      beginGameGuardRef.current = false;
+      return;
     }
     gs.premiumActive = isPremium;
+    if (starterPackOwned) applyStarterPackGear(gs);
     // Reset quest extra tracking for this run
     questExtraRef.current = {};
 
@@ -1344,7 +1441,15 @@ export function Game() {
         if (!val) setShowRangedTutorial(true);
       });
     }
+    beginGameGuardRef.current = false;
   }, [isPremium, selectedClass, selectedRace, tryShowElderTip]);
+
+  // Zone select auto-start: begin endless mode when screen transitions to zoneSelect
+  useEffect(() => {
+    if (screen === 'zoneSelect') {
+      beginGame('stone_depths');
+    }
+  }, [screen, beginGame]);
 
   // First-session auto-start: once data is loaded and autoStartRef is set,
   // drop the player directly into gameplay based on A/B test variant.
@@ -2963,7 +3068,7 @@ export function Game() {
       }
     } else if ((result.outcome === 'fail' || result.outcome === 'critical_fail') && pendingEncounter.failureEffect) {
       const penalty = pendingEncounter.failureEffect;
-      if (penalty.type === 'damage') {
+      if (penalty.type === 'damage' || penalty.type === 'trap') {
         const dmg = result.outcome === 'critical_fail' ? penalty.value * 2 : penalty.value;
         next.player.stats.hp = Math.max(0, next.player.stats.hp - dmg);
         next.messages.push({ text: `-${dmg} HP!`, color: '#ff4444', turn: next.turn });
@@ -4270,12 +4375,14 @@ export function Game() {
               else handleNecroTap();
             })}
             {menuBtn('QUESTS', '#88ccff', '#2266aa', '#2266aa88', 'quests', () => openQuestLog('title'))}
+            {menuBtn('LEGACY GEAR', '#c49eff', '#7733bb', '#c49eff88', 'legacy', () => setShowLegacyGear(true))}
           </div>
 
           {/* Tertiary buttons */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, width: '100%', maxWidth: 340, justifyContent: 'center', marginBottom: 8 }}>
             {menuBtn('BLOODLINE', '#ff6644', '#aa2222', '#aa222288', 'blood', () => { setShowBloodline(true); trackBloodlineOpened(); })}
             {menuBtn(isPremium ? '\u2B50 PREMIUM' : '2X GOLD', '#ffd700', '#aa8800', '#aa880088', 'gold', () => { setShowPremiumModal(true); trackOfferShown('premium'); })}
+            {!starterPackOwned && menuBtn('STARTER PACK', '#aa55cc', '#7733bb', '#aa55cc88', 'starter', () => setShowStarterPackModal(true))}
             {menuBtn('MORE', '#aaaaaa', '#555555', '#55555588', 'more', () => setShowMoreMenu(true))}
           </div>
 
@@ -4429,6 +4536,68 @@ export function Game() {
             </div>
           </div>
         )}
+        {showStarterPackModal && !starterPackOwned && (
+          <div style={premiumModalOverlayStyle} onClick={() => setShowStarterPackModal(false)}>
+            <div style={{ ...premiumModalBoxStyle, borderColor: '#7733bb', boxShadow: '0 0 30px #aa55cc44', maxWidth: 340, padding: '0 0 18px' }} onClick={e => e.stopPropagation()}>
+              {starterPackBannerUrl && (
+                <img src={starterPackBannerUrl} alt="Starter Pack" style={{ width: '100%', borderRadius: '0', imageRendering: 'pixelated' as const, display: 'block' }} />
+              )}
+              <div style={{ padding: '14px 20px 0' }}>
+                <div style={{ color: '#aa55cc', fontSize: 20, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', textShadow: '0 0 14px #aa55cc88', marginBottom: 4 }}>
+                  STARTER PACK
+                </div>
+                <div style={{ color: '#666', fontSize: 9, textAlign: 'center', marginBottom: 14, letterSpacing: 1 }}>One-time purchase &bull; Permanent unlocks</div>
+
+              {classPortraits['death_knight'] && (
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#0f0818', border: '1px solid #aa55cc44', padding: '10px 12px', marginBottom: 12 }}>
+                  <img src={classPortraits['death_knight']!} alt="Death Knight" style={{ width: 56, height: 56, objectFit: 'cover', imageRendering: 'pixelated' as const, border: '2px solid #aa55cc', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#cc88ff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>{'\u{1F480}'} Death Knight</div>
+                    <div style={{ color: '#998', fontSize: 10, lineHeight: '1.4' }}>A fallen knight reborn in darkness. Drains life from foes to fuel unholy power.</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 9, color: '#aa88cc' }}>
+                      <span>HP 30</span>
+                      <span>ATK 6</span>
+                      <span>DEF 4</span>
+                      <span>SPD 8</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                <div style={premiumPerkRowStyle}>
+                  <span style={{ color: '#aa55cc', fontSize: 14, flexShrink: 0 }}>{'\u{1F480}'}</span>
+                  <span><b style={{ color: '#cc88ff' }}>Death Knight Class</b> — Lifesteal, regen, soul harvesting &amp; Death Coil active ability</span>
+                </div>
+                <div style={premiumPerkRowStyle}>
+                  <span style={{ color: '#66ffaa', fontSize: 14, flexShrink: 0 }}>{'\u{2694}'}</span>
+                  <span><b style={{ color: '#66ffaa' }}>Starter Gear Kit</b> — Upgraded weapon + class armor for every hero, every run</span>
+                </div>
+                <div style={premiumPerkRowStyle}>
+                  <span style={{ color: '#c49eff', fontSize: 14, flexShrink: 0 }}>{'\u{2726}'}</span>
+                  <span><b style={{ color: '#c49eff' }}>50 Essence Shards</b> — Jumpstart your Legacy Gear upgrades</span>
+                </div>
+              </div>
+
+              {purchaseStatus ? (
+                <div style={{ color: '#ff6', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', marginBottom: 10 }}>{purchaseStatus}</div>
+              ) : null}
+              <button
+                style={{ ...premiumModalBuyBtnStyle, background: '#1a0828', borderColor: '#aa55cc', color: '#cc88ff', textShadow: '0 0 10px #aa55cc88', fontSize: 14, letterSpacing: 2, padding: '12px 0' }}
+                onClick={handleStarterPackPurchase}
+              >
+                {'[ BUY NOW — 50 Bucks ]'}
+              </button>
+              <button
+                style={{ ...premiumModalCancelStyle, width: '100%', textAlign: 'center', marginTop: 6 }}
+                onClick={() => setShowStarterPackModal(false)}
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
         {pendingLorePopup && (() => {
           const entry = ALL_LORE.find(e => e.id === pendingLorePopup);
           if (!entry) return null;
@@ -4463,8 +4632,12 @@ export function Game() {
     const unlockedHellborn = getHellbornClass(bloodline.bossKillLog ?? [], questEchoRef.current.unlockedEchoNodes);
     // Get all possible necropolis/hellborn classes so locked ones still appear
     const allNecro = getNecropolisClasses(999999, ['mas_class_3', 'mas_class_4']);
+    const deathKnightEntry = starterPackOwned ? DEATH_KNIGHT_CLASS : { ...DEATH_KNIGHT_CLASS, requiresBestFloor: 9999 };
+    const baseDefs = CLASS_DEFS.flatMap(c =>
+      c.id === 'impregnar' ? [deathKnightEntry, c] : [c]
+    );
     const allClasses = [
-      ...CLASS_DEFS,
+      ...baseDefs,
       ...allNecro.map(c => unlockedNecro.some(u => u.id === c.id) ? c : { ...c, requiresBestFloor: 9999 }),
       ...(unlockedHellborn.length > 0 ? unlockedHellborn : [{ ...HELLBORN_CLASS, requiresBestFloor: 9999 }]),
     ];
@@ -4599,6 +4772,21 @@ export function Game() {
                 }}
               >
                 Unlock Necro/Rev
+              </button>
+              <button
+                style={{
+                  background: starterPackOwned ? '#220044' : '#1a0033',
+                  color: starterPackOwned ? '#cc88ff' : '#aa55cc',
+                  border: '1px solid #aa55cc44', borderRadius: 4, padding: '2px 6px',
+                  fontFamily: 'monospace', fontSize: 9, cursor: 'pointer',
+                }}
+                onClick={() => {
+                  const next = !starterPackOwned;
+                  setStarterPackOwned(next);
+                  safeSetItem('starterPackOwned', next ? '1' : '');
+                }}
+              >
+                Pack: {starterPackOwned ? 'ON' : 'OFF'}
               </button>
               <button
                 style={{
@@ -4788,11 +4976,14 @@ export function Game() {
             const registrationLocked = cls.id === 'paladin' && !isRegistered;
             const rogueLocked = cls.id === 'rogue' && !addToHomeUnlocked;
             const impregnarLocked = cls.id === 'impregnar' && !hasWatchedDodShow;
-            const locked = floorLocked || registrationLocked || rogueLocked || impregnarLocked;
+            const deathKnightLocked = cls.id === 'death_knight' && !starterPackOwned;
+            const locked = floorLocked || registrationLocked || rogueLocked || impregnarLocked || deathKnightLocked;
             return (
               <button
                 key={cls.id}
-                style={locked ? (registrationLocked ? classCardRegLockedStyle : rogueLocked ? classCardRogueLockedStyle : impregnarLocked ? classCardLockedStyle : classCardLockedStyle) : classCardStyle}
+                style={locked
+                  ? (registrationLocked ? classCardRegLockedStyle : rogueLocked ? classCardRogueLockedStyle : deathKnightLocked ? classCardDKLockedStyle : impregnarLocked ? classCardLockedStyle : classCardLockedStyle)
+                  : (cls.id === 'death_knight' ? classCardDKStyle : classCardStyle)}
                 onClick={async () => {
                   if (registrationLocked) {
                     setActiveElderTip(ELDER_PALADIN_UNLOCK);
@@ -4800,13 +4991,14 @@ export function Game() {
                   }
                   if (rogueLocked) { setActiveElderTip(ELDER_ROGUE_UNLOCK); return; }
                   if (impregnarLocked) { setShowRunTvPopup(true); return; }
+                  if (deathKnightLocked) { setShowStarterPackModal(true); return; }
                   if (!locked) {
                     if (cls.id === 'rogue') tryShowElderTip(ELDER_ROGUE_FIRST_SELECT);
                     if (cls.id === 'paladin') tryShowElderTip(ELDER_PALADIN_FIRST_SELECT);
                     selectClassAndPickZone(cls.id);
                   }
                 }}
-                disabled={rogueLocked ? false : impregnarLocked ? false : floorLocked}
+                disabled={rogueLocked ? false : impregnarLocked ? false : deathKnightLocked ? false : floorLocked}
               >
                 {registrationLocked ? (
                   <>
@@ -4896,6 +5088,7 @@ export function Game() {
                       {cls.id === 'necromancer' ? 'Unlocked through the Necropolis'
                         : cls.id === 'revenant' ? 'Unlocked through the Necropolis'
                         : cls.id === 'hellborn' ? 'Defeat bosses with different classes'
+                        : cls.id === 'death_knight' ? 'Unlock with Starter Pack'
                         : `Reach floor ${cls.requiresBestFloor} to unlock`}
                     </div>
                   </>
@@ -5022,6 +5215,68 @@ export function Game() {
       {generationLoadingPortal}
       {addToHomePortal}
       {paladinUnlockPortal}
+      {showStarterPackModal && !starterPackOwned && (
+        <div style={premiumModalOverlayStyle} onClick={() => setShowStarterPackModal(false)}>
+          <div style={{ ...premiumModalBoxStyle, borderColor: '#7733bb', boxShadow: '0 0 30px #aa55cc44', maxWidth: 340, padding: '0 0 18px' }} onClick={e => e.stopPropagation()}>
+            {starterPackBannerUrl && (
+              <img src={starterPackBannerUrl} alt="Starter Pack" style={{ width: '100%', borderRadius: '0', imageRendering: 'pixelated' as const, display: 'block' }} />
+            )}
+            <div style={{ padding: '14px 20px 0' }}>
+              <div style={{ color: '#aa55cc', fontSize: 20, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', textShadow: '0 0 14px #aa55cc88', marginBottom: 4 }}>
+                STARTER PACK
+              </div>
+              <div style={{ color: '#666', fontSize: 9, textAlign: 'center', marginBottom: 14, letterSpacing: 1 }}>One-time purchase &bull; Permanent unlocks</div>
+
+              {classPortraits['death_knight'] && (
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#0f0818', border: '1px solid #aa55cc44', padding: '10px 12px', marginBottom: 12 }}>
+                  <img src={classPortraits['death_knight']!} alt="Death Knight" style={{ width: 56, height: 56, objectFit: 'cover', imageRendering: 'pixelated' as const, border: '2px solid #aa55cc', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#cc88ff', fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>{'\u{1F480}'} Death Knight</div>
+                    <div style={{ color: '#998', fontSize: 10, lineHeight: '1.4' }}>A fallen knight reborn in darkness. Drains life from foes to fuel unholy power.</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 9, color: '#aa88cc' }}>
+                      <span>HP 30</span>
+                      <span>ATK 6</span>
+                      <span>DEF 4</span>
+                      <span>SPD 8</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                <div style={premiumPerkRowStyle}>
+                  <span style={{ color: '#aa55cc', fontSize: 14, flexShrink: 0 }}>{'\u{1F480}'}</span>
+                  <span><b style={{ color: '#cc88ff' }}>Death Knight Class</b> — Lifesteal, regen, soul harvesting &amp; Death Coil active ability</span>
+                </div>
+                <div style={premiumPerkRowStyle}>
+                  <span style={{ color: '#66ffaa', fontSize: 14, flexShrink: 0 }}>{'\u{2694}'}</span>
+                  <span><b style={{ color: '#66ffaa' }}>Starter Gear Kit</b> — Upgraded weapon + class armor for every hero, every run</span>
+                </div>
+                <div style={premiumPerkRowStyle}>
+                  <span style={{ color: '#c49eff', fontSize: 14, flexShrink: 0 }}>{'\u{2726}'}</span>
+                  <span><b style={{ color: '#c49eff' }}>50 Essence Shards</b> — Jumpstart your Legacy Gear upgrades</span>
+                </div>
+              </div>
+
+              {purchaseStatus ? (
+                <div style={{ color: '#ff6', fontFamily: 'monospace', fontSize: 11, textAlign: 'center', marginBottom: 10 }}>{purchaseStatus}</div>
+              ) : null}
+              <button
+                style={{ ...premiumModalBuyBtnStyle, background: '#1a0828', borderColor: '#aa55cc', color: '#cc88ff', textShadow: '0 0 10px #aa55cc88', fontSize: 14, letterSpacing: 2, padding: '12px 0' }}
+                onClick={handleStarterPackPurchase}
+              >
+                {'[ BUY NOW — 50 Bucks ]'}
+              </button>
+              <button
+                style={{ ...premiumModalCancelStyle, width: '100%', textAlign: 'center', marginTop: 6 }}
+                onClick={() => setShowStarterPackModal(false)}
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showLegacyGear && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0a12' }}>
           <LegacyGearView
@@ -5132,7 +5387,7 @@ export function Game() {
     const bl = bloodlineRef.current;
     const unlockedCount = RACE_DEFS.filter(r => isRaceUnlocked(r, bl)).length;
     return (
-      <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 16 }}>
+      <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 16, paddingRight: 20, paddingBottom: 20, paddingLeft: 20 }}>
         <div style={{ ...titleTextStyle, fontSize: 18 }}>Choose Your Race</div>
         <div style={{ color: '#88aa88', fontFamily: 'monospace', fontSize: 11, marginBottom: 2 }}>
           Playing as <span style={{ color: classDef?.color ?? '#33ff66' }}>{classDef?.name ?? selectedClass}</span>
@@ -5296,13 +5551,12 @@ export function Game() {
   }
 
   if (screen === 'zoneSelect') {
-    beginGame('stone_depths');
     return null;
   }
 
   if (screen === 'gameover' && state) {
     return (
-      <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 30 }}>
+      <div style={{ ...fullScreenStyle, overflowY: 'auto', justifyContent: 'flex-start', paddingTop: 30, paddingRight: 20, paddingBottom: 20, paddingLeft: 20 }}>
         <div style={asciiBoxStyle}>
           <pre style={asciiFrameStyle}>{'+-====== GAME OVER ======-+'}</pre>
           {(() => {
@@ -5609,6 +5863,25 @@ export function Game() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
+            style={{ ...secondaryBtnStyle, color: '#c49eff', borderColor: '#7733bb', textShadow: '0 0 6px #c49eff44' }}
+            onClick={() => {
+              setShowLegacyGear(true);
+              trackDeathScreenAction({ action: 'legacy_gear_opened', generation: bloodline.generation, isFirstDeath: !!deathInfo?.isFirstDeath, isSecondDeath: !!deathInfo?.isSecondDeath });
+            }}
+          >
+            {`[ Legacy Gear \u2726 ${ensureLegacyData(bloodline).essenceShards} ]`}
+          </button>
+          {!starterPackOwned && (
+            <button
+              style={{ ...secondaryBtnStyle, color: '#aa55cc', borderColor: '#7733bb', textShadow: '0 0 6px #aa55cc44' }}
+              onClick={() => setShowStarterPackModal(true)}
+            >
+              {'[ Starter Pack ]'}
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
             style={deathInfo?.isSecondDeath ? {
               ...secondaryBtnStyle,
               color: '#ff6644',
@@ -5885,6 +6158,32 @@ export function Game() {
               </button>
             );
           })()}
+          {state.playerClass === 'death_knight' && (() => {
+            const dk = getDeathKnightInfo(state);
+            const ready = dk.cooldown === 0;
+            return (
+              <button
+                style={{
+                  ...actionBtnStyle,
+                  color: ready ? '#aa55cc' : '#555555',
+                  borderColor: ready ? '#aa55cc' : '#444444',
+                  textShadow: ready ? '0 0 8px #aa55cc88' : undefined,
+                  cursor: ready ? 'pointer' : 'not-allowed',
+                }}
+                onClick={() => {
+                  if (!state || state.gameOver) return;
+                  const next = { ...state };
+                  const ok = deathCoil(next);
+                  trackAbilityUsed({ ability: 'death_coil', playerClass: next.playerClass, floor: next.floorNumber, zone: next.zone, hpPercent: next.player.stats.hp / next.player.stats.maxHp, success: ok, source: 'manual' });
+                  if (ok) handleChange(next);
+                }}
+                disabled={!ready}
+                title={ready ? 'Death Coil! Heal 15 HP' : `Death Coil on cooldown (${dk.cooldown} turns)`}
+              >
+                {dk.cooldown > 0 ? `[ \u{1F480} ${dk.cooldown} ]` : '[ \u{1F480} COIL ]'}
+              </button>
+            );
+          })()}
           {/* Generated Class Ability Button */}
           {state.playerClass === 'generated' && (() => {
             const genInfo = getGeneratedClassInfo(state);
@@ -5947,6 +6246,14 @@ export function Game() {
           <button style={actionBtnStyle} onClick={() => setShowInventory(true)}>
             {'[ Bag ]'}
           </button>
+          {!isStoryMode && (
+            <button
+              style={{ ...actionBtnStyle, color: '#c49eff', borderColor: '#c49eff44' }}
+              onClick={() => setShowLegacyGear(true)}
+            >
+              {'[ Legacy ]'}
+            </button>
+          )}
           {/* Stories button - only show in narrative_test zone or if there are existing stories */}
           {(state.zone === 'narrative_test' || (bloodline.storyJournal?.length ?? 0) > 0) && (
             <button 
@@ -6092,6 +6399,7 @@ export function Game() {
           </div>
         </div>
       </div>
+      {state.pendingNarrativeSkillPick && <NarrativeSkillPicker state={state} onChange={handleChange} />}
       {showCharInfo && <CharacterInfo state={state} questEchoData={questEchoData} onClose={() => setShowCharInfo(false)} />}
       {showSkillTree && <SkillTreeView state={state} onChange={handleChange} onClose={() => setShowSkillTree(false)} />}
       {showQuestLog && <QuestLog data={questEchoData} characterQuests={state?.activeCharacterQuests} onClaim={handleClaimQuest} onClaimCharacterQuest={handleClaimCharacterQuest} onClose={() => setShowQuestLog(false)} onOpenEchoTree={() => { setShowQuestLog(false); openEchoTree('game_quest_log'); }} />}
@@ -6315,7 +6623,7 @@ export function Game() {
           <SkillCheckModal
             skill={chosenSkill}
             skillValue={state.skills[chosenSkill] ?? 10}
-            gearBonus={0}
+            gearBonus={getGearSkillBonus(state, chosenSkill)}
             target={pendingEncounter.target}
             description={pendingEncounter.description}
             imageUrl={skillCheckArtUrl}
@@ -6674,7 +6982,10 @@ const fullScreenStyle: CSSProperties = {
   width: '100%',
   height: '100%',
   background: '#000',
-  padding: 20,
+  paddingTop: 20,
+  paddingRight: 20,
+  paddingBottom: 20,
+  paddingLeft: 20,
   gap: 16,
   overflowY: 'auto',
 };
@@ -7115,6 +7426,22 @@ const classCardRegLockedStyle: CSSProperties = {
   border: '1px solid #8a6a1a',
   background: 'rgba(10, 8, 0, 0.75)',
   boxShadow: '0 0 8px #ffd70011',
+};
+
+const classCardDKStyle: CSSProperties = {
+  ...classCardStyle,
+  border: '1px solid #aa55cc',
+  background: 'rgba(20, 5, 30, 0.85)',
+  boxShadow: '0 0 12px #aa55cc33, inset 0 0 20px #aa55cc0a',
+};
+
+const classCardDKLockedStyle: CSSProperties = {
+  ...classCardStyle,
+  cursor: 'pointer',
+  border: '1px solid #7733bb88',
+  background: 'rgba(15, 5, 25, 0.75)',
+  boxShadow: '0 0 8px #aa55cc11',
+  opacity: 0.8,
 };
 
 /* premiumBtnStyle removed — baked into background image */

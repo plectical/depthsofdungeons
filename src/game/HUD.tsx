@@ -56,16 +56,16 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
 
   const nextXp = player.level < XP_PER_LEVEL.length ? (XP_PER_LEVEL[player.level] ?? 9999) : 9999;
 
-  const raceThumbUrl = useCdnImage(state.playerRace ? `races/${state.playerRace}.png` : '__noop__');
+  const raceThumbUrl = useCdnImage(state.playerRace ? `races/${state.playerRace}.png` : '');
   const isDinoForm = !!(state.dinoTransformTurns && state.dinoTransformTurns > 0) || !!state.dinoPermanent;
   const isGeneralTransform = !!(state._activeTransformId && ((state._transformTurns ?? 0) > 0 || state._transformPermanent));
   const activeTransformDef = isGeneralTransform && state._activeTransformId ? getTransformDef(state._activeTransformId) : undefined;
   const dinoTransformDef = isDinoForm ? getTransformDef('dino') : undefined;
   const transformDef = activeTransformDef ?? dinoTransformDef;
-  const transformPortraitPath = transformDef?.portrait ?? '__noop__';
+  const transformPortraitPath = transformDef?.portrait ?? '';
   const transformColor = transformDef?.color ?? '#44ff88';
-  const storyPortraitUrl = useCdnImage(isStoryMode ? 'story/story-sellsword.png' : '__noop__');
-  const transformPortraitUrl = useCdnImage(transformDef ? transformPortraitPath : '__noop__');
+  const storyPortraitUrl = useCdnImage(isStoryMode ? 'story/story-sellsword.png' : '');
+  const transformPortraitUrl = useCdnImage(transformDef ? transformPortraitPath : '');
 
   const generatedClassThumb = useCdnImage('generated-class-thumb.png');
   const portraits: Record<string, string | null> = {
@@ -83,12 +83,14 @@ export function HUD({ state, generation, isPremium, echoes, isStoryMode }: HUDPr
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
     necromancer: useCdnImage('necromancer-thumb.png'),
     revenant: useCdnImage('necromancer-thumb.png'),
+    death_knight: useCdnImage('death-knight-portrait.png'),
     generated: generatedClassThumb,
   };
 
   const classBorders: Record<string, string> = {
     warrior: '#ff6644', mage: '#8855ff', paladin: '#ffd700',
     rogue: '#ffcc33', ranger: '#33cc66', hellborn: '#ff2200',
+    death_knight: '#aa55cc',
     necromancer: '#aa44dd', revenant: '#ff4444', generated: '#44ff88',
   };
 

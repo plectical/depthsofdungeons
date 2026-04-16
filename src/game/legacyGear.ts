@@ -200,6 +200,117 @@ const HELLBORN_LEGACY: LegacyGearDef = {
   ),
 };
 
+// ── Necromancer: Legacy Skull ──
+const NECROMANCER_LEGACY: LegacyGearDef = {
+  classId: 'necromancer',
+  gearType: 'Skull',
+  icon: '\u{1F480}',
+  levels: buildLevels(
+    ['Cracked Skull', 'Whispering Skull', 'Deathspeaker', 'Lich Crown', "Necromancer's Dominion"],
+    ['#b0b0b0', '#aa44dd', '#cc55ee', '#ff9d17', '#ff2a6d'],
+    [
+      { attack: 1 }, { attack: 1, maxHp: 2 }, { attack: 2, maxHp: 2 }, { attack: 2, maxHp: 3 },
+      { attack: 3, maxHp: 3 }, { attack: 3, maxHp: 4 }, { attack: 3, maxHp: 5 }, { attack: 4, maxHp: 5 },
+      { attack: 4, maxHp: 6 }, { attack: 5, maxHp: 6 }, { attack: 5, maxHp: 7 }, { attack: 5, maxHp: 8 },
+      { attack: 6, maxHp: 8 }, { attack: 6, maxHp: 9 }, { attack: 7, maxHp: 9 }, { attack: 7, maxHp: 10 },
+      { attack: 7, maxHp: 10 }, { attack: 8, maxHp: 11 }, { attack: 8, maxHp: 12 }, { attack: 10, maxHp: 14 },
+    ],
+    [
+      undefined, undefined, undefined, undefined,
+      'legacy_necro_raise',
+      undefined, undefined, undefined, undefined,
+      'legacy_necro_plague',
+      undefined, undefined, undefined, undefined,
+      'legacy_necro_army',
+      undefined, undefined, undefined, undefined,
+      'legacy_necro_master',
+    ],
+  ),
+};
+
+// ── Revenant: Legacy Fang ──
+const REVENANT_LEGACY: LegacyGearDef = {
+  classId: 'revenant',
+  gearType: 'Fang',
+  icon: '\u{1F9B7}',
+  levels: buildLevels(
+    ['Chipped Fang', 'Blood Fang', 'Deathripper', 'Doom Fang', "Revenant's Fury"],
+    ['#b0b0b0', '#ff4444', '#ff2222', '#ff9d17', '#ff2a6d'],
+    [
+      { attack: 2 }, { attack: 3 }, { attack: 3 }, { attack: 4 },
+      { attack: 4, speed: 1 }, { attack: 5, speed: 1 }, { attack: 5, speed: 2 }, { attack: 6, speed: 2 },
+      { attack: 6, speed: 2 }, { attack: 7, speed: 3 }, { attack: 7, speed: 3 }, { attack: 8, speed: 3 },
+      { attack: 8, speed: 4 }, { attack: 9, speed: 4 }, { attack: 9, speed: 4 }, { attack: 10, speed: 5 },
+      { attack: 10, speed: 5 }, { attack: 11, speed: 5 }, { attack: 11, speed: 6 }, { attack: 14, speed: 7 },
+    ],
+    [
+      undefined, undefined, undefined, undefined,
+      'legacy_revenant_frenzy',
+      undefined, undefined, undefined, undefined,
+      'legacy_revenant_defy',
+      undefined, undefined, undefined, undefined,
+      'legacy_revenant_massacre',
+      undefined, undefined, undefined, undefined,
+      'legacy_revenant_master',
+    ],
+  ),
+};
+
+// ── Impregnar: Legacy Ovipositor ──
+const IMPREGNAR_LEGACY: LegacyGearDef = {
+  classId: 'impregnar' as import('./types').PlayerClass,
+  gearType: 'Ovipositor',
+  icon: '\u{1F41B}',
+  levels: buildLevels(
+    ['Larval Spike', 'Brood Tendril', 'Hive Stinger', 'Queen\'s Barb', "Impregnar's Swarm"],
+    ['#b0b0b0', '#88ff44', '#66cc33', '#ff9d17', '#ff2a6d'],
+    [
+      { attack: 1, maxHp: 1 }, { attack: 1, maxHp: 2 }, { attack: 2, maxHp: 2 }, { attack: 2, maxHp: 3 },
+      { attack: 2, maxHp: 4 }, { attack: 3, maxHp: 4 }, { attack: 3, maxHp: 5 }, { attack: 3, maxHp: 6 },
+      { attack: 4, maxHp: 6 }, { attack: 4, maxHp: 7 }, { attack: 4, maxHp: 8 }, { attack: 5, maxHp: 8 },
+      { attack: 5, maxHp: 9 }, { attack: 5, maxHp: 10 }, { attack: 6, maxHp: 10 }, { attack: 6, maxHp: 11 },
+      { attack: 6, maxHp: 12 }, { attack: 7, maxHp: 12 }, { attack: 7, maxHp: 13 }, { attack: 9, maxHp: 15 },
+    ],
+    [
+      undefined, undefined, undefined, undefined,
+      'legacy_impregnar_spawn',
+      undefined, undefined, undefined, undefined,
+      'legacy_impregnar_toxin',
+      undefined, undefined, undefined, undefined,
+      'legacy_impregnar_swarm',
+      undefined, undefined, undefined, undefined,
+      'legacy_impregnar_master',
+    ],
+  ),
+};
+
+const DEATH_KNIGHT_LEGACY: LegacyGearDef = {
+  classId: 'death_knight' as import('./types').PlayerClass,
+  gearType: 'Runeblade',
+  icon: '\u{1F480}',
+  levels: buildLevels(
+    ['Cracked Runeblade', 'Dark Runeblade', 'Deathforged Blade', 'Soulreaver', "Death Knight's Bane"],
+    ['#b0b0b0', '#8844aa', '#aa55cc', '#cc77ee', '#ff2a6d'],
+    [
+      { attack: 1, defense: 1 }, { attack: 2, defense: 1 }, { attack: 2, defense: 2 }, { attack: 3, defense: 2 },
+      { attack: 3, defense: 2, maxHp: 3 }, { attack: 4, defense: 3, maxHp: 3 }, { attack: 4, defense: 3, maxHp: 4 }, { attack: 5, defense: 3, maxHp: 4 },
+      { attack: 5, defense: 4, maxHp: 5 }, { attack: 6, defense: 4, maxHp: 5 }, { attack: 6, defense: 4, maxHp: 6 }, { attack: 7, defense: 5, maxHp: 6 },
+      { attack: 7, defense: 5, maxHp: 7 }, { attack: 8, defense: 5, maxHp: 7 }, { attack: 8, defense: 6, maxHp: 8 }, { attack: 9, defense: 6, maxHp: 8 },
+      { attack: 9, defense: 6, maxHp: 9 }, { attack: 10, defense: 7, maxHp: 9 }, { attack: 10, defense: 7, maxHp: 10 }, { attack: 12, defense: 8, maxHp: 12 },
+    ],
+    [
+      undefined, undefined, undefined, undefined,
+      'legacy_dk_drain',
+      undefined, undefined, undefined, undefined,
+      'legacy_dk_aura',
+      undefined, undefined, undefined, undefined,
+      'legacy_dk_army',
+      undefined, undefined, undefined, undefined,
+      'legacy_dk_master',
+    ],
+  ),
+};
+
 // All legacy gear definitions
 export const LEGACY_GEAR_DEFS: LegacyGearDef[] = [
   WARRIOR_LEGACY,
@@ -207,7 +318,11 @@ export const LEGACY_GEAR_DEFS: LegacyGearDef[] = [
   MAGE_LEGACY,
   RANGER_LEGACY,
   PALADIN_LEGACY,
+  NECROMANCER_LEGACY,
+  REVENANT_LEGACY,
   HELLBORN_LEGACY,
+  IMPREGNAR_LEGACY,
+  DEATH_KNIGHT_LEGACY,
 ];
 
 // ══════════════════════════════════════════════════════════════

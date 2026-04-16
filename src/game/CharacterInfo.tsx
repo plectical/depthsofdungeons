@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react';
-import type { GameState, ChoosableAbility, Element, QuestEchoData } from './types';
+import type { GameState, ChoosableAbility, Element, QuestEchoData, EquipSlot } from './types';
 import { getClassDef, getPlayerEffectiveStats } from './engine';
 import { getSkillNode } from './skillTree';
 import { computeEchoBonuses } from './echoTree';
@@ -173,11 +173,15 @@ export function CharacterInfo({ state, questEchoData, onClose }: CharacterInfoPr
   }));
 
   // Equipment summary
-  const slots: { label: string; slot: 'weapon' | 'armor' | 'ring' | 'amulet' }[] = [
+  const slots: { label: string; slot: EquipSlot }[] = [
     { label: 'Weapon', slot: 'weapon' },
+    { label: 'Offhand', slot: 'offhand' },
     { label: 'Armor', slot: 'armor' },
+    { label: 'Cloak', slot: 'cloak' },
+    { label: 'Boots', slot: 'boots' },
     { label: 'Ring', slot: 'ring' },
     { label: 'Amulet', slot: 'amulet' },
+    { label: 'Trinket', slot: 'trinket' },
   ];
 
   // Collect non-stat echo bonuses that are active
@@ -208,6 +212,7 @@ export function CharacterInfo({ state, questEchoData, onClose }: CharacterInfoPr
     'ranger-damaged': useCdnImage('ranger-damaged.jpg'),
     hellborn: useCdnImage('hellborn-portrait.jpg'),
     'hellborn-damaged': useCdnImage('hellborn-damaged.jpg'),
+    death_knight: useCdnImage('death-knight-portrait.png'),
   };
 
   const classBorders: Record<string, string> = {
@@ -377,6 +382,13 @@ export function CharacterInfo({ state, questEchoData, onClose }: CharacterInfoPr
                           const labels: Record<string, string> = { attack: 'ATK', defense: 'DEF', speed: 'SPD', maxHp: 'HP', hp: 'RGN' };
                           return `+${v} ${labels[k] ?? k}`;
                         }).join(', ')})
+                      </span>
+                    )}
+                    {item.skillBonus && (
+                      <span style={{ color: '#88ccff', fontSize: 9, marginLeft: 4 }}>
+                        ({Object.entries(item.skillBonus).filter(([,v]) => v).map(([k, v]) =>
+                          `+${v} ${k.charAt(0).toUpperCase() + k.slice(1, 3)}`
+                        ).join(', ')})
                       </span>
                     )}
                     {item.onHitEffect && (

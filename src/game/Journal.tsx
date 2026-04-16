@@ -103,14 +103,16 @@ export function Journal({ bloodline, questEchoData, seenIds, onMarkSeen, onClose
 }
 
 function EntryDetail({ entry, onBack }: { entry: LoreEntry; onBack: () => void }) {
-  const artUrl = useCdnImage(entry.artAsset ?? '__noop__');
+  const artUrl = useCdnImage(entry.artAsset ?? '');
+  const [imgFailed, setImgFailed] = useState(false);
 
   return (
     <div style={entryDetailStyle}>
-      {artUrl && (
+      {artUrl && entry.artAsset && !imgFailed && (
         <img
           src={artUrl}
           alt={entry.title}
+          onError={() => setImgFailed(true)}
           style={{
             width: '100%',
             aspectRatio: '16 / 9',

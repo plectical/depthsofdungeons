@@ -418,11 +418,11 @@ export function updateQuestProgress(
           : (r?.npcsTalkedTo ?? 0);
         break;
       case 'equip_rarity':
-        progress = (c.rarityEquipped[obj.qualifier!] || r?.rarityEquipped[obj.qualifier!]) ? 1 : 0;
+        progress = (c.rarityEquipped?.[obj.qualifier!] || r?.rarityEquipped?.[obj.qualifier!]) ? 1 : 0;
         break;
       case 'equip_named_item':
-        progress = (c.namedItemsEquipped.includes(obj.qualifier!)
-          || (r?.namedItemsEquipped.includes(obj.qualifier!) ?? false)) ? 1 : 0;
+        progress = ((c.namedItemsEquipped ?? []).includes(obj.qualifier!)
+          || ((r?.namedItemsEquipped ?? []).includes(obj.qualifier!))) ? 1 : 0;
         break;
       case 'unlock_traits':
         progress = traitCount;
@@ -544,35 +544,43 @@ export function mergeRunIntoCounters(data: QuestEchoData, run: RunQuestTracker):
     c.classAbilitiesUsed[cls] = (c.classAbilitiesUsed[cls] ?? 0) + count;
   }
   // Merge named food
-  for (const [name, count] of Object.entries(run.namedFoodEaten)) {
+  if (!c.namedFoodEaten) c.namedFoodEaten = {};
+  for (const [name, count] of Object.entries(run.namedFoodEaten ?? {})) {
     c.namedFoodEaten[name] = (c.namedFoodEaten[name] ?? 0) + count;
   }
   // Merge named potions
-  for (const [name, count] of Object.entries(run.namedPotionsUsed)) {
+  if (!c.namedPotionsUsed) c.namedPotionsUsed = {};
+  for (const [name, count] of Object.entries(run.namedPotionsUsed ?? {})) {
     c.namedPotionsUsed[name] = (c.namedPotionsUsed[name] ?? 0) + count;
   }
   // Merge terrain steps
-  for (const [type, count] of Object.entries(run.terrainSteps)) {
+  if (!c.terrainSteps) c.terrainSteps = {};
+  for (const [type, count] of Object.entries(run.terrainSteps ?? {})) {
     c.terrainSteps[type] = (c.terrainSteps[type] ?? 0) + count;
   }
   // Merge weapon type kills
-  for (const [type, count] of Object.entries(run.weaponTypeKills)) {
+  if (!c.weaponTypeKills) c.weaponTypeKills = {};
+  for (const [type, count] of Object.entries(run.weaponTypeKills ?? {})) {
     c.weaponTypeKills[type] = (c.weaponTypeKills[type] ?? 0) + count;
   }
   // Merge bosses defeated
-  for (const boss of run.bossesDefeated) {
+  if (!c.bossesDefeated) c.bossesDefeated = [];
+  for (const boss of (run.bossesDefeated ?? [])) {
     if (!c.bossesDefeated.includes(boss)) c.bossesDefeated.push(boss);
   }
   // Merge zones completed
-  for (const zone of run.zonesCompleted) {
+  if (!c.zonesCompleted) c.zonesCompleted = [];
+  for (const zone of (run.zonesCompleted ?? [])) {
     if (!c.zonesCompleted.includes(zone)) c.zonesCompleted.push(zone);
   }
   // Merge rarity equipped
-  for (const [rarity, equipped] of Object.entries(run.rarityEquipped)) {
+  if (!c.rarityEquipped) c.rarityEquipped = {};
+  for (const [rarity, equipped] of Object.entries(run.rarityEquipped ?? {})) {
     if (equipped) c.rarityEquipped[rarity] = true;
   }
   // Merge named items equipped
-  for (const name of run.namedItemsEquipped) {
+  if (!c.namedItemsEquipped) c.namedItemsEquipped = [];
+  for (const name of (run.namedItemsEquipped ?? [])) {
     if (!c.namedItemsEquipped.includes(name)) c.namedItemsEquipped.push(name);
   }
 

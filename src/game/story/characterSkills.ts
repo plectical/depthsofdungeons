@@ -62,6 +62,7 @@ const CLASS_SKILL_BONUSES: Record<PlayerClass, Partial<CharacterSkills>> = {
   revenant:    { stealth: 2, awareness: 3 },
   hellborn:    { athletics: 2, survival: 2, lore: 1 },
   impregnar:   { survival: 3, awareness: 2 },
+  death_knight: { lore: 2, athletics: 2, survival: 1 },
   generated:   { awareness: 2, lore: 2 },
 };
 

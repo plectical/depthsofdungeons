@@ -88,10 +88,10 @@ export interface Stats {
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
 // ── Equipment slots ──
-export type EquipSlot = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy';
+export type EquipSlot = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy' | 'trinket' | 'cloak' | 'boots';
 
 // ── Item types ──
-export type ItemType = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy' | 'potion' | 'scroll' | 'gold' | 'food' | 'shrine';
+export type ItemType = 'weapon' | 'armor' | 'ring' | 'amulet' | 'offhand' | 'legacy' | 'trinket' | 'cloak' | 'boots' | 'potion' | 'scroll' | 'gold' | 'food' | 'shrine';
 
 export interface Item {
   id: string;
@@ -290,7 +290,7 @@ export interface HungerState {
 }
 
 // ── Player classes ──
-export type PlayerClass = 'warrior' | 'rogue' | 'mage' | 'ranger' | 'necromancer' | 'revenant' | 'paladin' | 'hellborn' | 'impregnar' | 'generated';
+export type PlayerClass = 'warrior' | 'rogue' | 'mage' | 'ranger' | 'necromancer' | 'revenant' | 'paladin' | 'hellborn' | 'impregnar' | 'death_knight' | 'generated';
 
 export interface PassiveAbility {
   name: string;
@@ -639,6 +639,8 @@ export interface GameState {
   unlockedNodes: string[];
   /** Narrative skills (Stealth, Diplomacy, etc.) — rolled at run start */
   skills?: CharacterSkills;
+  /** True when the player must pick a narrative skill to improve on level-up */
+  pendingNarrativeSkillPick?: boolean;
   /** Runtime story state for the current run */
   runStory?: RunStoryState;
   /** Generated content cache for progressive floor generation */

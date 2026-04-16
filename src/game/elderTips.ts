@@ -99,7 +99,7 @@ export const ELDER_PALADIN_FIRST_SELECT: ElderTip = {
 
 export const ELDER_LEGACY_SHARD: ElderTip = {
   key: 'elder_legacy_shard',
-  message: "An Essence Shard... rare and precious. These fragments hold the memory of every battle your bloodline has fought. Collect enough and you can forge your Legacy Gear — a weapon unique to your class that grows stronger the more you invest. Find your Legacy in the class select screen. It can never be lost or sold. It is yours... forever.",
+  message: "An Essence Shard... rare and precious. These fragments hold the memory of every battle your bloodline has fought. Collect enough and you can forge your Legacy Gear — a weapon unique to your class that grows stronger the more you invest. Open Legacy Gear from the title screen, after a run, or tap Legacy during gameplay. It can never be lost or sold. It is yours... forever.",
 };
 
 export const ELDER_SKILL_CHECK: ElderTip = {

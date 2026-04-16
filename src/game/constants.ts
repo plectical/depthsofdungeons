@@ -315,6 +315,39 @@ export const AMULET_TEMPLATES: Omit<Item, 'id'>[] = [
   { name: 'Amulet of the Inferno', type: 'amulet', char: '"', color: '#ff6600', value: 45, equipSlot: 'amulet', element: 'fire', statBonus: { attack: 3 }, description: 'Chance to fireball', onHitEffect: { type: 'fireball', damage: 6, chance: 0.15 } },
 ];
 
+// ── Narrative gear (trinket / cloak / boots) ──
+// Primarily carry narrative skill bonuses with minor combat stats
+
+export const TRINKET_TEMPLATES: Omit<Item, 'id'>[] = [
+  { name: 'Scholar\'s Monocle', type: 'trinket', char: '\u{25CE}', color: '#ffdd88', value: 15, equipSlot: 'trinket', skillBonus: { lore: 2 }, description: 'Enhances the study of ancient texts' },
+  { name: 'Lockpick Set', type: 'trinket', char: '\u{25CE}', color: '#aaaaaa', value: 15, equipSlot: 'trinket', skillBonus: { stealth: 2, awareness: 1 }, description: 'For getting into places uninvited' },
+  { name: 'Diplomat\'s Signet', type: 'trinket', char: '\u{25CE}', color: '#ffcc44', value: 18, equipSlot: 'trinket', skillBonus: { diplomacy: 2 }, description: 'A seal of authority and persuasion' },
+  { name: 'Compass of the Wild', type: 'trinket', char: '\u{25CE}', color: '#66cc44', value: 15, equipSlot: 'trinket', skillBonus: { survival: 2 }, description: 'Always points toward safety' },
+  { name: 'Spyglass', type: 'trinket', char: '\u{25CE}', color: '#88ccff', value: 18, equipSlot: 'trinket', skillBonus: { awareness: 2, lore: 1 }, description: 'Reveals hidden details from afar' },
+  { name: 'Lucky Dice', type: 'trinket', char: '\u{25CE}', color: '#ff8888', value: 20, equipSlot: 'trinket', skillBonus: { diplomacy: 1, athletics: 1, stealth: 1 }, description: 'Fortune favors the bold' },
+  { name: 'Herbalist\'s Pouch', type: 'trinket', char: '\u{25CE}', color: '#55cc55', value: 22, equipSlot: 'trinket', skillBonus: { survival: 2, lore: 1 }, description: 'Full of medicinal herbs and notes' },
+  { name: 'Thief\'s Tools', type: 'trinket', char: '\u{25CE}', color: '#cc88ff', value: 25, equipSlot: 'trinket', skillBonus: { stealth: 3 }, description: 'A professional burglar\'s pride' },
+];
+
+export const CLOAK_TEMPLATES: Omit<Item, 'id'>[] = [
+  { name: 'Traveler\'s Cloak', type: 'cloak', char: '\u{2234}', color: '#886644', value: 12, equipSlot: 'cloak', statBonus: { defense: 1 }, skillBonus: { survival: 1 }, description: 'Warm and weatherproof' },
+  { name: 'Shadow Mantle', type: 'cloak', char: '\u{2234}', color: '#6644aa', value: 20, equipSlot: 'cloak', statBonus: { defense: 1 }, skillBonus: { stealth: 2 }, description: 'Blends into darkness' },
+  { name: 'Ranger\'s Cloak', type: 'cloak', char: '\u{2234}', color: '#448844', value: 18, equipSlot: 'cloak', statBonus: { defense: 1 }, skillBonus: { survival: 2, stealth: 1 }, description: 'Blends with the forest and stone' },
+  { name: 'Sage\'s Mantle', type: 'cloak', char: '\u{2234}', color: '#4488cc', value: 22, equipSlot: 'cloak', statBonus: { defense: 1 }, skillBonus: { lore: 2, awareness: 1 }, description: 'Worn by dungeon scholars' },
+  { name: 'Diplomat\'s Cape', type: 'cloak', char: '\u{2234}', color: '#cc8844', value: 20, equipSlot: 'cloak', statBonus: { defense: 1 }, skillBonus: { diplomacy: 2 }, description: 'Commands respect and attention' },
+  { name: 'Cloak of Thorns', type: 'cloak', char: '\u{2234}', color: '#44aa44', value: 28, equipSlot: 'cloak', statBonus: { defense: 2 }, skillBonus: { survival: 1 }, description: 'Woven with barbed vines', onDefendEffect: { type: 'thorns', damage: 1 } },
+  { name: 'Nightstalker\'s Shroud', type: 'cloak', char: '\u{2234}', color: '#332255', value: 35, equipSlot: 'cloak', element: 'dark', statBonus: { defense: 2 }, skillBonus: { stealth: 3, awareness: 1 }, description: 'Wraps the wearer in shadow' },
+];
+
+export const BOOTS_TEMPLATES: Omit<Item, 'id'>[] = [
+  { name: 'Leather Boots', type: 'boots', char: '\u{2229}', color: '#886644', value: 10, equipSlot: 'boots', statBonus: { speed: 1 }, skillBonus: { athletics: 1 }, description: 'Simple and sturdy' },
+  { name: 'Scout\'s Boots', type: 'boots', char: '\u{2229}', color: '#66aa44', value: 18, equipSlot: 'boots', statBonus: { speed: 1 }, skillBonus: { athletics: 1, stealth: 1 }, description: 'Light and quiet on stone' },
+  { name: 'Iron Greaves', type: 'boots', char: '\u{2229}', color: '#bbbbdd', value: 20, equipSlot: 'boots', statBonus: { defense: 1, speed: 1 }, skillBonus: { athletics: 2 }, description: 'Heavy but empowering' },
+  { name: 'Tracker\'s Moccasins', type: 'boots', char: '\u{2229}', color: '#aa7744', value: 18, equipSlot: 'boots', statBonus: { speed: 1 }, skillBonus: { survival: 2, awareness: 1 }, description: 'Feel every vibration in the stone' },
+  { name: 'Windrunner Boots', type: 'boots', char: '\u{2229}', color: '#88ddff', value: 30, equipSlot: 'boots', statBonus: { speed: 3 }, skillBonus: { athletics: 2 }, description: 'Light as the wind itself' },
+  { name: 'Shadowstep Boots', type: 'boots', char: '\u{2229}', color: '#7744aa', value: 35, equipSlot: 'boots', element: 'dark', statBonus: { speed: 2 }, skillBonus: { stealth: 3 }, description: 'Leave no footprints, make no sound' },
+];
+
 // ── Offhand items (class-specific) ──
 // Warriors: Shields — bonus defense, chance to block hits
 // Rogues: Off-hand Daggers — bonus attack + speed
@@ -654,3 +687,35 @@ export function isHellbornUnlocked(bossKillLog: string[], echoUnlockedNodes?: st
 export function getHellbornClass(bossKillLog: string[], echoUnlockedNodes?: string[]): ClassDef[] {
   return isHellbornUnlocked(bossKillLog, echoUnlockedNodes) ? [HELLBORN_CLASS] : [];
 }
+
+// ── Death Knight class (Starter Pack exclusive) ──
+
+export const DEATH_KNIGHT_ABILITIES: ChoosableAbility[] = [
+  { id: 'dk_death_coil', name: 'Death Coil', description: 'Heal 15 HP on use, 8 turn cooldown (tracked via stun mechanic)', icon: '\u{1F480}', color: '#aa55cc', minLevel: 2, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_runic_shield', name: 'Runic Shield', description: '+5 defense permanently', icon: '\u{1F6E1}', color: '#8844aa', minLevel: 2, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_dark_strike', name: 'Dark Strike', description: '20% chance to deal double damage with dark energy', icon: '\u{2694}', color: '#6633aa', minLevel: 3, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_bone_armor', name: 'Bone Armor', description: '+8 max HP, +2 defense permanently', icon: '\u{1F9B4}', color: '#bbaacc', minLevel: 3, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_soul_rend', name: 'Soul Rend', description: 'Attacks have 15% chance to stun for 1 turn', icon: '\u{1F300}', color: '#9944cc', minLevel: 4, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_undying_will', name: 'Undying Will', description: 'Survive a killing blow with 1 HP once per floor', icon: '\u{1F31F}', color: '#cc88ff', minLevel: 5, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_army_of_dead', name: 'Army of the Dead', description: 'Every 15 kills, deal 12 dark damage to all enemies on the floor', icon: '\u{2620}', color: '#7722aa', minLevel: 5, classId: 'death_knight' as PlayerClass },
+  { id: 'dk_death_grip', name: 'Death Grip', description: 'Pull ranged enemies to melee range when they attack', icon: '\u{270A}', color: '#aa33cc', minLevel: 6, classId: 'death_knight' as PlayerClass },
+];
+
+export const DEATH_KNIGHT_CLASS: ClassDef = {
+  id: 'death_knight' as PlayerClass,
+  name: 'Death Knight',
+  char: '@',
+  color: '#aa55cc',
+  description: 'A fallen knight reborn in darkness. Drains life from foes to fuel unholy power.',
+  baseStats: { hp: 30, maxHp: 30, attack: 6, defense: 4, speed: 8 },
+  levelBonusHp: 4,
+  levelBonusAtk: 2,
+  levelBonusDef: 1,
+  requiresBestFloor: 0,
+  passives: [
+    { name: 'Death\'s Embrace', description: '10% of melee damage dealt is returned as healing', unlockLevel: 1 },
+    { name: 'Unholy Resilience', description: 'Regenerate 1 HP per turn when below 50% HP', unlockLevel: 4 },
+    { name: 'Soul Harvest', description: 'Killing an enemy restores 5 HP', unlockLevel: 7 },
+  ],
+  abilityPool: DEATH_KNIGHT_ABILITIES,
+};
